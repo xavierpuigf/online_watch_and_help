@@ -96,7 +96,7 @@ if __name__ == "__main__":
             # if apartment != 4: continue
             # apartment = 3
 
-            with open(f'{curr_dir}/data/object_info%s.json' % (apartment + 1), 'r') as file:
+            with open(f'{curr_dir}/data/object_info_final.json', 'r') as file:
                 obj_position = json.load(file)
 
             # pdb.set_trace()bathroomcounter
@@ -105,7 +105,7 @@ if __name__ == "__main__":
             for obj, pos_list in obj_position.items():
                 if obj in ['book', 'remotecontrol']:
                     positions = [pos for pos in pos_list if \
-                                 pos[0] == 'INSIDE' and pos[1] in ['kitchencabinets', 'cabinet'] or \
+                                 pos[0] == 'INSIDE' and pos[1] in ['kitchencabinet', 'cabinet'] or \
                                  pos[0] == 'ON' and pos[1] in \
                                  (['cabinet', 'bench', 'nightstand'] + ([] if apartment == 2 else ['kitchentable']))]
                 elif obj == 'remotecontrol':
@@ -114,10 +114,10 @@ if __name__ == "__main__":
                                  ['tvstand']]
                 else:
                     positions = [pos for pos in pos_list if \
-                                 pos[0] == 'INSIDE' and pos[1] in ['fridge', 'kitchencabinets', 'cabinet', 'microwave',
+                                 pos[0] == 'INSIDE' and pos[1] in ['fridge', 'kitchencabinet', 'cabinet', 'microwave',
                                                                    'dishwasher', 'stove'] or \
                                  pos[0] == 'ON' and pos[1] in \
-                                 (['cabinet', 'coffeetable', 'bench'] + ([] if apartment == 2 else ['kitchentable']))]
+                                 (['cabinet', 'coffeetable', 'bench', 'kitchencounter'] + ([] if apartment == 2 else ['kitchentable']))]
                 obj_position[obj] = positions
             print(obj_position['cutleryfork'])
 
@@ -248,7 +248,7 @@ if __name__ == "__main__":
                                  'task_goal': task_goal,
                                  'level': 0, 'init_rooms': rand.sample(['kitchen', 'bedroom', 'livingroom', 'bathroom'], 2)})
 
-    pickle.dump(env_task_set, open(f'{curr_dir}/dataset/env_task_set_{args.num_per_apartment}_{args.mode}.pik', 'wb'))
+    pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/env_task_set_{args.num_per_apartment}_{args.mode}.pik', 'wb'))
 
 
 

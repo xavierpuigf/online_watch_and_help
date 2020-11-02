@@ -4,6 +4,7 @@ import sys
 import os
 import random
 import json
+import ipdb
 import numpy as np
 import copy
 import argparse
@@ -256,15 +257,17 @@ class SetInitialGoal:
         obj_size = self.convert_size(self.class_name_size[obj_name])
 
         surface_node = [node for node in graph['nodes'] if node['id'] == surface_id]
+
         if surface_id not in self.surface_size:
             surface_node = [node for node in graph['nodes'] if node['id'] == surface_id]
             assert len(surface_node)
             self.surface_size[surface_id] = self.convert_size(self.class_name_size[surface_node[0]['class_name']])
 
+
         if surface_id not in self.surface_used_size:
             objs_on_surface = [edge['from_id'] for edge in graph['edges'] if edge['to_id'] == surface_id]
 
-            objs_on_surface_node = [node for node in graph['nodes'] if node['id'] in objs_on_surface]
+            objs_on_surface_node = [node for node in graph['nodes'] if node['id'] in objs_on_surface and node['class_name'] != 'kitchencounterdrawer']
             objs_on_surface_size = [self.convert_size(self.class_name_size[node['class_name']]) for node in
                                     objs_on_surface_node]
             self.surface_used_size[surface_id] = np.sum(objs_on_surface_size)  # get size from the initial graph
@@ -276,6 +279,7 @@ class SetInitialGoal:
         if self.surface_size[surface_id] / 2 > self.surface_used_size[surface_id] + obj_size:
             self.surface_used_size[surface_id] += obj_size
             # print('1')
+
             return 1
         else:
             # print('0')
@@ -289,7 +293,7 @@ class SetInitialGoal:
 
     def add_obj(self, graph, obj_name, num_obj, object_id, objs_in_room=None, only_position=None, except_position=None, goal_obj=False):
         # Place num_obj of type obj_name, starting with object_id
-
+       
         if isinstance(except_position, int):
             except_position = [except_position]
         if isinstance(only_position, int):
@@ -306,12 +310,11 @@ class SetInitialGoal:
 
         # candidates = [(obj_rel_name[0], obj_rel_name[1]) for obj_rel_name in obj_position_pool[obj_name] if obj_rel_name[1] in ids_class.keys() and (except_position is None or obj_rel_name[1] not in except_position) and (only_position is None or obj_rel_name[1] in only_position)]
 
-        if obj_name == 'cutleryknife':
-            pdb.set_trace()
+        
 
         candidates = [(obj_rel_name[0], obj_rel_name[1]) for obj_rel_name in self.obj_position[obj_name] if
                       obj_rel_name[1] in ids_class.keys()]
-
+        print(candidates)
         id2node = {node['id']: node for node in graph['nodes']}
         success_add = 0
 
@@ -370,6 +373,7 @@ class SetInitialGoal:
 
                         if self.same_room and goal_obj:
                             if target_id in objs_in_room:
+                                ipdb.set_trace()
                                 break
                             else:
                                 num_place2 += 1
@@ -389,7 +393,6 @@ class SetInitialGoal:
 
                 ## check if it is possible to put object in this surface
                 placeable = self.check_placeable(graph, target_id, obj_name)
-
                 # print(obj_name, id2node[target_id]['class_name'], placeable)
                 # print('placing %s: %dth (total %d), success: %d' % (obj_name, i+1, num_obj, placeable))
 
@@ -410,6 +413,8 @@ class SetInitialGoal:
         if goal_obj:
             # print(success_add, num_obj)
             if success_add != num_obj:
+                print(obj_name,)
+                ipdb.set_trace()
                 return None, None, False
 
         return object_id, graph, True

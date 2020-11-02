@@ -1,5 +1,6 @@
 import random
 import pdb
+import ipdb
 class Task:
 
     @staticmethod
@@ -52,6 +53,7 @@ class Task:
                                                                 goal_obj=True)
             # print([node for node in graph['nodes'] if node['class_name'] == 'wineglass'])
             if not success:
+                ipdb.set_trace()
                 return None, None, False
 
         # pdb.set_trace()
