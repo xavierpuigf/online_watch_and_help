@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--num-per-apartment', type=int, default=1, help='Maximum #episodes/apartment')
 parser.add_argument('--seed', type=int, default=10, help='Seed for the apartments')
 
-parser.add_argument('--task', type=str, default='setup_table', help='Task name')
+parser.add_argument('--task', type=str, default='put_fridge', help='Task name')
 parser.add_argument('--apt_str', type=str, default='0,1,2,4,5', help='The apartments where we will generate the data')
 parser.add_argument('--port', type=str, default='8092', help='Task name')
 parser.add_argument('--display', type=int, default=0, help='Task name')
@@ -119,7 +119,6 @@ if __name__ == "__main__":
                                  pos[0] == 'ON' and pos[1] in \
                                  (['cabinet', 'coffeetable', 'bench', 'kitchencounter'] + ([] if apartment == 2 else ['kitchentable']))]
                 obj_position[obj] = positions
-            print(obj_position['cutleryfork'])
 
             num_test = 100000
             count_success = 0
@@ -139,8 +138,8 @@ if __name__ == "__main__":
                 ## -------------------------------------------------------------
                 set_init_goal = SetInitialGoal(obj_position, class_name_size, init_pool, task_name, same_room=False, rand=rand)
                 init_graph, env_goal, success_setup = getattr(Task, task_name)(set_init_goal, graph)
-                if env_goal is None:
-                    pdb.set_trace()
+                # if env_goal is None:
+                #     pdb.set_trace()
                 if success_setup:
                     # If all objects were well added
                     success, message = comm.expand_scene(init_graph, transfer_transform=False)
@@ -217,7 +216,8 @@ if __name__ == "__main__":
                                                            'original_graph': original_graph,
                                                            'goal': env_goal})
                 else:
-                    pdb.set_trace()
+                    pass
+                    # pdb.set_trace()
                 print('apartment: %d: success %d over %d (total: %d)' % (apartment, count_success, i + 1, num_test))
                 if count_success >= num_per_apartment:
                     break
@@ -226,27 +226,27 @@ if __name__ == "__main__":
     data = success_init_graph
     env_task_set = []
 
-    for task in ['setup_table', 'put_fridge', 'put_dishwasher', 'prepare_food', 'read_book']:
+    # for task in ['setup_table', 'put_fridge', 'put_dishwasher', 'prepare_food', 'read_book']:
         
-        for task_id, problem_setup in enumerate(data):
-            env_id = problem_setup['apartment'] - 1
-            task_name = problem_setup['task_name']
-            init_graph = problem_setup['init_graph']
-            goal = problem_setup['goal'][task_name]
+    for task_id, problem_setup in enumerate(data):
+        env_id = problem_setup['apartment'] - 1
+        task_name = problem_setup['task_name']
+        init_graph = problem_setup['init_graph']
+        goal = problem_setup['goal'][task_name]
 
-            goals = utils_goals.convert_goal_spec(task_name, goal, init_graph,
-                                                  exclude=['cutleryknife'])
-            print('env_id:', env_id)
-            print('task_name:', task_name)
-            print('goals:', goals)
+        goals = utils_goals.convert_goal_spec(task_name, goal, init_graph,
+                                              exclude=['cutleryknife'])
+        print('env_id:', env_id)
+        print('task_name:', task_name)
+        print('goals:', goals)
 
-            task_goal = {}
-            for i in range(2):
-                task_goal[i] = goals
+        task_goal = {}
+        for i in range(2):
+            task_goal[i] = goals
 
-            env_task_set.append({'task_id': task_id, 'task_name': task_name, 'env_id': env_id, 'init_graph': init_graph,
-                                 'task_goal': task_goal,
-                                 'level': 0, 'init_rooms': rand.sample(['kitchen', 'bedroom', 'livingroom', 'bathroom'], 2)})
+        env_task_set.append({'task_id': task_id, 'task_name': task_name, 'env_id': env_id, 'init_graph': init_graph,
+                             'task_goal': task_goal,
+                             'level': 0, 'init_rooms': rand.sample(['kitchen', 'bedroom', 'livingroom', 'bathroom'], 2)})
 
     pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/env_task_set_{args.num_per_apartment}_{args.mode}.pik', 'wb'))
 

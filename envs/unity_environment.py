@@ -236,8 +236,10 @@ class UnityEnvironment(BaseUnityEnvironment):
             return obs
 
         elif obs_type == 'full':
-            return self.get_graph()
-
+            graph = self.get_graph()
+            curr_graph = utils.inside_not_trans(graph)
+            self.full_graph = curr_graph
+            return curr_graph
         elif obs_type == 'visible':
             # Only objects in the field of view of the agent
             raise NotImplementedError
