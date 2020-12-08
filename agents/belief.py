@@ -504,7 +504,6 @@ class Belief():
                 for state in x['states']:
                     pred_name = self.bin_var_dict[state][0][0]
                     dict_state[pred_name] = self.bin_var_dict[state][1]
-                    print(x['id'], dict_state)
             except:
                 pass
         
