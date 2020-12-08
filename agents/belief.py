@@ -11,10 +11,20 @@ import json
 import copy
 
 class Belief():
-    def __init__(self, graph_gt, agent_id, prior=None, forget_rate=0.0, seed=None):
+    def __init__(self, graph_gt, agent_id, prior=None, seed=None, belief_params={}):
         if seed is not None:
             random.seed(seed)
             np.random.seed(seed)
+
+        self.knowledge_containers = True
+        self.forget_rate = 0.
+
+        if len(belief_params) > 0:
+            if 'forget_rate' in belief_params:
+                self.forget_rate = belief_params['forget_rate']
+            if 'knowledge_containers' in belief_params:
+                self.knowledge_containers = belief_params['knowledge_containers']
+        
 
         # Possible beliefs for some objects
         self.container_restrictions = {
@@ -82,8 +92,8 @@ class Belief():
         # Binary Variable Dict
         self.bin_var_dict = {}
         for bin_var in self.binary_variables:
-            self.bin_var_dict[bin_var.negative] = [[bin_var.positive, bin_var.negative], 0]
-            self.bin_var_dict[bin_var.positive] = [[bin_var.positive, bin_var.negative], 1]
+            self.bin_var_dict[bin_var.negative] = [[bin_var.positive, bin_var.negative], 1]
+            self.bin_var_dict[bin_var.positive] = [[bin_var.positive, bin_var.negative], 0]
 
         id2node = {}
         for x in graph_gt['nodes']:
@@ -104,13 +114,24 @@ class Belief():
         
         self.first_belief = copy.deepcopy(self.edge_belief) 
         self.first_room = copy.deepcopy(self.room_node) 
-        self.rate = forget_rate
+
 
     def update(self, origin, final):
+        origin_sm = scipy.special.softmax(origin)
+        final_sm = scipy.special.softmax(final)
+        # pdb.set_trace()
+        maxdelta = np.abs(origin_sm - final_sm)
+        signdelta = (final_sm - origin_sm ) * 1./(maxdelta+1e-9)
+        ratio_delta = np.ones(maxdelta.shape)*self.forget_rate
+        delta = signdelta * np.minimum(ratio_delta, maxdelta)
+        final = origin_sm + delta + 1e-9
 
-        dist_total = origin - final
-        ratio = (1 - np.exp(-self.rate*np.abs(origin-final)))
-        return origin - ratio*dist_total
+        return np.log(final) 
+        # dist_total = origin - final
+        # ratio = (1 - np.exp(-self.forget_rate*np.abs(origin-final)))
+        
+        # print(dist_total, ratio)
+        # return origin - ratio*dist_total
 
     def reset_to_priot_if_invalid(belief_node):
         # belief_node: [names, probs]
@@ -224,7 +245,15 @@ class Belief():
             if node['class_name'] in self.class_nodes_delete or node['category'] in self.categories_delete:
                 continue
             if node not in self.room_nodes:
-                room_array = np.ones(len(self.room_ids))
+                if node['id'] in container_ids and self.knowledge_containers:
+                    # We will place it in the original room
+                    room_container = [edge['to_id'] for edge in self.graph_init['edges'] if edge['from_id'] == node['id'] and edge['relation_type'] == 'INSIDE']
+                    assert(len(room_container) == 1)
+                    room_index = [it for it,index in enumerate(self.room_ids) if index == room_container[0]][0]
+                    room_array = -1e9 * np.ones(len(self.room_ids))
+                    room_array[room_index] = 1
+                else:
+                    room_array = np.ones(len(self.room_ids))
                 self.room_node[node['id']] = [self.room_ids, room_array]
         self.sampled_graph['edges'] = []
 
@@ -236,6 +265,9 @@ class Belief():
 
     def sample_from_belief(self, as_vh_state=False, ids_update=None):
         # Sample states
+        if ids_update is None:
+            self.sampled_graph['edges'] = []
+
         for node in self.sampled_graph['nodes']:
             if ids_update is not None and node['id'] not in ids_update:
                 continue
@@ -248,7 +280,6 @@ class Belief():
                 value_binary = 1 if rand_number < var_belief_value else 0
                 states.append(self.bin_var_dict[var_name][0][value_binary])
             node['states'] = states
-        
         node_inside = {}
         object_grabbed = []
         # Sample edges
@@ -473,6 +504,7 @@ class Belief():
                 for state in x['states']:
                     pred_name = self.bin_var_dict[state][0][0]
                     dict_state[pred_name] = self.bin_var_dict[state][1]
+                    print(x['id'], dict_state)
             except:
                 pass
         
