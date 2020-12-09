@@ -699,7 +699,28 @@
             "bathroomcabinet"
         ]
     ],
-    "pudding": [],
+    "pudding": [
+        [
+            "ON",
+            "kitchentable"
+        ],
+        [
+            "INSIDE",
+            "fridge"
+        ],
+        [
+            "INSIDE",
+            "trashcan"
+        ],
+        [
+            "ON",
+            "table"
+        ],
+        [
+            "ON",
+            "coffeetable"
+        ]
+    ],
     "folder": [
         [
             "ON",
@@ -954,12 +975,20 @@
             "table"
         ],
         [
+            "ON",
+            "kitchentable"
+        ],
+        [
             "INSIDE",
             "bag"
         ],
         [
             "ON",
             "nightstand"
+        ],
+        [
+            "ON",
+            "sofa"
         ]
     ],
     "cellphone": [

@@ -378,6 +378,11 @@ class ArenaMP(object):
         success = False
         while True:
             (obs, reward, done, infos), actions, agent_info = self.step()
+            print("\nAgent Step:")
+            print("----------")
+            print("Goals:", self.env.task_goal)
+            print("Action: ", actions)
+            print("Plan:", agent_info[0]['plan'][:4])
             success = infos['finished']
             if 'satisfied_goals' in infos:
                 saved_info['goals_finished'].append(infos['satisfied_goals'])

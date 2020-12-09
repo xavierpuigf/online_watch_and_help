@@ -2,11 +2,12 @@ import random
 import numpy as np
 from anytree import AnyNode as Node
 import copy
+from termcolor import colored
 import ipdb
 from tqdm import tqdm
 
 class MCTS:
-    def __init__(self, env, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, seed=1):
+    def __init__(self, env, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
         self.env = env
         self.discount = 1.0#0.4
         self.agent_id = agent_id
@@ -21,6 +22,7 @@ class MCTS:
         self.opponent_subgoal = None
         self.last_opened = None
         self.verbose = False
+        self.agent_params = agent_params
         np.random.seed(self.seed)
         random.seed(self.seed)
 
@@ -116,9 +118,9 @@ class MCTS:
                         # if self.agent_id == 2:# and node['id'] == 323:
                         #     ipdb.set_trace()
                         if node['id'] in remained_to_put:
-                            need_to_close = remained_to_put[node['id']] == 0 # finished putting
+                            need_to_close = self.agent_params['should_close'] and remained_to_put[node['id']] == 0 # finished putting
                         else:
-                            need_to_close = True
+                            need_to_close = True and self.agent_params['should_close']
                             
                             inside_objs = [edge['from_id'] for edge in curr_state_tmp['edges'] if edge['relation_type'] == 'INSIDE' and '({})'.format(edge['to_id']) == self.last_opened[1]]
                             for obj_id in inside_objs:
@@ -268,6 +270,8 @@ class MCTS:
                 num_steps += len(actions)
                 cost = sum(costs)
                 # print(cost)
+                if len(actions) == 0:
+                    ipdb.set_trace()
                 for action_id, action in enumerate(actions):
                     # Check if action can be performed
                     # if action_performed:

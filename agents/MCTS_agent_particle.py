@@ -269,9 +269,16 @@ def clean_graph(state, goal_spec, last_opened):
             else:
                 nodes_missing += [node['id'] for node in state['nodes'] if node['class_name'] == x]
     nodes_missing += [node['id'] for node in state['nodes'] if node['class_name'] == 'character' or node['category'] in ['Rooms', 'Doors']]
-    print("Missing ", nodes_missing)
+    def clean_node(curr_node):
+        return {
+            'id': curr_node['id'],
+            'class_name': curr_node['class_name'],
+            'category': curr_node['category'],
+            'states': curr_node['states'],
+            'properties': curr_node['properties']
+        }
 
-    id2node = {node['id']: node for node in state['nodes']}
+    id2node = {node['id']: clean_node(node) for node in state['nodes']}
     # print([node for node in state['nodes'] if node['class_name'] == 'kitchentable'])
     # print(id2node[235])
     # ipdb.set_trace()

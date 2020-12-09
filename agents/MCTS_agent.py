@@ -8,6 +8,7 @@ import json
 import multiprocessing
 import ipdb
 import pickle
+from termcolor import colored
 
 
 from . import belief
@@ -269,7 +270,14 @@ def clean_graph(state, goal_spec, last_opened):
                 nodes_missing += [node['id'] for node in state['nodes'] if node['class_name'] == x]
     nodes_missing += [node['id'] for node in state['nodes'] if node['class_name'] == 'character' or node['category'] in ['Rooms', 'Doors']]
 
-    id2node = {node['id']: node for node in state['nodes']}
+    def clean_node(curr_node):
+        return {
+            'id': curr_node['id'],
+            'class_name': curr_node['class_name'],
+            'category': curr_node['category'],
+            'states': curr_node['states']
+        }
+    id2node = {node['id']: clean_node(node) for node in state['nodes']}
     # print([node for node in state['nodes'] if node['class_name'] == 'kitchentable'])
     # print(id2node[235])
     # ipdb.set_trace()
@@ -393,7 +401,8 @@ class MCTS_agent:
     """
     def __init__(self, agent_id, char_index,
                  max_episode_length, num_simulation, max_rollout_steps, c_init, c_base, recursive=False,
-                 num_samples=1, num_processes=1, comm=None, logging=False, logging_graphs=False, seed=None):
+                 num_samples=1, num_processes=1, comm=None, logging=False, logging_graphs=False, 
+                 agent_params={}, seed=None):
         self.agent_type = 'MCTS'
         self.verbose = False
         self.recursive = recursive
@@ -410,6 +419,9 @@ class MCTS_agent:
         self.sim_env = VhGraphEnv()
         self.sim_env.pomdp = True
         self.belief = None
+
+        self.belief_params = agent_params['belief']
+        self.agent_params = agent_params
         self.max_episode_length = max_episode_length
         self.num_simulation = num_simulation
         self.max_rollout_steps = max_rollout_steps
@@ -421,9 +433,16 @@ class MCTS_agent:
         self.previous_belief_graph = None
         self.verbose = False
 
+        # self.should_close = True
+        # if self.planner_params:
+        #     if 'should_close' in self.planner_params:
+        #         self.should_close = self.planner_params['should_close']
+
         self.mcts = MCTS(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
                          self.num_simulation, self.max_rollout_steps,
-                         self.c_init, self.c_base)
+                         self.c_init, self.c_base, agent_params=self.agent_params)
+        # self.mcts.should_close = self.should_close
+
 
         if self.mcts is None:
             raise Exception
@@ -481,7 +500,7 @@ class MCTS_agent:
     def get_action(self, obs, goal_spec, opponent_subgoal=None):
 
         self.sample_belief(obs)
-        self.sim_env.reset(self.previous_belief_graph, {0: goal_spec, 1: goal_spec})
+        self.sim_env.reset(self.previous_belief_graph)
 
         last_action = self.last_action
         last_subgoal = self.last_subgoal
@@ -501,7 +520,6 @@ class MCTS_agent:
         root_action = None
         root_node = None
         verbose = self.verbose
-
 
         plan, root_node, subgoals = get_plan(None, root_action, root_node, self.sim_env, self.mcts, nb_steps, goal_spec, None, last_subgoal, last_action, opponent_subgoal, verbose=verbose)
         # ipdb.set_trace()
@@ -534,7 +552,7 @@ class MCTS_agent:
         """TODO: do no need this?"""
 
         self.previous_belief_graph = None
-        self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed)
+        self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed, belief_params=self.belief_params)
         # print("set")
         self.belief.sample_from_belief()
         graph_belief = self.sample_belief(observed_graph) #self.env.get_observations(char_index=self.char_index))
@@ -547,5 +565,7 @@ class MCTS_agent:
         self.sim_env.to_pomdp()
         self.mcts = MCTS(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
                          self.num_simulation, self.max_rollout_steps,
-                         self.c_init, self.c_base, seed=seed)
+                         self.c_init, self.c_base, seed=seed, agent_params=self.agent_params)
+
+        # self.mcts.should_close = self.should_close
 

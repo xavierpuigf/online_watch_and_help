@@ -161,7 +161,11 @@ class Belief():
             bin_vars = [x for x in bin_vars if x.default in self.states_consider]
             belief_dict = {}
             for bin_var in bin_vars:
-                belief_dict[bin_var.positive] = 0.5
+                if bin_var.positive == 'OFF' and 'light' not in object_name:
+                    # TODO: set a max prob
+                    belief_dict[bin_var.positive] = 0.
+                else:
+                    belief_dict[bin_var.positive] = 0.5
 
             self.node_to_state_belief[node['id']] = belief_dict
 
@@ -279,6 +283,7 @@ class Belief():
                 rand_number = random.random()
                 value_binary = 1 if rand_number < var_belief_value else 0
                 states.append(self.bin_var_dict[var_name][0][value_binary])
+
             node['states'] = states
         node_inside = {}
         object_grabbed = []

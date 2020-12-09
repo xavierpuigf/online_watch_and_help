@@ -253,7 +253,8 @@ class SetInitialGoal:
         size = envsize[0] * envsize[2]
         return size
 
-    def check_placeable(self, graph, surface_id, obj_name):
+    def check_placeable(self, graph, surface_id, obj_name, relation='ON'):
+
         obj_size = self.convert_size(self.class_name_size[obj_name])
 
         surface_node = [node for node in graph['nodes'] if node['id'] == surface_id]
@@ -264,13 +265,17 @@ class SetInitialGoal:
             self.surface_size[surface_id] = self.convert_size(self.class_name_size[surface_node[0]['class_name']])
 
 
+        classes_discount = ['kitchencounterdrawer', 'oventray']
         if surface_id not in self.surface_used_size:
-            objs_on_surface = [edge['from_id'] for edge in graph['edges'] if edge['to_id'] == surface_id]
+            objs_on_surface = [edge['from_id'] for edge in graph['edges'] if edge['to_id'] == surface_id and edge['relation_type'] == relation]
 
-            objs_on_surface_node = [node for node in graph['nodes'] if node['id'] in objs_on_surface and node['class_name'] != 'kitchencounterdrawer']
+            objs_on_surface_node = [node for node in graph['nodes'] if node['id'] in objs_on_surface and node['class_name'] not in classes_discount]
             objs_on_surface_size = [self.convert_size(self.class_name_size[node['class_name']]) for node in
                                     objs_on_surface_node]
             self.surface_used_size[surface_id] = np.sum(objs_on_surface_size)  # get size from the initial graph
+
+        # if surface_node[0]['class_name'] == 'microwave':
+        #     ipdb.set_trace()
 
         # print(self.surface_size[surface_id])
         # print(self.surface_used_size[surface_id], obj_size, self.surface_used_size[surface_id]+obj_size)
@@ -282,6 +287,14 @@ class SetInitialGoal:
 
             return 1
         else:
+            # if obj_name == 'book':
+            #     objs_on_surface = [edge['from_id'] for edge in graph['edges'] if edge['to_id'] == surface_id and edge['relation_type'] == relation]
+
+            #     print(obj_name, len(objs_on_surface), surface_node[0]['class_name'])
+                
+                # if surface_node[0]['class_name'] == "cabinet":
+                #     pdb.set_trace()
+                #ipdb.set_trace()
             # print('0')
             return 0
 
@@ -314,7 +327,8 @@ class SetInitialGoal:
 
         candidates = [(obj_rel_name[0], obj_rel_name[1]) for obj_rel_name in self.obj_position[obj_name] if
                       obj_rel_name[1] in ids_class.keys()]
-        print(candidates)
+        # print(candidates)
+        print("Placing: {}. Candidates: {}".format(obj_name, candidates))
         id2node = {node['id']: node for node in graph['nodes']}
         success_add = 0
 
@@ -363,11 +377,15 @@ class SetInitialGoal:
                     while 1:
                         if num_place2 > self.max_num_place:
                             break
-
+                        if len(candidates) == 0:
+                            ipdb.set_trace()
                         relation, target_classname = self.rand.choice(candidates)
+                        
+                        candidate_obj = [x[1] for x in candidates]
                         target_id = self.rand.choice(ids_class[target_classname])
 
                         target_id_name = [node['class_name'] for node in graph['nodes'] if node['id'] == target_id]
+
                         if 'livingroom' in target_id_name and obj_name == 'plate':
                             pdb.set_trace()
 
@@ -386,13 +404,19 @@ class SetInitialGoal:
                     #         pdb.set_trace()
 
                     ## target in except_position
+
+                        
                     if ((except_position != None) and (target_id in except_position)) or (
                             num_place2 > self.max_num_place):
                         num_place += 1
                         continue
 
                 ## check if it is possible to put object in this surface
-                placeable = self.check_placeable(graph, target_id, obj_name)
+                # if target_classname == 'microwave' or target_classname == 'stove':
+                #     ipdb.set_trace()
+                placeable = self.check_placeable(graph, target_id, obj_name, relation=relation)
+
+                # print(target_classname, 'placed in ', obj_name, 'Success', placeable)
                 # print(obj_name, id2node[target_id]['class_name'], placeable)
                 # print('placing %s: %dth (total %d), success: %d' % (obj_name, i+1, num_obj, placeable))
 
@@ -413,8 +437,8 @@ class SetInitialGoal:
         if goal_obj:
             # print(success_add, num_obj)
             if success_add != num_obj:
-                print(obj_name,)
-                ipdb.set_trace()
+                # print(obj_name)
+                # ipdb.set_trace()
                 return None, None, False
 
         return object_id, graph, True

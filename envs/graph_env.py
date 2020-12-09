@@ -6,9 +6,11 @@ import itertools
 import os
 import sys
 
+
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(f'{curr_dir}/../../virtualhome/simulation/')
 
+from termcolor import colored
 from evolving_graph.utils import load_graph_dict, load_name_equivalence, graph_dict_helper
 from evolving_graph.execution import ScriptExecutor, ExecutionInfo
 from evolving_graph.scripts import read_script_from_string
@@ -87,7 +89,7 @@ class VhGraphEnv():
     def __init__(self, n_chars=1, max_nodes=200):
         self.graph_helper = graph_dict_helper()
         self.n_chars = n_chars
-        self.name_equivalence = load_name_equivalence()
+        self.name_equivalence = None
         
         self.state = None
         self.observable_state_n = [None for i in range(self.n_chars)]
@@ -208,9 +210,11 @@ class VhGraphEnv():
         for i in range(self.n_chars):
             script = read_script_from_string(scripts.get(i, ""))
             succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
+            if not succeed:
+                return False, next_vh_state
 
         # state = next_vh_state.to_dict() 
-        return next_vh_state
+        return True, next_vh_state
 
     def get_vh_state(self, state, name_equivalence=None, instance_selection=True):
         if name_equivalence is None:
@@ -219,36 +223,6 @@ class VhGraphEnv():
         return EnvironmentState(EnvironmentGraph(state), self.name_equivalence, instance_selection=True)
 
 
-    def reset_graph(self, state_graph):
-
-        state = self._remove_house_obj(state_graph)
-        
-        for i in range(self.n_chars):
-            self.executor = ScriptExecutor(EnvironmentGraph(state), self.name_equivalence, i)
-
-        self.character_n = [None for i in range(self.n_chars)]
-        chars = [node for node in state["nodes"] if node["category"] == "Characters"]
-        chars.sort(key=lambda node: node['id']) 
-        assert len(chars) == self.n_chars
-
-        self.character_n = chars
-
-        self.rooms = []
-        for node in state["nodes"]:
-            if node["category"] == "Rooms":
-                self.rooms.append(node)
-        self.rooms_ids = [n["id"] for n in self.rooms]
-        self.state = state
-        self.vh_state = self.get_vh_state(state)
-
-        for i in range(self.n_chars):
-            observable_state_n = [self._mask_state(state, i) if self.pomdp else state for i in range(self.n_chars)]
-            self.observable_state_n = observable_state_n
-            self.observable_object_ids_n = [[node['id'] for node in obs_state['nodes']] for obs_state in observable_state_n]
-
-
-
-        return observable_state_n
 
 
     def fill_missing_states(self, state):
@@ -265,7 +239,7 @@ class VhGraphEnv():
 
     # TODO: Now the random function doesn't align with the manually set seed
     # task_goals_n is a list of list that represents the goals of every agent
-    def reset(self, state, task_goals_n):
+    def reset(self, state):
         ############ State ############
 
         state = self._remove_house_obj(state)
@@ -299,18 +273,6 @@ class VhGraphEnv():
 
 
         return observable_state_n
-
-    def is_terminal(self, char_id, state):
-        # masked_state = self._mask_state(state, char_id)
-        # print('is_terminal:', [e for e in state['edges'] if 2038 in e.values()])
-        # print('is_terminal:', [e for e in masked_state['edges'] if 2038 in e.values()])
-        # print('is_terminal:', [(n['class_name'], n['id']) for n in masked_state['nodes']])
-        #return self.tasks_n[char_id].measure_progress(self._mask_state(state, char_id), char_id)
-        # progress_per_task = [task.measure_progress(self._mask_state(state, char_id), char_id) for task in self.tasks_n[char_id]]
-        # return all(progress_per_task)
-        return False
-        return abs(self.reward(char_id, state) - 1) < 1e-6
-
 
     def render(self, mode='human', close=False):
         return

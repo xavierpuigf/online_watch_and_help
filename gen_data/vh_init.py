@@ -22,10 +22,10 @@ from init_goal_setter.tasks import Task
 from utils import utils_goals
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--num-per-apartment', type=int, default=1, help='Maximum #episodes/apartment')
+parser.add_argument('--num-per-apartment', type=int, default=10, help='Maximum #episodes/apartment')
 parser.add_argument('--seed', type=int, default=10, help='Seed for the apartments')
 
-parser.add_argument('--task', type=str, default='put_fridge', help='Task name')
+parser.add_argument('--task', type=str, default='setup_table', help='Task name')
 parser.add_argument('--apt_str', type=str, default='0,1,2,4,5', help='The apartments where we will generate the data')
 parser.add_argument('--port', type=str, default='8092', help='Task name')
 parser.add_argument('--display', type=int, default=0, help='Task name')

@@ -2,6 +2,7 @@ import random
 import numpy as np
 from anytree import AnyNode as Node
 import copy
+from termcolor import colored
 import ipdb
 from tqdm import tqdm
 from utils import utils_environment as utils_env
@@ -211,16 +212,21 @@ class MCTS_particles:
             particle_id = random.randint(0, len(belief_set)-1)
             state_particle = belief_set[particle_id]
             state_graph = state_particle[1]
+
             # print("Simulation: {}, state_graph {}".format(explore_step, particle_id))
             # if explore_step == 19:
             #     ipdb.set_trace()
+            # print([node for node in state_graph['nodes'] if node['id'] == 312])
+
             node_path = [curr_node]
             state_path = [state_particle]
 
             tmp_t = t
             
             past_children = curr_node.children
-            curr_state = state_particle
+            curr_state = copy.deepcopy(state_particle)
+
+
             curr_node, actions = self.expand(curr_node, tmp_t, curr_state)
             
 
@@ -229,14 +235,17 @@ class MCTS_particles:
             no_children = False
             if len(actions) == 0:
                 ipdb.set_trace()
+
             while new_children == 0:
-                print("Selecting child...", tmp_t)
-                next_node, next_state = self.select_child(curr_node, state_particle, actions)
+                # print("Selecting child...", tmp_t)
+                next_node, next_state = self.select_child(curr_node, curr_state, actions)
+
                 if next_node is None:
                     no_children = True
                     break
 
-                next_node.state_set.append(copy.deepcopy(next_state))
+                # Note: no need to save state_set for our implementation
+                # next_node.state_set.append(copy.deepcopy(next_state))
                 
                 node_path.append(next_node)
                 state_path.append(next_state)
@@ -248,7 +257,6 @@ class MCTS_particles:
                 old_children = curr_node.children
                 curr_node, actions = self.expand(curr_node, tmp_t, curr_state)
                 new_children = len(curr_node.children) - len(old_children)
-
 
             if no_children:
                 continue
@@ -296,6 +304,7 @@ class MCTS_particles:
         curr_vh_state, curr_state, satisfied, unsatisfied = state_particle
         sum_reward = 0
         last_reward = 0
+        curr_vh_state = copy.deepcopy(curr_vh_state)
         satisfied = copy.deepcopy(satisfied)
         unsatisfied = copy.deepcopy(unsatisfied)
 
@@ -334,10 +343,13 @@ class MCTS_particles:
                     # if action_performed:
                     action_str = self.get_action_str(action)
                     try:
-                        next_vh_state = self.env.transition(curr_vh_state, {0: action_str})
+                        success, next_vh_state = self.env.transition(curr_vh_state, {0: action_str})
                     except:
                         traceback.print_exc() 
                         ipdb.set_trace()
+                    if not success:
+                        ipdb.set_trace()
+                        print("Failure", action_str)
                     next_state = next_vh_state.to_dict()
                     curr_vh_state, curr_state = next_vh_state, next_state
 
@@ -373,27 +385,35 @@ class MCTS_particles:
 
 
     def select_child(self, curr_node, curr_state, actions):
-        print("Child...", actions)
+        # print("Child...", actions)
         possible_children = [child for child in curr_node.children if child.id[-1][-1] in actions]
         scores = [
             self.calculate_score(curr_node, child, len(actions))
             for child in possible_children
         ]
-        if len(scores) == 0: return None
+        if len(scores) == 0:
+            return None, None
         maxIndex = np.argwhere(scores == np.max(scores)).flatten()
         selected_child_index = random.choice(maxIndex)
         selected_child = possible_children[selected_child_index]
         
         goal_spec, _, actions = selected_child.id[1]
-        print("Selecting child,..", actions)
+        # print("Selecting child,..", actions)
 
         next_vh_state = curr_state[0]
+        # print("\nSelect child")
+        # print(actions)
+        # print([edge for edge in curr_state[1]['edges'] if edge['from_id'] == 1 and edge['to_id'] == 457])
+        # print('.....')
         try:
-            next_vh_state = self.env.transition(next_vh_state, {0: actions})
+            success, next_vh_state = self.env.transition(next_vh_state, {0: actions})
         except:
             ipdb.set_trace()
+        if not success:
+            print("Failure", actions)
         final_vh_state = next_vh_state
         final_state = final_vh_state.to_dict()
+
         satisfied, unsatisfied = utils_env.check_progress(final_state, goal_spec)
         next_state = (final_vh_state, final_state, satisfied, unsatisfied)
         return selected_child, next_state
@@ -466,9 +486,13 @@ class MCTS_particles:
 
         goals_expanded = 0
 
-        current_actions_children = [node.id[-1][-1] for node in node.children]
+        current_actions_children = [nodech.id[-1][-1] for nodech in node.children]
 
         actions_heuristic, costs = [], []
+        current_action = node.id[-1][-1]
+
+
+
         for goal_predicate in subgoals:
             goal, predicate, aug_predicate = goal_predicate[0], goal_predicate[1], goal_predicate[2] # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
@@ -476,6 +500,7 @@ class MCTS_particles:
             if action_heuristic[0] not in actions_heuristic:
                 actions_heuristic.append(self.get_action_str(action_heuristic[0]))
                 costs.append(cost[0])
+
 
         for action, cost in zip(actions_heuristic, costs):
             
@@ -485,30 +510,34 @@ class MCTS_particles:
                 continue
 
             # print(goal_predicate, cost)
-            next_vh_state = vh_state
-            actions_str = []
+            # next_vh_state = copy.deepcopy(vh_state)
+            # actions_str = []
 
             
-            next_vh_state = self.env.transition(next_vh_state, {0: action_str})
-            goals_expanded += 1
+            # next_vh_state = self.env.transition(next_vh_state, {0: action_str})
+            # goals_expanded += 1
 
-            next_satisfied = copy.deepcopy(satisfied)
-            next_unsatisfied = copy.deepcopy(unsatisfied)
-            if aug_predicate is not None:
-                next_satisfied[predicate].append(aug_predicate)
-            next_unsatisfied[predicate] -= 1
+            # next_satisfied = copy.deepcopy(satisfied)
+            # next_unsatisfied = copy.deepcopy(unsatisfied)
+            # if aug_predicate is not None:
+            #     next_satisfied[predicate].append(aug_predicate)
+            # next_unsatisfied[predicate] -= 1
+            # belief_states = [next_vh_state, next_vh_state.to_dict(), next_satisfied, next_unsatisfied]
 
-            belief_states = [next_vh_state, next_vh_state.to_dict(), next_satisfied, next_unsatisfied]
+            belief_states = []
 
-            
-            Node(parent=node,
-                 id=(goal, [goal_spec, len(actions_heuristic), action_str]),
-                 state_set=belief_states,
-                 num_visited=0,
-                 sum_value=0,
-                 subgoal_prior=1.0 / 1.0,
-                 is_expanded=False)
+            new_node = Node(
+                parent=node,
+                id=(goal, [goal_spec, len(actions_heuristic), action_str]),
+                state_set=belief_states,
+                num_visited=0,
+                sum_value=0,
+                subgoal_prior=1.0 / 1.0,
+                is_expanded=False)
 
+
+        
+        # ipdb.set_trace()
         # if goals_expanded == 0:
         #     return None, []
         return node, actions_heuristic
