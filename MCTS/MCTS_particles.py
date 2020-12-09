@@ -11,7 +11,7 @@ import traceback
 class MCTS_particles:
     def __init__(self, sim_env, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
         self.env = sim_env
-        self.discount = 1.0#0.4
+        self.discount = 0.95 #0.4
         self.agent_id = agent_id
         self.char_index = char_index
         self.max_episode_length = max_episode_length
@@ -203,7 +203,7 @@ class MCTS_particles:
         #     particle_id = random.randint(0, len(belief_set)-1)
         #     state_particle = belief_set[particle_id]
         #     curr_root = self.expand(curr_root, t, state_particle)
-
+        self.num_simulation = 100
         for explore_step in tqdm(range(self.num_simulation)):
             curr_node = curr_root
 
@@ -236,16 +236,29 @@ class MCTS_particles:
             if len(actions) == 0:
                 ipdb.set_trace()
 
+            it = 0
+            costs = [0]
+            rewards = [0]
             while new_children == 0:
                 # print("Selecting child...", tmp_t)
-                next_node, next_state = self.select_child(curr_node, curr_state, actions)
+                # if it == 1:
+                #     print('---')
+                #     for ch in curr_node.children:
 
+                #         info = self.calculate_score(curr_node, ch, len(actions), info=True)
+                #         print('{}, #visit: {}, sc: {}, score: {}, u: {}, q: {}'.format(
+                #             ch.id[-1][-1], ch.num_visited, ch.sum_value, info['score'], info['u'], info['q']))
+                #     print('--')
+                
+                next_node, next_state, cost, reward = self.select_child(curr_node, curr_state, actions)
+                costs.append(cost)
+                rewards.append(reward)
+                # print('{}, #visit: {}, value: {}'.format(next_node.id[-1][-1], next_node.num_visited, next_node.sum_value))
                 if next_node is None:
                     no_children = True
                     break
 
-                # Note: no need to save state_set for our implementation
-                # next_node.state_set.append(copy.deepcopy(next_state))
+                it += 1
                 
                 node_path.append(next_node)
                 state_path.append(next_state)
@@ -258,6 +271,8 @@ class MCTS_particles:
                 curr_node, actions = self.expand(curr_node, tmp_t, curr_state)
                 new_children = len(curr_node.children) - len(old_children)
 
+            children = [nodech.id[-1][-1] for nodech in curr_node.children]
+            # print("expanding", curr_node.id[-1][-1], children)
             if no_children:
                 continue
             leaf_node = curr_node
@@ -265,9 +280,9 @@ class MCTS_particles:
             value = self.rollout(leaf_node, tmp_t, curr_state)
             
             # TODO: is this _Correct
-            num_actions = 1 # leaf_node.id[1][-2]
-            self.backup(value*(self.discount**num_actions), node_path)
 
+            self.backup(value, node_path, costs, rewards)
+            print(colored("Finish select", "yellow"))
         next_root = None
         plan = []
         subgoals = []
@@ -276,6 +291,7 @@ class MCTS_particles:
             curr_root = next_root
             plan += [actions_taken]
             subgoals.append(next_root.id[0])
+
         if len(plan) > 0:
             elements = plan[0].split(' ')
             if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[2] != self.last_opened[1]):
@@ -311,61 +327,100 @@ class MCTS_particles:
         # TODO: we should start with goals at random, or with all the goals
         # Probably not needed here since we already computed whern expanding node
 
-        subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied, self.opponent_subgoal)
-        list_goals = list(range(len(subgoals)))
-        random.shuffle(list_goals)
-        for rollout_step in range(min(len(list_goals), self.max_rollout_step)):#min(self.max_rollout_step, self.max_episode_length - t)):
+        # subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied, self.opponent_subgoal)
+        # list_goals = list(range(len(subgoals)))
+
+        rewards = []
+        for rollout_step in range(self.max_rollout_step):#min(self.max_rollout_step, self.max_episode_length - t)):
             # # subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied)
             # print(rollout_step)
             # print(len(list_goals))
             # print(list_goals[rollout_step])
             # print(subgoals)
             # print(subgoals[list_goals[rollout_step]])
-            goal_selected = subgoals[list_goals[rollout_step]][0]
+
+            subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied, self.opponent_subgoal)
+            # print("Roll", len(subgoals))
+            if len(subgoals) == 0:
+                break
+
+            hands_busy = [edge for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+            if len(hands_busy) == 2:     
+                ipdb.set_trace()   
+                subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
+
+            curr_goal = random.randint(0, len(subgoals) - 1)
+            goal_selected = subgoals[curr_goal][0]
             heuristic = self.heuristic_dict[goal_selected.split('_')[0]]
-            actions, costs = heuristic(self.agent_id, self.char_index, unsatisfied, curr_state, self.env, goal_selected)
+
+            actions, _ = heuristic(self.agent_id, self.char_index, unsatisfied, curr_state, self.env, goal_selected)
             # print(actions)
 
             if actions is None:
                 delta_reward = 0
             else:
-                actions = [actions[0]]
-                costs = [costs[0]]
-
-                num_steps += len(actions)
-                cost = sum(costs)
-                # print(cost)
-                if len(actions) == 0:
+                action = actions[0]
+                
+                
+                action_str = self.get_action_str(action)
+                try:
+                    success, next_vh_state, cost, curr_reward = self.transition(curr_vh_state, {0: action_str}, goal_spec)
+                except:
+                    traceback.print_exc() 
                     ipdb.set_trace()
                 
-                for action_id, action in enumerate(actions):
-                    # Check if action can be performed
-                    # if action_performed:
-                    action_str = self.get_action_str(action)
-                    try:
-                        success, next_vh_state = self.env.transition(curr_vh_state, {0: action_str})
-                    except:
-                        traceback.print_exc() 
-                        ipdb.set_trace()
-                    if not success:
-                        ipdb.set_trace()
-                        print("Failure", action_str)
-                    next_state = next_vh_state.to_dict()
-                    curr_vh_state, curr_state = next_vh_state, next_state
-
-                curr_reward = self.check_progress(next_state, goal_spec) # self.env.reward(0, next_state)
+                if not success:
+                    ipdb.set_trace()
+                    print("Failure", action_str)
+                # print(action_str, cost)
+                curr_vh_state, curr_state = next_vh_state, next_vh_state.to_dict()
                 delta_reward = curr_reward - last_reward - cost
-                delta_reward = delta_reward #* self.discount**(len(actions))
+                
                 # print(curr_rewward, last_reward)
                 last_reward = curr_reward
-            sum_reward += delta_reward
+            rewards.append(delta_reward)
+
+            print(action_str, curr_reward)
+            satisfied, unsatisfied = utils_env.check_progress(curr_state, goal_spec)
+
             # curr_state = next_state
-    
+
+        if len(rewards) > 0:
+            sum_reward = rewards[-1]
+            for r in reversed(rewards[:-1]):
+                sum_reward = sum_reward * self.discount + r
+        else:
+            sum_reward = 0
         # print(sum_reward, reached_terminal)
+        print(sum_reward, last_reward)
         return sum_reward
 
 
-    def calculate_score(self, curr_node, child, num_actions):
+    def transition(self, curr_vh_state, action, goal_spec):
+        cost = 0.
+        graph = curr_vh_state.to_dict()
+        id2node = {node['id']: node for node in graph['nodes']}
+        if 'walk' in action[0]:
+            cost = 0.05
+
+            # action_id = int(action[0].split('(')[1].split(')')[0])
+            # if id2node[action_id]['category'] == "Rooms":
+               # cost = 5.0
+        elif 'open' in action[0]:
+            cost = -50
+        elif 'grab' in action[0]:
+            cost = 0.05
+        elif 'put' in action[0]:
+            cost = 0.05
+        else:
+            print(colored("missing action {}".format(action[0]), "red"))
+        vdict = curr_vh_state.to_dict()
+        # print("HANDS", [edge for edge in vdict['edges'] if 'HOLD' in edge['relation_type']])
+        success, next_vh_state = self.env.transition(curr_vh_state, action)
+        reward = self.check_progress(next_vh_state.to_dict(), goal_spec)
+        return success, next_vh_state, cost, reward
+
+    def calculate_score(self, curr_node, child, num_actions, info=False):
         parent_visit_count = curr_node.num_visited
         self_visit_count = child.num_visited
         subgoal_prior = 1.0/num_actions
@@ -381,6 +436,8 @@ class MCTS_particles:
             q_score = child.sum_value / self_visit_count
 
         score = q_score + u_score
+        if info:
+            return {'score': score, 'q': q_score, 'u': u_score}
         return score
 
 
@@ -397,7 +454,14 @@ class MCTS_particles:
         selected_child_index = random.choice(maxIndex)
         selected_child = possible_children[selected_child_index]
         
+        # print("\nSelecting child...")
+        # for it, pc in enumerate(possible_children):
+        #     print('{}: {}'.format(pc, scores[it]))
+
         goal_spec, _, actions = selected_child.id[1]
+        # print("selected", actions)
+        # print('------\n')
+        
         # print("Selecting child,..", actions)
 
         next_vh_state = curr_state[0]
@@ -405,10 +469,8 @@ class MCTS_particles:
         # print(actions)
         # print([edge for edge in curr_state[1]['edges'] if edge['from_id'] == 1 and edge['to_id'] == 457])
         # print('.....')
-        try:
-            success, next_vh_state = self.env.transition(next_vh_state, {0: actions})
-        except:
-            ipdb.set_trace()
+        success, next_vh_state, cost, reward = self.transition(next_vh_state, {0: actions}, goal_spec)
+
         if not success:
             print("Failure", actions)
         final_vh_state = next_vh_state
@@ -416,7 +478,7 @@ class MCTS_particles:
 
         satisfied, unsatisfied = utils_env.check_progress(final_state, goal_spec)
         next_state = (final_vh_state, final_state, satisfied, unsatisfied)
-        return selected_child, next_state
+        return selected_child, next_state, cost, reward
 
 
     def get_subgoal_prior(self, subgoal_space):
@@ -438,10 +500,27 @@ class MCTS_particles:
         return leaf_node, current_child_actions
 
 
-    def backup(self, value, node_list):
-        for node in node_list:
-            node.sum_value += value
+    def backup(self, value, node_list, costs, rewards):
+        t = len(node_list) - 1
+
+        # Compute delta reward
+        delta_reward = [0]
+        try:
+            for i in range(1, len(rewards)):
+                delta_reward.append(rewards[i] - rewards[i-1] - costs[i])
+        except:
+            print(rewards, costs)
+            ipdb.set_trace()
+
+        curr_value = value
+        while t >= 0:
+            node = node_list[t]
+            curr_reward = delta_reward[t]
+            curr_value = curr_value * self.discount + curr_reward
+            node.sum_value += curr_value
             node.num_visited += 1
+            
+            t -= 1
             # if value > 0:
             #     print(value, [node.id.keys() for node in node_list])
             # print(value, [node.id.keys() for node in node_list])
@@ -488,21 +567,24 @@ class MCTS_particles:
 
         current_actions_children = [nodech.id[-1][-1] for nodech in node.children]
 
-        actions_heuristic, costs = [], []
+        actions_heuristic = []
         current_action = node.id[-1][-1]
 
 
+        hands_busy = [edge['to_id'] for edge in state_particle[1]['edges'] if 'HOLD' in edge['relation_type']]
+        if len(hands_busy) == 2:
+            ipdb.set_trace()
+            subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
 
         for goal_predicate in subgoals:
             goal, predicate, aug_predicate = goal_predicate[0], goal_predicate[1], goal_predicate[2] # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
-            action_heuristic, cost = heuristic(self.agent_id, self.char_index, unsatisfied, state, self.env, goal)
+            action_heuristic,  _ = heuristic(self.agent_id, self.char_index, unsatisfied, state, self.env, goal)
             if action_heuristic[0] not in actions_heuristic:
                 actions_heuristic.append(self.get_action_str(action_heuristic[0]))
-                costs.append(cost[0])
 
 
-        for action, cost in zip(actions_heuristic, costs):
+        for action in actions_heuristic:
             
             # If I already expanded this child, no need to re-expand
             action_str = action
