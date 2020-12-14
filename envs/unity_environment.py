@@ -111,6 +111,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         self.init_rooms = env_task['init_rooms']
         self.task_goal = env_task['task_goal']
 
+        # TODO: remove
         self.task_name = env_task['task_name']
 
         old_env_id = self.env_id
@@ -167,6 +168,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
         for i in range(self.num_agents):
             if i in self.agent_info:
+                rooms[i] = 'kitchen'
                 self.comm.add_character(self.agent_info[i], initial_room=rooms[i])
             else:
                 self.comm.add_character()

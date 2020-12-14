@@ -4,6 +4,8 @@ from anytree import AnyNode as Node
 import copy
 from termcolor import colored
 import ipdb
+
+from pyinstrument import Profiler
 from tqdm import tqdm
 from utils import utils_environment as utils_env
 import traceback
@@ -59,143 +61,11 @@ class MCTS_particles:
                     count += 1
         return count
         
-    def run(self, curr_root, t, heuristic_dict, last_subgoal, opponent_subgoal):
+    def run(self, curr_root, t, heuristic_dict, plan, opponent_subgoal):
         self.opponent_subgoal = opponent_subgoal
         if self.verbose:
             print('check subgoal')
-
-        # belief_states, _, _, actions_parent = curr_root.id[1]
-
         
-        # if self.verbose:
-        #     print('satisfied:', satisfied)
-        #     print('unsatisfied:', unsatisfied)
-        #     print('subgoals:', subgoals)
-        #     print('last_subgoal:', last_subgoal)
-
-        """TODO: check predicates other than ON"""
-
-
-
-        ## Heuristics out of planning, uncomment later
-
-        need_to_close = self.agent_params['should_close']
-        if False:
-            id2node = {node['id']: node for node in curr_state_tmp['nodes']}
-            inhand_objs = [id2node[edge['to_id']]['class_name'] for edge in curr_state_tmp['edges'] if edge['relation_type'].startswith('HOLDS') \
-                    and self.agent_id == edge['from_id']]
-            needed_obj_count = {}
-            # needed_container = []
-            for predicate, count in unsatisfied.items():
-                elements = predicate.split('_')
-                if elements[0] in ['on', 'inside']:
-                    # if elements[0] == 'inside':
-                    #     needed_container.append(int(elements[2]))
-                    if elements[1] not in needed_obj_count:
-                        needed_obj_count[elements[1]] = count
-                    else:
-                        needed_obj_count[elements[1]] += count
-                    if elements[1] in inhand_objs:
-                        needed_obj_count[elements[1]] -= 1
-
-            remained_to_put = {}
-            for predicate, count in unsatisfied.items():
-                elements = predicate.split('_')
-                if elements[0] == 'inside':
-                    if int(elements[2]) not in remained_to_put:
-                        remained_to_put[int(elements[2])] = count
-                    else:
-                        remained_to_put[int(elements[2])] += count
-
-            if self.last_opened is None: # add close & opened containers
-                for edge in curr_state_tmp['edges']:
-                    if edge['from_id'] == self.agent_id and edge['relation_type'] == 'CLOSE' and \
-                        id2node[edge['to_id']]['class_name'] in ['fridge', 'kitchencabinets', 'cabinet', 'microwave', 'dishwasher', 'stove'] and \
-                        'OPEN' in id2node[edge['to_id']]['states']:
-                        self.last_opened = ['<{}>'.format(id2node[edge['to_id']]['class_name']), '({})'.format(edge['to_id'])]
-                        
-            if self.last_opened is not None and self.last_opened[0] != '<toilet>':
-                for node in curr_state_tmp['nodes']:
-                    # print(node)
-                    # ipdb.set_trace()
-                    if '({})'.format(node['id']) == self.last_opened[1]:
-                        # print('check opened node:', node)
-                        # ipdb.set_trace()
-                        if 'OPEN' in node['states']:
-                            # Close the object if there needs nothing else to be put
-                            if node['id'] in remained_to_put:
-                                need_to_close = self.agent_params['should_close'] and remained_to_put[node['id']] == 0 # finished putting
-                            else:
-                                need_to_close = self.agent_params['should_close']
-                                
-                                inside_objs = [edge['from_id'] for edge in curr_state_tmp['edges'] if edge['relation_type'] == 'INSIDE' and '({})'.format(edge['to_id']) == self.last_opened[1]]
-                                for obj_id in inside_objs:
-                                    if str(obj_id) in needed_obj_count and needed_obj_count[str(obj_id)] > 0 or \
-                                       id2node[obj_id]['class_name'] in needed_obj_count and needed_obj_count[id2node[obj_id]['class_name']] > 0:
-                                       need_to_close = False
-                                       break
-                        else:
-                            self.last_opened = None
-                        break
-            else:
-                need_to_close = False
-            if self.verbose:
-                print('last_opened:', self.last_opened, need_to_close)
-            # if self.agent_id > 1:
-            #     need_to_close = False
-            for subgoal in subgoals:
-
-                # If we had a goal before, keep with the goal if
-                # TODO: check when last_subgoal is empty
-                if subgoal[0] == last_subgoal:
-                    heuristic = heuristic_dict[last_subgoal.split('_')[0]]
-                    actions, costs = heuristic(self.agent_id, self.char_index, unsatisfied, curr_state_tmp, self.env, last_subgoal)
-                    if actions is None:
-                        plan = []
-                    else:
-                        plan = [self.get_action_str(action) for action in actions]
-                    if len(plan) > 0:
-                        elements = plan[0].split(' ')               
-                        if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[2] != self.last_opened[1]):
-                            if self.last_opened is not None:
-                                for edge in curr_state_tmp['edges']:
-                                    if edge['relation_type'] == 'CLOSE' and \
-                                        ('({})'.format(edge['from_id']) == self.last_opened[1] and edge['to_id'] == self.agent_id or \
-                                        '({})'.format(edge['to_id']) == self.last_opened[1] and edge['from_id'] == self.agent_id):
-                                        plan = ['[close] {} {}'.format(self.last_opened[0], self.last_opened[1])] + plan
-                                        break
-                    if self.verbose:
-                        print('repeat subgoal plan:', plan)
-                    if len(plan) > 0 and plan[0].startswith('[open]'):
-                        elements = plan[0].split(' ')
-                        self.last_opened = [elements[1], elements[2]]
-                    return None, plan, [last_subgoal]
-
-
-            """TODO: what if the predicte has been fulfilled but still grabbing the object?"""
-            for edge in curr_state_tmp['edges']:
-                ## If grabbing object, keep the predicate?
-                if edge['relation_type'].startswith('HOLDS') \
-                    and self.agent_id in [edge['from_id'], edge['to_id']] and last_subgoal.split('_')[0] != 'grab':
-                    heuristic = heuristic_dict[last_subgoal.split('_')[0]]
-                    actions, costs = heuristic(self.agent_id, self.char_index, unsatisfied, curr_state_tmp, self.env, last_subgoal)
-                    plan = [self.get_action_str(action) for action in actions] 
-                    if len(plan) > 0:
-                        elements = plan[0].split(' ') 
-                        if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[2] != self.last_opened[1]):
-                            if self.last_opened is not None:
-                                for edge in curr_state_tmp['edges']:
-                                    if edge['relation_type'] == 'CLOSE' and \
-                                        ('({})'.format(edge['from_id']) == self.last_opened[1] and edge['to_id'] == self.agent_id or \
-                                        '({})'.format(edge['to_id']) == self.last_opened[1] and edge['from_id'] == self.agent_id):
-                                        plan = ['[close] {} {}'.format(self.last_opened[0], self.last_opened[1])] + plan
-                                        break
-                        if self.verbose:
-                            print(plan[0])
-                    if len(plan) > 0 and plan[0].startswith('[open]'):
-                        elements = plan[0].split(' ')
-                        self.last_opened = [elements[1], elements[2]]           
-                    return None, plan, [last_subgoal]
 
         self.heuristic_dict = heuristic_dict
         # if not curr_root.is_expanded:
@@ -204,6 +74,9 @@ class MCTS_particles:
         #     state_particle = belief_set[particle_id]
         #     curr_root = self.expand(curr_root, t, state_particle)
         self.num_simulation = 100
+
+        # profiler = Profiler()
+        # profiler.start()
         for explore_step in tqdm(range(self.num_simulation)):
             curr_node = curr_root
 
@@ -233,8 +106,8 @@ class MCTS_particles:
             new_children = len(curr_node.children) - len(past_children)
 
             no_children = False
-            if len(actions) == 0:
-                ipdb.set_trace()
+            # if len(actions) == 0:
+            #     ipdb.set_trace()
 
             it = 0
             costs = [0]
@@ -282,7 +155,7 @@ class MCTS_particles:
             # TODO: is this _Correct
 
             self.backup(value, node_path, costs, rewards)
-            print(colored("Finish select", "yellow"))
+            # print(colored("Finish select", "yellow"))
         next_root = None
         plan = []
         subgoals = []
@@ -292,23 +165,26 @@ class MCTS_particles:
             plan += [actions_taken]
             subgoals.append(next_root.id[0])
 
-        if len(plan) > 0:
-            elements = plan[0].split(' ')
-            if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[2] != self.last_opened[1]):
-                if self.last_opened is not None:
-                    for edge in curr_state_tmp['edges']:
-                        if edge['relation_type'] == 'CLOSE' and \
-                            ('({})'.format(edge['from_id']) == self.last_opened[1] and edge['to_id'] == self.agent_id or \
-                            '({})'.format(edge['to_id']) == self.last_opened[1] and edge['from_id'] == self.agent_id):
-                            plan = ['[close] {} {}'.format(self.last_opened[0], self.last_opened[1])] + plan
-                            break
-            if self.verbose:
-                print(plan[0])
+        # if len(plan) > 0:
+        #     elements = plan[0].split(' ')
+        #     if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[2] != self.last_opened[1]):
+        #         if self.last_opened is not None:
+        #             for edge in curr_state_tmp['edges']:
+        #                 if edge['relation_type'] == 'CLOSE' and \
+        #                     ('({})'.format(edge['from_id']) == self.last_opened[1] and edge['to_id'] == self.agent_id or \
+        #                     '({})'.format(edge['to_id']) == self.last_opened[1] and edge['from_id'] == self.agent_id):
+        #                     plan = ['[close] {} {}'.format(self.last_opened[0], self.last_opened[1])] + plan
+        #                     break
+        #     if self.verbose:
+        #         print(plan[0])
         if len(plan) > 0 and plan[0].startswith('[open]'):
             elements = plan[0].split(' ')
             self.last_opened = [elements[1], elements[2]]
 
-        ipdb.set_trace()
+        # print(colored(plan, 'cyan'))
+        # profiler.stop()
+        # print(profiler.output_text(unicode=True, color=True))
+        # ipdb.set_trace()
         return next_root, plan, subgoals
 
 
@@ -344,9 +220,8 @@ class MCTS_particles:
             if len(subgoals) == 0:
                 break
 
-            hands_busy = [edge for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+            hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
             if len(hands_busy) == 2:     
-                ipdb.set_trace()   
                 subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
 
             curr_goal = random.randint(0, len(subgoals) - 1)
@@ -380,7 +255,7 @@ class MCTS_particles:
                 last_reward = curr_reward
             rewards.append(delta_reward)
 
-            print(action_str, curr_reward)
+            # print(action_str, curr_reward)
             satisfied, unsatisfied = utils_env.check_progress(curr_state, goal_spec)
 
             # curr_state = next_state
@@ -392,14 +267,13 @@ class MCTS_particles:
         else:
             sum_reward = 0
         # print(sum_reward, reached_terminal)
-        print(sum_reward, last_reward)
         return sum_reward
 
 
     def transition(self, curr_vh_state, action, goal_spec):
         cost = 0.
-        graph = curr_vh_state.to_dict()
-        id2node = {node['id']: node for node in graph['nodes']}
+        # graph = curr_vh_state.to_dict()
+        # id2node = {node['id']: node for node in graph['nodes']}
         if 'walk' in action[0]:
             cost = 0.05
 
@@ -407,14 +281,14 @@ class MCTS_particles:
             # if id2node[action_id]['category'] == "Rooms":
                # cost = 5.0
         elif 'open' in action[0]:
-            cost = -50
+            cost = -500
         elif 'grab' in action[0]:
             cost = 0.05
         elif 'put' in action[0]:
             cost = 0.05
         else:
             print(colored("missing action {}".format(action[0]), "red"))
-        vdict = curr_vh_state.to_dict()
+        # vdict = curr_vh_state.to_dict()
         # print("HANDS", [edge for edge in vdict['edges'] if 'HOLD' in edge['relation_type']])
         success, next_vh_state = self.env.transition(curr_vh_state, action)
         reward = self.check_progress(next_vh_state.to_dict(), goal_spec)
@@ -449,7 +323,7 @@ class MCTS_particles:
             for child in possible_children
         ]
         if len(scores) == 0:
-            return None, None
+            return None, None, None, None
         maxIndex = np.argwhere(scores == np.max(scores)).flatten()
         selected_child_index = random.choice(maxIndex)
         selected_child = possible_children[selected_child_index]
@@ -558,6 +432,7 @@ class MCTS_particles:
         # print('init child, satisfied:\n', satisfied)
         # print('init child, unsatisfied:\n', unsatisfied)
         subgoals = self.get_subgoal_space(state, satisfied, unsatisfied, self.opponent_subgoal)
+        # ipdb.set_trace()
         # subgoals = [sg for sg in subgoals if sg[0] != self.opponent_subgoal] # avoid repeating
         # print('init child, subgoals:\n', subgoals)
         if len(subgoals) == 0:
@@ -573,7 +448,6 @@ class MCTS_particles:
 
         hands_busy = [edge['to_id'] for edge in state_particle[1]['edges'] if 'HOLD' in edge['relation_type']]
         if len(hands_busy) == 2:
-            ipdb.set_trace()
             subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
 
         for goal_predicate in subgoals:

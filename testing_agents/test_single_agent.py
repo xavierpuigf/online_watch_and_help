@@ -44,7 +44,7 @@ if __name__ == '__main__':
         'belief': {'forget_rate': forget_rate}
     }
     args.mode = get_class_mode(agent_args)
-    args.mode += 'v3'
+    args.mode += 'v4_particles'
 
     
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     args_common = dict(recursive=False,
                          max_episode_length=20,
                          num_simulation=100,
-                         max_rollout_steps=20,
+                         max_rollout_steps=10,
                          c_init=0.1,
                          c_base=1000000,
                          num_samples=1,

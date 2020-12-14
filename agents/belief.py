@@ -267,8 +267,9 @@ class Belief():
         self.sampled_graph['edges'] = []
         self.init_belief()
 
-    def sample_from_belief(self, as_vh_state=False, ids_update=None):
+    def sample_from_belief(self, as_vh_state=False, ids_update=None, obs=None):
         # Sample states
+
         if ids_update is None:
             self.sampled_graph['edges'] = []
 
@@ -367,7 +368,7 @@ class Belief():
     def is_surface(self, node):
         return 'SURFACE' in node['properties']
 
-    def update_graph_from_gt_graph(self, gt_graph):
+    def update_graph_from_gt_graph(self, gt_graph, resample_unseen_nodes=False):
         """
         Updates the current sampled graph with a set of observations
         """
@@ -377,6 +378,7 @@ class Belief():
             'nodes': [node for node in gt_graph['nodes'] if node['id'] not in self.prohibit_ids],
             'edges': [edge for edge in gt_graph['edges'] if edge['from_id'] not in self.prohibit_ids and edge['to_id'] not in self.prohibit_ids]
         }
+        ids_visible = [node['id'] for node in gt_graph['nodes']]
         
         edges_gt_graph = gt_graph['edges']
         for x in gt_graph['nodes']:
@@ -399,6 +401,7 @@ class Belief():
 
         for node in self.sampled_graph['nodes']:
             if node['id'] in id2node.keys():
+                # Update the state of the visible nodes
                 states_graph_old = id2node[node['id']]['states']
                 object_name = id2node[node['id']]['class_name']
                 bin_vars = self.graph_helper.get_object_binary_variables(object_name)
@@ -413,41 +416,49 @@ class Belief():
 
         edges_keep = []
         ids_to_update = []
-        for edge in self.sampled_graph['edges']:
-            if (edge['from_id'] == char_node and edge['relation_type'] == 'INSIDE'):
-                continue
 
-            # Grabbed objects we don't need to keep them
-            if edge['from_id'] == char_node and 'HOLD' in edge['relation_type']:
-                continue
+        if resample_unseen_nodes:
+            ids_to_update = list(set([node['id'] for node in self.sampled_graph['nodes']]) - set(ids_visible))
+        else:
+            for edge in self.sampled_graph['edges']:
+                if (edge['from_id'] == char_node and edge['relation_type'] == 'INSIDE'):
+                    continue
 
-            # If the object should be visible but it is not in the observation, remove close relationship
-            if (edge['from_id'] == char_node or edge['to_id'] == char_node) and edge['relation_type'] == 'CLOSE':
-                continue
+                # Grabbed objects we don't need to keep them
+                if edge['from_id'] == char_node and 'HOLD' in edge['relation_type']:
+                    continue
 
-            # Objects that are visible, we do not care anymore
-            if edge['from_id'] in id2node.keys() and edge['from_id'] != char_node:
-                continue
+                # If the object should be visible but it is not in the observation, remove close relationship
+                if (edge['from_id'] == char_node or edge['to_id'] == char_node) and edge['relation_type'] == 'CLOSE':
+                    continue
 
-            # The object is not visible but the container is visible
+                # Objects that are visible, we do not care anymore
+                if edge['from_id'] in id2node.keys() and edge['from_id'] != char_node:
+                    # The second condition is for relations such as facing
+                    continue
 
-            if edge['to_id'] in id2node.keys() and edge['to_id'] != char_node:
-                # If it is a room and we have not seen it, the belief remains
-                if id2node[edge['to_id']]['category'] == 'Rooms' and edge['relation_type'] == 'INSIDE':
-                    if inside[char_node] == edge['to_id']:
-                        if edge['from_id'] not in id2node.keys():
+                # The object is not visible but the container is visible
+
+
+                if edge['to_id'] in id2node.keys() and edge['to_id'] != char_node:
+                    # If it is a room and we have not seen it, the belief remains
+                    if id2node[edge['to_id']]['category'] == 'Rooms' and edge['relation_type'] == 'INSIDE':
+                        if inside[char_node] == edge['to_id']:
+                            if edge['from_id'] not in id2node.keys():
+                                ids_to_update.append(edge['from_id'])
+                            else:
+                                pass
+                            continue
+                    else:
+                        if edge['relation_type'] == 'ON':
                             ids_to_update.append(edge['from_id'])
-                        else:
-                            pass
-                        continue
-                else:
-                    if edge['relation_type'] == 'ON':
-                        ids_to_update.append(edge['from_id'])
-                        continue
-                    if edge['relation_type'] == 'INSIDE' and 'OPEN' in id2node[edge['to_id']]['states']:
-                        ids_to_update.append(edge['from_id'])
-                        continue
-            edges_keep.append(edge)
+                            continue
+                        if edge['relation_type'] == 'INSIDE' and 'OPEN' in id2node[edge['to_id']]['states']:
+                            ids_to_update.append(edge['from_id'])
+                            continue
+                edges_keep.append(edge)
+
+        ids_to_update = list(set(ids_to_update))
 
         self.sampled_graph['edges'] = edges_keep + edges_gt_graph
 
