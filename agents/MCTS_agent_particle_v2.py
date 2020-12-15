@@ -5,8 +5,9 @@ import math
 import copy
 import importlib
 import json
-import multiprocessing
-import ipdb
+import multiprocessing as mp
+from functools import partial
+import pdb
 import pickle
 
 
@@ -42,7 +43,7 @@ def find_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, obje
             container = containerdict[target]
         except:
             print(id2node[target])
-            ipdb.set_trace()
+            pdb.set_trace()
         # If the object is a room, we have to walk to what is insde
 
         if id2node[container]['category'] == 'Rooms':
@@ -325,52 +326,7 @@ def clean_graph(state, goal_spec, last_opened):
 
     return new_graph
 
-
-def get_plan(obs, mcts, belief, env, nb_steps, goal_spec, last_subgoal, last_action, opponent_subgoal=None, verbose=True, num_particles=20):
-    if verbose:
-        print('get plan, ')
-
-    belief_states = []
-
-    belief.update_graph_from_gt_graph(obs, resample_unseen_nodes=True)
-    obs_ids = [node['id'] for node in obs['nodes']]
-    for iter_graph_sample in range(num_particles):
-        new_graph = belief.sample_from_belief(ids_update=obs_ids)
-        # new_graph = belief.sample_from_belief(obs=obs)
-
-        # ipdb.set_trace()
-        init_state = clean_graph(new_graph, goal_spec, mcts.last_opened)
-
-        satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
-
-        init_vh_state = env.get_vh_state(init_state)
-        belief_states.append((init_vh_state, init_state, satisfied, unsatisfied))
-
-    print(unsatisfied)
-    
-    # print('get plan:', init_state)
-
-
-    remained_to_put = 0
-    for predicate, count in unsatisfied.items():
-        if predicate.startswith('inside'):
-            remained_to_put += count
-
-    if last_action is not None and last_action.split(' ')[0] == '[putin]' and remained_to_put == 0: 
-            # close the door (may also need to check if it has a door)
-            elements = last_action.split(' ')
-            action = '[close] {} {}'.format(elements[3], elements[4])
-            plan = [action]
-            subgoals = [last_subgoal]
-
-    
-    root_action = None
-    root_node = Node(id=(root_action, [goal_spec, 0, []]),
-                     state_set=belief_states,
-                     num_visited=0,
-                     sum_value=0,
-                     is_expanded=False)
-    curr_node = root_node
+def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
     heuristic_dict = {
         'find': find_heuristic,
         'grab': grab_heuristic,
@@ -379,30 +335,114 @@ def get_plan(obs, mcts, belief, env, nb_steps, goal_spec, last_subgoal, last_act
         'sit': sit_heuristic,
         'turnOn': turnOn_heuristic
     }
+    # res = root_node * 2
+    res = mcts.run(root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal)
+    return res
 
-    next_root, plan, subgoals = mcts.run(curr_node,
-                               nb_steps,
-                               heuristic_dict,
-                               last_subgoal,
-                               opponent_subgoal)
 
+def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_action, opponent_subgoal=None, num_process=10, verbose=True):    
+    heuristic_dict = {
+        'find': find_heuristic,
+        'grab': grab_heuristic,
+        'put': put_heuristic,
+        'putIn': putIn_heuristic,
+        'sit': sit_heuristic,
+        'turnOn': turnOn_heuristic
+    }
+    root_nodes = []
+    for particle_id in range(len(particles)):
+        root_action = None
+        root_node = Node(id=(root_action, [goal_spec, 0, []]),
+                         state=particles[particle_id],
+                         num_visited=0,
+                         sum_value=0,
+                         is_expanded=False)
+        root_nodes.append(root_node)
+    
+
+    length_plan = 5
+    t1 = time.time()
+    # root_nodes = list(range(10))
+    mp_run = partial(mp_run_mcts, mcts=mcts, nb_steps=nb_steps, last_subgoal=last_subgoal, opponent_subgoal=opponent_subgoal)
+
+    if num_process > 0:
+        with mp.Pool(min(num_process, len(root_nodes))) as p:
+            info = p.map(mp_run, root_nodes)
+    else:
+        info = [mp_run(rn) for rn in root_nodes]
+
+    rewards_all = [inf[-1] for inf in info] 
+    plans_all = [inf[1] for inf in info]
+    index_action = 0
+    length_plan = 5
+    prev_index_particles = list(range(len(info)))
+    
+    final_actions = []
+    lambd = 0.5
+    while index_action < length_plan:
+        max_action = None
+        max_score = None
+        action_count_dict = {}
+        action_reward_dict = {}
+        # Which particles we select now
+        index_particles = [p_id for p_id in prev_index_particles if len(plans_all[p_id]) > index_action]
+        # print(index_particles)
+        if len(index_particles) == 0:
+            index_action += 1
+            continue
+        for ind in index_particles:
+            action = plans_all[ind][index_action]
+            if action is None:
+                continue
+            reward = rewards_all[ind][index_action]
+            if not action in action_count_dict:
+                action_count_dict[action] = []
+                action_reward_dict[action] = 0
+            action_count_dict[action].append(ind)
+            action_reward_dict[action] += reward
+
+        for action in action_count_dict:
+            # Average reward of this action
+            average_reward = action_reward_dict[action] * 1.0 / len(action_count_dict[action])
+            # Average proportion of particles
+            average_visit =  len(action_count_dict[action]) * 1.0 / len(index_particles)
+            score = average_reward * lambd + average_visit
+
+            if max_score is None or max_score < score:
+                max_score = score
+                max_action = action
+
+        index_action += 1
+        prev_index_particles = action_count_dict[max_action]
+        # print(max_action, prev_index_particles)
+        final_actions.append(max_action)
+
+    plan = final_actions
+    subgoals = [[None, None, None], [None, None, None]]
+    # next_root, plan, subgoals = mp_run_mcts(root_nodes[0])
+    next_root = None
+
+    t2 = time.time()
+    print(t2 - t1)
 
     if verbose:
         print('plan', plan)
         print('subgoal', subgoals)
     sample_id = None
+    
     if sample_id is not None:
         res[sample_id] = plan
     else:
+
         return plan, next_root, subgoals
 
 
-class MCTS_agent_particle:
+class MCTS_agent_particle_v2:
     """
     MCTS for a single agent
     """
     def __init__(self, agent_id, char_index,
-                 max_episode_length, num_simulation, max_rollout_steps, c_init, c_base, recursive=False,
+                 max_episode_length, num_simulation, max_rollout_steps, c_init, c_base, num_particles=20, recursive=False,
                  num_samples=1, num_processes=1, comm=None, logging=False, logging_graphs=False, 
                  agent_params={}, seed=None):
         self.agent_type = 'MCTS'
@@ -434,7 +474,8 @@ class MCTS_agent_particle:
         self.c_base = c_base
         self.num_samples = num_samples
         self.num_processes = num_processes
-        
+        self.num_particles = num_particles
+
         self.previous_belief_graph = None
         self.verbose = False
 
@@ -443,11 +484,12 @@ class MCTS_agent_particle:
         #     if 'should_close' in self.planner_params:
         #         self.should_close = self.planner_params['should_close']
 
-        self.mcts = MCTS_particles(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
+        self.mcts = MCTS_particles_v2(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
                          self.num_simulation, self.max_rollout_steps,
                          self.c_init, self.c_base, agent_params=self.agent_params)
-        # self.mcts.should_close = self.should_close
-
+        
+        self.particles = [None for _ in range(self.num_particles)]
+        self.particles_full = [None for _ in range(self.num_particles)]
 
         if self.mcts is None:
             raise Exception
@@ -525,6 +567,10 @@ class MCTS_agent_particle:
 
     def get_action(self, obs, goal_spec, opponent_subgoal=None):
 
+
+        # Create the particles
+        # pdb.set_trace()
+        self.belief.update_belief(obs)
 
 
 
@@ -631,16 +677,40 @@ class MCTS_agent_particle:
         
         if should_replan:
             # ipdb.set_trace()
-            plan, root_node, subgoals = get_plan(obs, self.mcts, self.belief, self.sim_env, nb_steps, goal_spec, last_plan, last_action, opponent_subgoal, verbose=verbose)
+            for particle_id, particle in enumerate(self.particles):
+                belief_states = []
+                obs_ids = [node['id'] for node in obs['nodes']]
+
+                if particle is None:
+                    new_graph = self.belief.update_graph_from_gt_graph(obs, resample_unseen_nodes=True, update_belief=False)
+                    init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
+                    satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
+                    init_vh_state = self.sim_env.get_vh_state(init_state)
+
+                    self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
+
+                else:
+                    prev_graph = self.particles_full[particle_id]
+                    new_graph = self.belief.update_graph_from_gt_graph(
+                        obs, sampled_graph=prev_graph, resample_unseen_nodes=True, update_belief=False)
+                    init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
+                    init_vh_state = self.sim_env.get_vh_state(init_state)
+
+                    satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
+                    self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
+                
+                # print("EDGES", len(new_graph['edges']))
+                self.particles_full[particle_id] = new_graph
+
+
+            plan, root_node, subgoals = get_plan(self.mcts, self.particles, self.sim_env, nb_steps, goal_spec, last_plan, last_action, opponent_subgoal, verbose=verbose, num_process=self.num_processes)
             
             print(colored(plan[:min(len(plan), 3)], 'cyan'))
         else:
-            ipdb.set_trace()
-            print(plan[0])
-        
+            subgoals = [[None, None, None], [None, None, None]]
         if len(plan) == 0:
             
-            ipdb.set_trace()
+            pdb.set_trace()
         
         if len(plan) > 0:
             action = plan[0]
@@ -660,8 +730,9 @@ class MCTS_agent_particle:
             info = {}
 
         self.last_action = action
-        self.last_subgoal = subgoals[0] if len(subgoals) > 0 else None
+        # self.last_subgoal = subgoals[0] if len(subgoals) > 0 else None
         self.last_plan = plan
+        print(info['subgoals'])
         return action, info
 
     def reset(self, observed_graph, gt_graph, task_goal, seed=0, simulator_type='python', is_alice=False):
@@ -673,7 +744,7 @@ class MCTS_agent_particle:
         self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed, belief_params=self.belief_params)
         self.sim_env.reset(gt_graph)
 
-        self.mcts = MCTS_particles(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
+        self.mcts = MCTS_particles_v2(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
                          self.num_simulation, self.max_rollout_steps,
                          self.c_init, self.c_base, seed=seed, agent_params=self.agent_params)
 

@@ -10,7 +10,7 @@ from tqdm import tqdm
 from utils import utils_environment as utils_env
 import traceback
 
-class MCTS_particles:
+class MCTS_particles_v2:
     def __init__(self, sim_env, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
         self.env = sim_env
         self.discount = 0.95 #0.4
@@ -73,7 +73,7 @@ class MCTS_particles:
         #     particle_id = random.randint(0, len(belief_set)-1)
         #     state_particle = belief_set[particle_id]
         #     curr_root = self.expand(curr_root, t, state_particle)
-        self.num_simulation = 100
+        # self.num_simulation = 100
 
         # profiler = Profiler()
         # profiler.start()
@@ -81,9 +81,7 @@ class MCTS_particles:
             curr_node = curr_root
 
             # Select one particle
-            belief_set = curr_root.state_set
-            particle_id = random.randint(0, len(belief_set)-1)
-            state_particle = belief_set[particle_id]
+            state_particle = curr_root.state
             state_graph = state_particle[1]
 
             # print("Simulation: {}, state_graph {}".format(explore_step, particle_id))
@@ -101,7 +99,7 @@ class MCTS_particles:
 
 
             curr_node, actions = self.expand(curr_node, tmp_t, curr_state)
-            
+            # ipdb.set_trace()
 
             new_children = len(curr_node.children) - len(past_children)
 
@@ -112,7 +110,7 @@ class MCTS_particles:
             it = 0
             costs = [0]
             rewards = [0]
-            while new_children == 0:
+            while  curr_node.is_expanded:
                 # print("Selecting child...", tmp_t)
                 # if it == 1:
                 #     print('---')
@@ -122,47 +120,56 @@ class MCTS_particles:
                 #         print('{}, #visit: {}, sc: {}, score: {}, u: {}, q: {}'.format(
                 #             ch.id[-1][-1], ch.num_visited, ch.sum_value, info['score'], info['u'], info['q']))
                 #     print('--')
-                
-                next_node, next_state, cost, reward = self.select_child(curr_node, curr_state, actions)
-                costs.append(cost)
-                rewards.append(reward)
+                # print(it, actions)
+                next_node, next_state, cost, reward = self.select_child(curr_node, curr_state)
+                actions_state = [child.id[1][-1] for child in curr_node.children]
+                # print(curr_node.id[1][-1], it)
+                # ipdb.set_trace()
+                # for action in actions_state:
+                #     if 'open' in action or 'microwave' in action:
+                #         print("OPEN", it, action)
+                        # ipdb.set_trace()
                 # print('{}, #visit: {}, value: {}'.format(next_node.id[-1][-1], next_node.num_visited, next_node.sum_value))
                 if next_node is None:
-                    no_children = True
                     break
 
                 it += 1
                 
-                node_path.append(next_node)
-                state_path.append(next_state)
-                
+                if next_node.is_expanded:
+                    node_path.append(next_node)
+                    state_path.append(next_state)
+                    costs.append(cost)
+                    rewards.append(reward)
+
                 curr_node = next_node
                 curr_state = next_state
-                tmp_t += 1
-
-                old_children = curr_node.children
-                curr_node, actions = self.expand(curr_node, tmp_t, curr_state)
-                new_children = len(curr_node.children) - len(old_children)
+            
+            curr_node, _ = self.expand(curr_node, tmp_t + it, curr_state)
 
             children = [nodech.id[-1][-1] for nodech in curr_node.children]
             # print("expanding", curr_node.id[-1][-1], children)
             if no_children:
                 continue
             leaf_node = curr_node
-
-            value = self.rollout(leaf_node, tmp_t, curr_state)
+            # print(costs, rewards, tmp_t+it, it)
+            value = self.rollout(leaf_node, tmp_t + it, curr_state)
             
             # TODO: is this _Correct
 
             self.backup(value, node_path, costs, rewards)
             # print(colored("Finish select", "yellow"))
+        
         next_root = None
         plan = []
         subgoals = []
+        rewards = []
         while curr_root.is_expanded:
+
             actions_taken, children_visit, next_root = self.select_next_root(curr_root)
             curr_root = next_root
             plan += [actions_taken]
+            
+            rewards.append(next_root.sum_value * 1./(next_root.num_visited+1e-9))
             subgoals.append(next_root.id[0])
 
         # if len(plan) > 0:
@@ -185,7 +192,8 @@ class MCTS_particles:
         # profiler.stop()
         # print(profiler.output_text(unicode=True, color=True))
         # ipdb.set_trace()
-        return next_root, plan, subgoals
+        next_root = None
+        return next_root, plan, subgoals, rewards
 
 
     def rollout(self, leaf_node, t, state_particle):
@@ -315,11 +323,11 @@ class MCTS_particles:
         return score
 
 
-    def select_child(self, curr_node, curr_state, actions):
+    def select_child(self, curr_node, curr_state):
         # print("Child...", actions)
-        possible_children = [child for child in curr_node.children if child.id[-1][-1] in actions]
+        possible_children = [child for child in curr_node.children]
         scores = [
-            self.calculate_score(curr_node, child, len(actions))
+            self.calculate_score(curr_node, child, len(possible_children))
             for child in possible_children
         ]
         if len(scores) == 0:
@@ -386,6 +394,10 @@ class MCTS_particles:
             print(rewards, costs)
             ipdb.set_trace()
 
+        # delta_reward.append(0)
+        if len(delta_reward) <= t:
+            ipdb.set_trace()
+
         curr_value = value
         while t >= 0:
             node = node_list[t]
@@ -432,6 +444,7 @@ class MCTS_particles:
         # print('init child, satisfied:\n', satisfied)
         # print('init child, unsatisfied:\n', unsatisfied)
         subgoals = self.get_subgoal_space(state, satisfied, unsatisfied, self.opponent_subgoal)
+        # ipdb.set_trace()
         # ipdb.set_trace()
         # subgoals = [sg for sg in subgoals if sg[0] != self.opponent_subgoal] # avoid repeating
         # print('init child, subgoals:\n', subgoals)
@@ -480,12 +493,11 @@ class MCTS_particles:
             # next_unsatisfied[predicate] -= 1
             # belief_states = [next_vh_state, next_vh_state.to_dict(), next_satisfied, next_unsatisfied]
 
-            belief_states = []
 
             new_node = Node(
                 parent=node,
                 id=(goal, [goal_spec, len(actions_heuristic), action_str]),
-                state_set=belief_states,
+                state=None,
                 num_visited=0,
                 sum_value=0,
                 subgoal_prior=1.0 / 1.0,
@@ -574,7 +586,8 @@ class MCTS_particles:
                                     if node['id'] in obsed_objs:
                                         obsed_subgoal_space.append(['{}_{}_{}'.format(subgoal_type, node['id'], surface), predicate, tmp_predicate])
                                     if node['id'] in inhand_objects:
-                                        return [subgoal_space[-1]]
+                                        pass
+                                        # return [subgoal_space[-1]]
                 elif elements[0] == 'inside':
                     subgoal_type = 'putIn'
                     obj = elements[1]
@@ -591,7 +604,8 @@ class MCTS_particles:
                                     if node['id'] in obsed_objs:
                                         obsed_subgoal_space.append(['{}_{}_{}'.format(subgoal_type, node['id'], surface), predicate, tmp_predicate])
                                     if node['id'] in inhand_objects:
-                                        return [subgoal_space[-1]]
+                                        pass
+                                        # return [subgoal_space[-1]]
                 elif elements[0] == 'offOn':
                     if id2node[elements[2]]['class_name'] in ['dishwasher', 'kitchentable']:
                         containers = [[node['id'], node['class_name']] for node in state['nodes'] if node['class_name'] in ['kitchencabinets', 'kitchencounterdrawer', 'kitchencounter']]
@@ -637,7 +651,8 @@ class MCTS_particles:
                                 overlapped_subgoal_space.append(['{}_{}_{}'.format(subgoal_type, node['id'], surface), predicate, tmp_predicate])
                                     
         if len(obsed_subgoal_space) > 0:
-            return obsed_subgoal_space
+            pass
+            #return obsed_subgoal_space
         if len(subgoal_space) == 0:
             # if self.agent_id == 2 and verbose == 1:
             #     ipdb.set_trace()

@@ -169,6 +169,11 @@ class Belief():
 
             self.node_to_state_belief[node['id']] = belief_dict
 
+        # Surface classes
+        surface_classes = [
+            'kitchen'
+        ]
+
         # TODO: ths class should simply have a surface property
         container_classes = [
         'bathroomcabinet',
@@ -368,11 +373,18 @@ class Belief():
     def is_surface(self, node):
         return 'SURFACE' in node['properties']
 
-    def update_graph_from_gt_graph(self, gt_graph, resample_unseen_nodes=False):
+    def update_belief(self, gt_graph):
+        self.update_to_prior()
+        self.update_from_gt_graph(gt_graph)
+
+    def update_graph_from_gt_graph(self, gt_graph, sampled_graph=None, resample_unseen_nodes=False, update_belief=True):
         """
         Updates the current sampled graph with a set of observations
         """
         # Here we have a graph sampled from our belief, and want to update it with gt graph
+        if sampled_graph is not None:
+            self.sampled_graph = sampled_graph
+
         id2node = {} 
         gt_graph = {
             'nodes': [node for node in gt_graph['nodes'] if node['id'] not in self.prohibit_ids],
@@ -384,8 +396,8 @@ class Belief():
         for x in gt_graph['nodes']:
             id2node[x['id']] = x
 
-        self.update_to_prior()
-        self.update_from_gt_graph(gt_graph)
+        if update_belief:
+            self.update_belief(gt_graph)
 
         char_node = self.agent_id
 

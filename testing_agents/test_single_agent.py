@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 
 from envs.unity_environment import UnityEnvironment
-from agents import MCTS_agent, MCTS_agent_particle
+from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 from utils import utils_goals
@@ -27,13 +27,13 @@ if __name__ == '__main__':
     args = get_args()
 
     num_tries = 1
-    args.max_episode_length = 250
+    args.max_episode_length = 150
     args.num_per_apartment = 20
     args.dataset_path = './dataset/env_task_set_10_full.pik'
 
 
     args.obs_type = 'partial'
-    open_cost = 0
+    open_cost = 0    
     should_close = False
     forget_rate = 0.
     datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         'belief': {'forget_rate': forget_rate}
     }
     args.mode = get_class_mode(agent_args)
-    args.mode += 'v4_particles'
+    args.mode += 'v7_particles_v2'
 
     
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -90,19 +90,20 @@ if __name__ == '__main__':
 
     args_common = dict(recursive=False,
                          max_episode_length=20,
-                         num_simulation=100,
-                         max_rollout_steps=10,
+                         num_simulation=80,
+                         max_rollout_steps=5,
                          c_init=0.1,
                          c_base=1000000,
                          num_samples=1,
-                         num_processes=1,
+                         num_processes=10,
+                         num_particles=20,
                          logging=True,
                          logging_graphs=True)
 
     args_agent1 = {'agent_id': 1, 'char_index': 0}
     args_agent1.update(args_common)
     args_agent1['agent_params'] = agent_args
-    agents = [lambda x, y: MCTS_agent_particle(**args_agent1)]
+    agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
     arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
 
     for iter_id in range(num_tries):
