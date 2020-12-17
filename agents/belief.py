@@ -9,6 +9,7 @@ import sys
 import simulation.evolving_graph.utils as vh_utils
 import json
 import copy
+from termcolor import colored
 
 class Belief():
     def __init__(self, graph_gt, agent_id, prior=None, seed=None, belief_params={}):
@@ -143,6 +144,8 @@ class Belief():
         for node_name in self.edge_belief:
             self.edge_belief[node_name]['INSIDE'][1] = self.update(self.edge_belief[node_name]['INSIDE'][1], self.first_belief[node_name]['INSIDE'][1])
 
+            self.edge_belief[node_name]['ON'][1] = self.update(self.edge_belief[node_name]['ON'][1], self.first_belief[node_name]['ON'][1])
+
         for node in self.room_node:
             self.room_node[node][1] = self.update(self.room_node[node][1], self.first_room[node][1])
 
@@ -171,7 +174,8 @@ class Belief():
 
         # Surface classes
         surface_classes = [
-            'kitchen'
+            'kitchentable',
+            'coffeetable',
         ]
 
         # TODO: ths class should simply have a surface property
@@ -187,11 +191,11 @@ class Belief():
 
 
         # Solve these cases
-        objects_inside_something = set([edge['from_id'] for edge in self.sampled_graph['edges'] if edge['relation_type'] == 'INSIDE'])
         
         # Set belief for edges
         # TODO: this should be specified in the properties
         object_containers = [node for node in self.sampled_graph['nodes'] if node['class_name'] in container_classes]
+        object_surfaces = [node for node in self.sampled_graph['nodes'] if node['class_name'] in surface_classes]
         # object_containers = [node for node in self.sampled_graph['nodes'] if 'CAN_OPEN' in node['properties'] and 'CONTAINERS' in node['properties']]
         
 
@@ -199,19 +203,18 @@ class Belief():
 
         grabbable_nodes = [node for node in self.sampled_graph['nodes'] if 'GRABBABLE' in node['properties']]
 
-        # TODO: this should be 0
-        # grabbable_nodes = [node for node in grabbable_nodes if node['id'] in objects_inside_something]
-
-
+       
         self.room_nodes = [node for node in self.sampled_graph['nodes'] if node['category'] == 'Rooms']
 
 
         self.room_ids = [x['id'] for x in self.room_nodes]
-        container_ids = [x['id'] for x in object_containers]
-        self.container_ids = [None] + container_ids
-        self.room_index_belief_dict = {x: it for it, x in enumerate(self.room_ids)}
+        self.container_ids = [None] + [x['id'] for x in object_containers]
+        self.surface_ids = [None] + [x['id'] for x in object_surfaces]
 
+        self.room_index_belief_dict = {x: it for it, x in enumerate(self.room_ids)}
         self.container_index_belief_dict = {x: it for it, x in enumerate(self.container_ids) if x is not None}
+        self.surface_index_belief_dict = {x: it for it, x in enumerate(self.surface_ids) if x is not None}
+
 
         for obj_name in self.container_restrictions:
             possible_classes = self.container_restrictions[obj_name]
@@ -239,22 +242,36 @@ class Belief():
             
 
 
-            init_values = np.ones(len(container_ids)+1)/(1.+len(container_ids))
+            init_values = np.ones(len(self.container_ids))/len(self.container_ids)
+            init_values_on = np.ones(len(self.surface_ids))/len(self.surface_ids)
+
+            # Much more likely to be on nothing than the opposite, otherwise it will always go there
+            init_values_on[0] = 0.5
+            init_values_on[1:] = 0.5 / (len(self.surface_ids) - 1)
+
+
+
+
             if node['class_name'] in self.id_restrictions_inside.keys():
                 init_values[self.id_restrictions_inside[node['class_name']]] = self.low_prob
 
             # The probability of being inside itself is 0
-            if id1 in container_ids:
-                init_values[1+container_ids.index(id1)] = self.low_prob
+            if id1 in self.container_ids:
+                init_values[self.container_ids.index(id1)] = self.low_prob
 
-            self.edge_belief[id1]['INSIDE'] = [[None]+container_ids, init_values]
+            if id1 in self.surface_ids:
+                init_values[1:] = self.low_prob
+
+
+            self.edge_belief[id1]['INSIDE'] = [self.container_ids, init_values]
+            self.edge_belief[id1]['ON'] = [self.surface_ids, init_values_on]
         
         # Room belief. Will be used for nodes that are not in the belief
         for node in self.sampled_graph['nodes']:
             if node['class_name'] in self.class_nodes_delete or node['category'] in self.categories_delete:
                 continue
             if node not in self.room_nodes:
-                if node['id'] in container_ids and self.knowledge_containers:
+                if node['id'] in self.container_ids and self.knowledge_containers:
                     # We will place it in the original room
                     room_container = [edge['to_id'] for edge in self.graph_init['edges'] if edge['from_id'] == node['id'] and edge['relation_type'] == 'INSIDE']
                     assert(len(room_container) == 1)
@@ -291,8 +308,9 @@ class Belief():
                 states.append(self.bin_var_dict[var_name][0][value_binary])
 
             node['states'] = states
-        node_inside = {}
+        node_inside, node_on = {}, {}
         object_grabbed = []
+        in_room = []
         # Sample edges
         for edge in self.sampled_graph['edges']:
             if edge['relation_type'] == 'INSIDE':
@@ -301,10 +319,15 @@ class Belief():
             if edge['relation_type'] in ['HOLDS_LH', 'HOLDS_RH']:
                 object_grabbed.append(edge['to_id']) 
 
+            if edge['relation_type'] == 'ON':
+                node_on[edge['from_id']] = edge['to_id']
+
 
         for node in self.sampled_graph['nodes']:
             if ids_update is not None and node['id'] not in ids_update:
                 continue
+
+            # Objects that cannot be inside or on anything, but we still want to check if they are in some room
             if node['id'] not in self.edge_belief:
                 if node['id'] not in self.room_node.keys():
                     continue
@@ -328,6 +351,8 @@ class Belief():
                     node_room_cands =  self.room_node[node['id']]
                     node_room = np.random.choice(node_room_cands[0], p=scipy.special.softmax(node_room_cands[1]))
                     final_rel = (node_room, 'INSIDE')
+                    in_room.append((node['id'], node_room))
+                    
                 else:
                     if sample_inside == node['id']:
                         pass
@@ -336,8 +361,43 @@ class Belief():
             if final_rel[1] == 'INSIDE':
                 node_inside[node['id']] = final_rel[0]
             new_edge = {'from_id': node['id'], 'to_id': final_rel[0], 'relation_type': final_rel[1]}
+            
+            # if node['id'] in [462, 458]:
+            #     print(colored("Objcect sample", "magenta"), node['id'], 
+            #         scipy.special.softmax(self.edge_belief[node['id']]['INSIDE'][1]), scipy.special.softmax(self.edge_belief[node['id']]['ON'][1]))
+            #     print(new_edge)
             self.sampled_graph['edges'].append(new_edge)
 
+            
+
+
+        # ON relationships
+        room2surface = {}
+        for room_id in self.room_ids:
+            room2surface[room_id] = []
+
+
+        for edge in self.sampled_graph['edges']:
+            if edge['relation_type'] == 'INSIDE' and edge['from_id'] in self.surface_ids and edge['to_id'] in self.room_ids:
+                room2surface[edge['to_id']].append(edge['from_id'])
+
+        for node_id, room_id in in_room:
+            # For all the objects in a room, check if they are in a surface
+            surfaces = room2surface[room_id]
+            if node_id not in self.edge_belief:
+                # print(id2node[node_id])
+                # ipdb.set_trace()
+                continue
+
+            # if node_id in [462, 458]:
+            #     print(colored("Objcect sample 2", "magenta"), node['id'], 
+            #         scipy.special.softmax(self.edge_belief[node['id']]['INSIDE'][1]), scipy.special.softmax(self.edge_belief[node['id']]['ON'][1]))
+            #     print(new_edge)
+            surface_cands = self.edge_belief[node_id]['ON']
+            node_surface = np.random.choice(surface_cands[0], p=scipy.special.softmax(surface_cands[1]))
+            if node_surface in surfaces:
+                new_edge = {'from_id': node_id, 'to_id': node_surface, 'relation_type': 'ON'}
+                self.sampled_graph['edges'].append(new_edge)
         # try:
         #
         #     nodes_inside_graph = [edge['from_id'] for edge in self.sampled_graph['edges'] if
@@ -382,6 +442,7 @@ class Belief():
         Updates the current sampled graph with a set of observations
         """
         # Here we have a graph sampled from our belief, and want to update it with gt graph
+
         if sampled_graph is not None:
             self.sampled_graph = sampled_graph
 
@@ -497,7 +558,7 @@ class Belief():
 
         # sample new edges that have not been seen
         self.sample_from_belief(ids_update=ids_to_update)
-        
+        # print(colored("objects on table","yellow"), [edge['from_id'] for edge in self.sampled_graph['edges'] if edge['to_id'] == 232 and edge['relation_type'] == 'ON'])
         return self.sampled_graph
     
 
@@ -507,7 +568,7 @@ class Belief():
         for x in gt_graph['nodes']:
             id2node[x['id']] = x
        
-        inside = {}
+        inside, on = {}, {}
 
         grabbed_object = []
         for x in gt_graph['edges']:
@@ -517,11 +578,14 @@ class Belief():
             if x['relation_type'] == 'INSIDE':
                 if x['from_id'] in inside.keys():
                     print('Already inside', id2node[x['from_id']]['class_name'], id2node[inside[x['from_id']]]['class_name'], id2node[x['to_id']]['class_name'])
-
                     raise Exception
-
                 inside[x['from_id']] = x['to_id']
-                
+            
+            if x['relation_type'] == 'ON' and x['to_id'] in self.surface_ids:
+                if x['from_id'] in on.keys() and x['from_id'] in self.edge_belief.keys() and x['to_id'] in self.surface_ids:
+                    print("Already on", id2node[x['from_id']]['class_name'], id2node[on[x['from_id']]]['class_name'], id2node[x['to_id']]['class_name'])
+                    raise Exception
+                on[x['from_id']] = x['to_id']
 
         visible_ids = [x['id'] for x in gt_graph['nodes']]
         edge_tuples = [(x['from_id'], x['to_id']) for x in gt_graph['edges']]
@@ -574,6 +638,17 @@ class Belief():
                     self.edge_belief[id_node]['INSIDE'][1][:] = self.low_prob
                     self.edge_belief[id_node]['INSIDE'][1][index_inside] = 1.
 
+                if id_node in on.keys():
+                    # object is on something
+                    on_obj = on[id_node]
+                    index_on = self.surface_index_belief_dict[on_obj]
+                    self.edge_belief[id_node]['ON'][1][:] = self.low_prob
+                    self.edge_belief[id_node]['ON'][1][index_on] = 1.
+                else:
+                    # object is for suure on nothing
+                    self.edge_belief[id_node]['ON'][1][:] = self.low_prob
+                    self.edge_belief[id_node]['ON'][1][0] = 1.
+
             else:
                 # If not visible. for sure not in this room
                 self.room_node[id_node][1][self.room_index_belief_dict[visible_room]] = self.low_prob
@@ -582,15 +657,23 @@ class Belief():
                         # If not in any room, needs to be inside something
                         self.edge_belief[id_node]['INSIDE'][1][0] = self.low_prob
 
-            
-            for id_node in self.container_ids:
-                if id_node in visible_ids and id_node in self.container_ids and 'OPEN' in id2node[id_node]['states']:
-                    for id_node_child in self.edge_belief.keys():
-                        if id_node_child not in inside.keys() or inside[id_node_child] != id_node:
-                            ids_known_info[1].append(self.container_index_belief_dict[id_node])
-                            self.edge_belief[id_node_child]['INSIDE'][1][self.container_index_belief_dict[id_node]] = self.low_prob
-                    
-        
+        # update belief for container objects
+        for id_node in self.container_ids:
+            if id_node in visible_ids and 'OPEN' in id2node[id_node]['states']:
+                for id_node_child in self.edge_belief.keys():
+                    if id_node_child not in inside.keys() or inside[id_node_child] != id_node:
+                        ids_known_info[1].append(self.container_index_belief_dict[id_node])
+                        self.edge_belief[id_node_child]['INSIDE'][1][self.container_index_belief_dict[id_node]] = self.low_prob
+                
+        # Update belief for surface objects
+        for id_node in self.surface_ids:
+            if id_node in visible_ids:
+                for id_node_child in self.edge_belief.keys():
+                    if id_node_child not in on.keys() or on[id_node_child] != id_node:
+                        ids_known_info[1].append(self.surface_index_belief_dict[id_node])
+                        self.edge_belief[id_node_child]['ON'][1][self.surface_index_belief_dict[id_node]] = self.low_prob
+
+
         # Some furniture has no edges, only has info about inside rooms
         # We need to udpate its location
         for id_node in self.room_node.keys():
@@ -617,6 +700,7 @@ class Belief():
 
         mask_obj = (mask_obj == 1)
         mask_house = (mask_house == 1)
+
         # Check for impossible beliefs
         for id_node in self.room_node.keys():
             if id_node in self.edge_belief.keys():
@@ -633,7 +717,7 @@ class Belief():
                 if np.max(self.room_node[id_node][1]) == self.low_prob:
                     self.room_node[id_node][1][mask_house] = self.first_room[id_node][1][mask_house]
 
-
+        # print("New belief", self.edge_belief[458]['ON'])
 
 
 
