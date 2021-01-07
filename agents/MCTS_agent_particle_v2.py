@@ -361,10 +361,15 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
     
 
     length_plan = 5
-    t1 = time.time()
     # root_nodes = list(range(10))
-    mp_run = partial(mp_run_mcts, mcts=mcts, nb_steps=nb_steps, last_subgoal=last_subgoal, opponent_subgoal=opponent_subgoal)
+    mp_run = partial(mp_run_mcts, 
+        mcts=mcts, 
+        nb_steps=nb_steps, 
+        last_subgoal=last_subgoal, 
+        opponent_subgoal=opponent_subgoal)
 
+    if len(root_nodes) == 0:
+        ipdb.set_trace()
     if num_process > 0:
         with mp.Pool(min(num_process, len(root_nodes))) as p:
             info = p.map(mp_run, root_nodes)
@@ -422,8 +427,7 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
     # next_root, plan, subgoals = mp_run_mcts(root_nodes[0])
     next_root = None
 
-    t2 = time.time()
-    print(t2 - t1)
+ 
 
     if verbose:
         print('plan', plan)
@@ -675,6 +679,7 @@ class MCTS_agent_particle_v2:
 
         self.last_obs = {'goal_objs': goal_ids}
         
+        time1 = time.time()
         if should_replan:
             # ipdb.set_trace()
             for particle_id, particle in enumerate(self.particles):
@@ -699,13 +704,13 @@ class MCTS_agent_particle_v2:
                     satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
                     self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
                 
-                # print("EDGES", len(new_graph['edges']))
-                self.particles_full[particle_id] = new_graph
 
+                self.particles_full[particle_id] = new_graph
+            # print('-----')
 
             plan, root_node, subgoals = get_plan(self.mcts, self.particles, self.sim_env, nb_steps, goal_spec, last_plan, last_action, opponent_subgoal, verbose=verbose, num_process=self.num_processes)
             
-            print(colored(plan[:min(len(plan), 3)], 'cyan'))
+            print(colored(plan[:min(len(plan), 10)], 'cyan'))
         else:
             subgoals = [[None, None, None], [None, None, None]]
         if len(plan) == 0:
@@ -732,7 +737,10 @@ class MCTS_agent_particle_v2:
         self.last_action = action
         # self.last_subgoal = subgoals[0] if len(subgoals) > 0 else None
         self.last_plan = plan
-        print(info['subgoals'])
+        # print(info['subgoals'])
+        print(action)
+        time2 = time.time()
+        print("Time: ", time2 - time1)
         return action, info
 
     def reset(self, observed_graph, gt_graph, task_goal, seed=0, simulator_type='python', is_alice=False):

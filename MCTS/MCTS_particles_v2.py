@@ -9,6 +9,7 @@ from pyinstrument import Profiler
 from tqdm import tqdm
 from utils import utils_environment as utils_env
 import traceback
+from evolving_graph.environment import Relation
 
 class MCTS_particles_v2:
     def __init__(self, sim_env, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
@@ -27,6 +28,19 @@ class MCTS_particles_v2:
         self.last_opened = None
         self.verbose = False
         self.agent_params = agent_params
+        if not self.env.state is None:
+            self.id2node_env =  {node['id']: node for node in self.env.state['nodes']}
+            static_classes = [
+                'bathroomcabinet',
+                'kitchencabinet',
+                'cabinet',
+                'fridge',
+                'stove',
+                'dishwasher',
+                'microwave',
+                'kitchentable',
+            ]
+            self.static_object_ids = [node['id'] for node in self.env.state['nodes'] if node['class_name'] in static_classes]
         np.random.seed(self.seed)
         random.seed(self.seed)
 
@@ -63,6 +77,11 @@ class MCTS_particles_v2:
         return count
         
     def run(self, curr_root, t, heuristic_dict, plan, opponent_subgoal):
+        state_particle = curr_root.state
+        unsatisfied = state_particle[-1]
+        print(colored("Goal:", "green"), curr_root.id[1][0])
+        print(unsatisfied)
+        print(colored('-----', "green"))
         self.opponent_subgoal = opponent_subgoal
         if self.verbose:
             print('check subgoal')
@@ -126,12 +145,10 @@ class MCTS_particles_v2:
                 #     print('--')
                 # print(it, actions)
                 next_node, next_state, cost, reward = self.select_child(curr_node, curr_state)
-                last_reward = reward
-                actions.append(next_node.id[1][-1])
-                if 'put' in actions[-1] and 'put' in actions[-2]:
-                    double_put = True
+                # if 'put' in actions[-1] and 'put' in actions[-2]:
+                #     double_put = True
 
-                actions_state = [child.id[1][-1] for child in curr_node.children]
+                # actions_state = [child.id[1][-1] for child in curr_node.children]
                 # print(curr_node.id[1][-1], it)
                 # ipdb.set_trace()
                 # for action in actions_state:
@@ -141,6 +158,9 @@ class MCTS_particles_v2:
                 # print('{}, #visit: {}, value: {}'.format(next_node.id[-1][-1], next_node.num_visited, next_node.sum_value))
                 if next_node is None:
                     break
+                last_reward = reward
+                actions.append(next_node.id[1][-1])
+                
 
                 it += 1
                 
@@ -218,8 +238,6 @@ class MCTS_particles_v2:
         curr_vh_state, curr_state, satisfied, unsatisfied = state_particle
         last_reward = lrw
         curr_vh_state = copy.deepcopy(curr_vh_state)
-        satisfied = copy.deepcopy(satisfied)
-        unsatisfied = copy.deepcopy(unsatisfied)
 
         # TODO: we should start with goals at random, or with all the goals
         # Probably not needed here since we already computed whern expanding node
@@ -245,6 +263,9 @@ class MCTS_particles_v2:
             hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
             if len(hands_busy) == 2:     
                 subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
+
+            if len(subgoals) == 0:
+                ipdb.set_trace()
 
             curr_goal = random.randint(0, len(subgoals) - 1)
             goal_selected = subgoals[curr_goal][0]
@@ -298,11 +319,55 @@ class MCTS_particles_v2:
         # graph = curr_vh_state.to_dict()
         # id2node = {node['id']: node for node in graph['nodes']}
         if 'walk' in action[0]:
-            cost = 0.05
 
-            # action_id = int(action[0].split('(')[1].split(')')[0])
-            # if id2node[action_id]['category'] == "Rooms":
+            # measure distance, only between rooms
+            objects_close = list(curr_vh_state.get_node_ids_from(1, Relation.CLOSE))
+            current_room = list(curr_vh_state.get_node_ids_from(1, Relation.INSIDE))[0]
+            objects_close_in_room = [obj_id for obj_id in objects_close if current_room in list(curr_vh_state.get_node_ids_from(obj_id, Relation.INSIDE))]
+            if True: #len(objects_close_in_room) == 0:
+                current_objects = [current_room]
+            else:
+                current_objects = objects_close_in_room
+
+
+            action_object_id = int(action[0].split('(')[1].split(')')[0])
+
+
+            # if the destionation is a room
+            if self.id2node_env[action_object_id]['category'] == "Rooms": # or action_object_id in self.static_object_ids:
+                current_objects_dest = [action_object_id]
+            else:
+                objects_on_inside = list(curr_vh_state.get_node_ids_from(action_object_id, Relation.ON)) + list(curr_vh_state.get_node_ids_from(action_object_id, Relation.INSIDE))
+                                
+                if self.id2node_env[objects_on_inside[0]]['category'] == "Rooms": #len(objects_on_inside) > 0:
+                    # The target object is inside something, use that as the location
+                    current_objects_dest = objects_on_inside
+                else:
+                    # get the rooms
+                    current_objects_dest = list(curr_vh_state.get_node_ids_from(objects_on_inside[0], Relation.INSIDE))
+
+            if len(current_objects_dest) == 0:
+                ipdb.set_trace()
+            # Get the center of all the objects you are close to, or the room
+            nodes_graph_center = np.concatenate([np.array(self.id2node_env[nodeid]['bounding_box']['center'])[None, :] for nodeid in current_objects], 0)
+
+            # Get the center of the objects close to the dest
+            nodes_graph_dest_center = np.concatenate([np.array(self.id2node_env[nodeid]['bounding_box']['center'])[None, :] for nodeid in current_objects_dest], 0)
+
+            center_char = np.mean(nodes_graph_center, 0)
+            center_dest = np.mean(nodes_graph_dest_center, 0)
+
+            distance = (center_char - center_dest)**2
+            distance = np.sqrt(distance[0] + distance[2])
+            # ipdb.set_trace()
+            # if self.id2node[action_id]['category'] == "Rooms":
+            #    pass
                # cost = 5.0
+
+            # distance = 0
+            cost_mult = self.agent_params['walk_cost']
+            cost = cost_mult * distance
+            
         elif 'open' in action[0]:
             cost = self.agent_params['open_cost']
         elif 'grab' in action[0]:

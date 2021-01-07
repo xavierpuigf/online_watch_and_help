@@ -16,10 +16,11 @@ from utils import utils_goals
 
 
 def get_class_mode(agent_args):
-    mode_str = '{}_opencost{}_closecost{}_forgetrate{}'.format(
-        agent_args['obs_type'], 
+    mode_str = '{}_opencost{}_closecost{}_walkcost{}_forgetrate{}'.format(
+        agent_args['obs_type'],  
+        agent_args['open_cost'],
         agent_args['should_close'], 
-        agent_args['open_cost'], 
+        agent_args['walk_cost'],
         agent_args['belief']['forget_rate'])
     return mode_str
 
@@ -33,7 +34,8 @@ if __name__ == '__main__':
 
 
     args.obs_type = 'partial'
-    open_cost = 0    
+    open_cost = 0.
+    walk_cost = 0.05
     should_close = False
     forget_rate = 0.
     datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
@@ -41,10 +43,11 @@ if __name__ == '__main__':
         'obs_type': args.obs_type,
         'open_cost': open_cost,
         'should_close': should_close,
+        'walk_cost': walk_cost,
         'belief': {'forget_rate': forget_rate}
     }
     args.mode = get_class_mode(agent_args)
-    args.mode += 'v7_particles_v2'
+    args.mode += 'v9_particles_v2'
 
     
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -90,13 +93,13 @@ if __name__ == '__main__':
 
     args_common = dict(recursive=False,
                          max_episode_length=20,
-                         num_simulation=80,
+                         num_simulation=200,
                          max_rollout_steps=5,
                          c_init=0.1,
                          c_base=1000000,
                          num_samples=1,
-                         num_processes=10,
-                         num_particles=20,
+                         num_processes=0,
+                         num_particles=1,
                          logging=True,
                          logging_graphs=True)
 
