@@ -11,10 +11,12 @@ import argparse
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 home_path = '../../'
-sys.path.append(f'{curr_dir}/../../virtualhome')
-sys.path.append(f'{curr_dir}/..')
+sys.path.insert(0, f'{curr_dir}/../../virtualhome/')
+print('path', sys.path[-1])
 
+sys.path.insert(0, f'{curr_dir}/..')
 from simulation.unity_simulator import comm_unity
+print(comm_unity.__file__)
 from init_goal_setter.init_goal_base import SetInitialGoal
 from init_goal_setter.tasks import Task
 
@@ -32,7 +34,7 @@ parser.add_argument('--display', type=int, default=0, help='Task name')
 parser.add_argument('--mode', type=str, default='full', choices=['simple', 'full'], help='Task name')
 parser.add_argument('--use-editor', action='store_true', default=False, help='Use unity editor')
 parser.add_argument('--exec_file', type=str,
-                    default='../executable/linux_exec.x86_64',
+                    default='../../path_sim/linux_exec/linux_exec.x86_64',
                     help='Use unity editor')
 
 if __name__ == "__main__":
@@ -248,7 +250,8 @@ if __name__ == "__main__":
                              'task_goal': task_goal,
                              'level': 0, 'init_rooms': rand.sample(['kitchen', 'bedroom', 'livingroom', 'bathroom'], 2)})
 
-    pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/env_task_set_{args.num_per_apartment}_{args.mode}.pik', 'wb'))
+    pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/test_env_task_set_{args.num_per_apartment}_{args.mode}.pik', 'wb'))
+
 
 
 

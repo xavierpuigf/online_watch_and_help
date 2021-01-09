@@ -5,7 +5,6 @@ import copy
 from termcolor import colored
 import ipdb
 
-from pyinstrument import Profiler
 from tqdm import tqdm
 from utils import utils_environment as utils_env
 import traceback
