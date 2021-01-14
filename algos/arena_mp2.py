@@ -343,6 +343,7 @@ class ArenaMP(object):
             step_info = self.env.step(dict_actions)
         except:
             print("Time out for action: ", dict_actions)
+            ipdb.set_trace()
             raise Exception
         return step_info, dict_actions, dict_info
 
@@ -374,6 +375,7 @@ class ArenaMP(object):
                       'goals_finished': [],
                       'belief': {0: [], 1: []},
                       'belief_graph': {0: [], 1: []},
+                      'graph': [],
                       'obs': []}
         success = False
         while True:
@@ -388,9 +390,13 @@ class ArenaMP(object):
                 saved_info['goals_finished'].append(infos['satisfied_goals'])
             for agent_id, action in actions.items():
                 saved_info['action'][agent_id].append(action)
+
+            if 'graph' in infos:
+                saved_info['graph'].append(infos['graph'])
+
             for agent_id, info in agent_info.items():
-                if 'belief_graph' in info:
-                    saved_info['belief_graph'][agent_id].append(info['belief_graph'])
+                #if 'belief_graph' in info:
+                #    saved_info['belief_graph'][agent_id].append(info['belief_graph'])
                 if 'belief' in info:
                     saved_info['belief'][agent_id].append(info['belief'])
                 if 'plan' in info:
@@ -398,7 +404,7 @@ class ArenaMP(object):
                 if 'subgoals' in info:
                     saved_info['subgoals'][agent_id].append(info['subgoals'][:3])
                 if 'obs' in info:
-                    saved_info['obs'].append(info['obs'])
+                    saved_info['obs'].append([node['id'] for node in info['obs']])
             if done:
                 break
         saved_info['finished'] = success

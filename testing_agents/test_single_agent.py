@@ -41,7 +41,7 @@ if __name__ == '__main__':
             ['partial', -500, 0.05, False, 0.01],
             ['partial', 0, 0.05, False, 1.0],
     ]
-    for agent_id in range(len(agent_types)):
+    for agent_id in range(2, 4): #len(agent_types)):
         args.obs_type, open_cost, walk_cost, should_close, forget_rate = agent_types[agent_id]
         datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
         agent_args = {
@@ -103,7 +103,7 @@ if __name__ == '__main__':
                              c_init=0.1,
                              c_base=1000000,
                              num_samples=1,
-                             num_processes=5, 
+                             num_processes=20, 
                              num_particles=20,
                              logging=True,
                              logging_graphs=True)
@@ -127,12 +127,17 @@ if __name__ == '__main__':
                 test_results = pickle.load(open(args.record_dir + '/results_{}.pik'.format(0), 'rb'))
             
             for episode_id in episode_ids:
+                #if episode_id == 0:
+                #    continue
                 #if episode_id in [2, 6, 7, 12, 17, 20]:
                 #    continue
-                curr_log_file_name = args.record_dir + '/logs_agent_{}_{}_{}.pik'.format(
-                env_task_set[episode_id]['task_id'],
-                env_task_set[episode_id]['task_name'],
-                iter_id)
+                #curr_log_file_name = args.record_dir + '/logs_agent_{}_{}_{}.pik'.format(
+                #env_task_set[episode_id]['task_id'],
+                #env_task_set[episode_id]['task_name'],
+                #iter_id)
+                log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
+                if os.path.isfile(log_file_name):
+                    continue
 
 
                 print('episode:', episode_id)
@@ -156,7 +161,6 @@ if __name__ == '__main__':
                     is_finished = 1 if success else 0
 
                     Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                    log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
                     if len(saved_info['obs']) > 0:
                         pickle.dump(saved_info, open(log_file_name, 'wb'))
                     else:

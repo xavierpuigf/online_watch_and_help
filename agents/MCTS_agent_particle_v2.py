@@ -422,6 +422,8 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         # print(max_action, prev_index_particles)
         final_actions.append(max_action)
 
+    if len(final_actions) == 0:
+        ipdb.set_trace()
     plan = final_actions
     subgoals = [[None, None, None], [None, None, None]]
     # next_root, plan, subgoals = mp_run_mcts(root_nodes[0])
@@ -686,7 +688,7 @@ class MCTS_agent_particle_v2:
                 belief_states = []
                 obs_ids = [node['id'] for node in obs['nodes']]
 
-                if particle is None:
+                if True: #particle is None:
                     new_graph = self.belief.update_graph_from_gt_graph(obs, resample_unseen_nodes=True, update_belief=False)
                     init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
                     satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
@@ -700,6 +702,8 @@ class MCTS_agent_particle_v2:
                         obs, sampled_graph=prev_graph, resample_unseen_nodes=True, update_belief=False)
                     init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
                     init_vh_state = self.sim_env.get_vh_state(init_state)
+                    if 'waterglass' not in [node['class_name'] for node in init_state['nodes']] and goal_spec['on_waterglass_232'][0] > 0:
+                        ipdb.set_trace()
 
                     satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
                     self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
@@ -747,7 +751,10 @@ class MCTS_agent_particle_v2:
 
         self.last_action = None
         self.last_subgoal = None
+        self.init_gt_graph = gt_graph
         """TODO: do no need this?"""
+        #if 'waterglass' not in [node['class_name'] for node in self.init_gt_graph['nodes']]:
+        #    ipdb.set_trace()
 
         self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed, belief_params=self.belief_params)
         self.sim_env.reset(gt_graph)
