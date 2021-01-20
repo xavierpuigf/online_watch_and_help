@@ -343,7 +343,6 @@ class ArenaMP(object):
             step_info = self.env.step(dict_actions)
         except:
             print("Time out for action: ", dict_actions)
-            ipdb.set_trace()
             raise Exception
         return step_info, dict_actions, dict_info
 
@@ -378,8 +377,18 @@ class ArenaMP(object):
                       'graph': [],
                       'obs': []}
         success = False
+        num_failed = 0
         while True:
             (obs, reward, done, infos), actions, agent_info = self.step()
+            #ipdb.set_trace()
+            step_failed = infos['failed_exec']
+            if step_failed:
+                num_failed +=1
+            else:
+                num_failed = 0
+            if num_failed > 5:
+                print("Many failures")
+                raise Exception
             print("\nAgent Step:")
             print("----------")
             print("Goals:", self.env.task_goal)

@@ -78,9 +78,9 @@ class MCTS_particles_v2:
     def run(self, curr_root, t, heuristic_dict, plan, opponent_subgoal):
         state_particle = curr_root.state
         unsatisfied = state_particle[-1]
-        print(colored("Goal:", "green"), curr_root.id[1][0])
-        print(unsatisfied)
-        print(colored('-----', "green"))
+        #print(colored("Goal:", "green"), curr_root.id[1][0])
+        #print(unsatisfied)
+        #print(colored('-----', "green"))
         self.opponent_subgoal = opponent_subgoal
         if self.verbose:
             print('check subgoal')
@@ -186,7 +186,8 @@ class MCTS_particles_v2:
             
             # TODO: is this _Correct
             if double_put:
-                pass
+                raise Exception
+                #pass
                 # ipdb.set_trace()
             self.backup(value, node_path, costs, rewards)
             # print(colored("Finish select", "yellow"))
@@ -264,7 +265,8 @@ class MCTS_particles_v2:
                 subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
 
             if len(subgoals) == 0:
-                ipdb.set_trace()
+                raise Exception
+                #ipdb.set_trace()
 
             curr_goal = random.randint(0, len(subgoals) - 1)
             goal_selected = subgoals[curr_goal][0]
@@ -283,12 +285,14 @@ class MCTS_particles_v2:
                 try:
                     success, next_vh_state, next_vh_state_dict, cost, curr_reward = self.transition(curr_vh_state, {0: action_str}, goal_spec)
                 except:
-                    traceback.print_exc() 
-                    ipdb.set_trace()
+                    raise Exception
+                    #traceback.print_exc() 
+                    #ipdb.set_trace()
                 
                 if not success:
-                    ipdb.set_trace()
-                    print("Failure", action_str)
+                    raise Exception
+                    #ipdb.set_trace()
+                    #print("Failure", action_str)
                 # print(action_str, cost)
                 curr_vh_state, curr_state = next_vh_state, next_vh_state_dict
                 delta_reward = curr_reward - last_reward - cost

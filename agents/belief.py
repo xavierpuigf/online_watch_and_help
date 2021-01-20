@@ -161,6 +161,7 @@ class Belief():
         for node in self.sampled_graph['nodes']:
             object_name = node['class_name']
             bin_vars = self.graph_helper.get_object_binary_variables(object_name)
+
             bin_vars = [x for x in bin_vars if x.default in self.states_consider]
             belief_dict = {}
             for bin_var in bin_vars:

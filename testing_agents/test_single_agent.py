@@ -1,4 +1,5 @@
 import sys
+import traceback
 import os
 import ipdb
 import pickle
@@ -39,9 +40,9 @@ if __name__ == '__main__':
             ['partial', 0, 0.05, False, 0.1],
             ['partial', 500, 0.05, False, 0.01],
             ['partial', -500, 0.05, False, 0.01],
-            ['partial', 0, 0.05, False, 1.0],
+            ['partial', 0, 2.00, False, 0.01],
     ]
-    for agent_id in range(2, 4): #len(agent_types)):
+    for agent_id in range(1, 2): #len(agent_types)):
         args.obs_type, open_cost, walk_cost, should_close, forget_rate = agent_types[agent_id]
         datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
         agent_args = {
@@ -65,8 +66,12 @@ if __name__ == '__main__':
             init_gr['edges'] = [edge for edge in init_gr['edges'] if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can]
 
         args.record_dir = '../data/{}/{}'.format(datafile, args.mode)
+        error_dir = '../data/errors/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
+
+        if not os.path.exists(error_dir):
+            os.makedirs(error_dir)
 
         executable_args = {
                         'file_name': args.executable_file,
@@ -136,7 +141,8 @@ if __name__ == '__main__':
                 #env_task_set[episode_id]['task_name'],
                 #iter_id)
                 log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
-                if os.path.isfile(log_file_name):
+                failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
+                if os.path.isfile(log_file_name) or os.path.isfile(failure_file):
                     continue
 
 
@@ -149,7 +155,18 @@ if __name__ == '__main__':
                 if True:
                     
                     arena.reset(episode_id)
-                    success, steps, saved_info = arena.run()
+                    try:
+                        success, steps, saved_info = arena.run()
+                    except:
+                        with open(failure_file, 'w+') as f:
+                            error_str = 'Unity failure'
+                            error_str += '\n'
+                            error_str += ''.join(traceback.format_stack())
+                            f.write(error_str)
+                        arena.reset_env()
+                        print("Error")
+                        continue
+
                     print('-------------------------------------')
                     print('success' if success else 'failure')
                     print('steps:', steps)
