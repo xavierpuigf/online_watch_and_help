@@ -1,4 +1,7 @@
 import sys
+import shutil
+import os
+import logging
 import traceback
 import os
 import ipdb
@@ -66,7 +69,7 @@ if __name__ == '__main__':
             init_gr['edges'] = [edge for edge in init_gr['edges'] if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can]
 
         args.record_dir = '../data/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data/errors/{}_{}'.format(datafile, args.mode)
+        error_dir = '../data/logging/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -83,6 +86,7 @@ if __name__ == '__main__':
         random.seed(id_run)
         episode_ids = list(range(len(env_task_set)))
         episode_ids = sorted(episode_ids)
+        episode_ids = episode_ids[10:]
 
         S = [[] for _ in range(len(episode_ids))]
         L = [[] for _ in range(len(episode_ids))]
@@ -118,7 +122,6 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
-
         for iter_id in range(num_tries):
             #if iter_id > 0:
 
@@ -131,6 +134,8 @@ if __name__ == '__main__':
             else:
                 test_results = pickle.load(open(args.record_dir + '/results_{}.pik'.format(0), 'rb'))
             
+            logger = logging.getLogger() 
+            logger.setLevel(logging.INFO)
             for episode_id in episode_ids:
                 #if episode_id == 0:
                 #    continue
@@ -140,10 +145,17 @@ if __name__ == '__main__':
                 #env_task_set[episode_id]['task_id'],
                 #env_task_set[episode_id]['task_name'],
                 #iter_id)
+
                 log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
                 failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
-                if os.path.isfile(log_file_name) or os.path.isfile(failure_file):
+
+                if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
                     continue
+                if os.path.isfile(failure_file):
+                    os.remove(failure_file)
+                fileh = logging.FileHandler(failure_file, 'a')
+                fileh.setLevel(logging.DEBUG)
+                logger.addHandler(fileh)
 
 
                 print('episode:', episode_id)
@@ -152,20 +164,10 @@ if __name__ == '__main__':
                     agent.seed = it_agent + current_tried * 2
 
                 
-                if True:
+                try:
                     
                     arena.reset(episode_id)
-                    try:
-                        success, steps, saved_info = arena.run()
-                    except:
-                        with open(failure_file, 'w+') as f:
-                            error_str = 'Unity failure'
-                            error_str += '\n'
-                            error_str += ''.join(traceback.format_stack())
-                            f.write(error_str)
-                        arena.reset_env()
-                        print("Error")
-                        continue
+                    success, steps, saved_info = arena.run()
 
                     print('-------------------------------------')
                     print('success' if success else 'failure')
@@ -183,9 +185,23 @@ if __name__ == '__main__':
                     else:
                         with open(log_file_name, 'w+') as f:
                             f.write(json.dumps(saved_info, indent=4))
-                else:
-                    ipdb.set_trace()
+
+                    logger.removeHandler(logger.handlers[0])
+                    os.remove(failure_file)
+                except:
+                    #with open(failure_file, 'w+') as f:
+                    #    error_str = 'Failure'
+                    #    error_str += '\n'
+                    #    stack_form = ''.join(traceback.format_stack())
+                    #    error_str += stack_form
+
+                    #    f.write(error_str)
+                    logging.exception("Error")
+                    print("ERROR")
+                    logger.removeHandler(logger.handlers[0])
+                    exit()
                     arena.reset_env()
+                    continue
 
                 S[episode_id].append(is_finished)
                 L[episode_id].append(steps)

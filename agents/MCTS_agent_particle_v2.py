@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 import random
 import time
 import math
@@ -43,7 +44,7 @@ def find_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, obje
             container = containerdict[target]
         except:
             print(id2node[target])
-            pdb.set_trace()
+            raise Exception
         # If the object is a room, we have to walk to what is insde
 
         if id2node[container]['category'] == 'Rooms':
@@ -336,7 +337,10 @@ def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
         'turnOn': turnOn_heuristic
     }
     # res = root_node * 2
-    res = mcts.run(root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal)
+    try:
+        res = mcts.run(root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal)
+    except:
+        raise Exception
     return res
 
 
@@ -369,10 +373,14 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         opponent_subgoal=opponent_subgoal)
 
     if len(root_nodes) == 0:
-        ipdb.set_trace()
+        print("No root nodes")
+        raise Exception
     if num_process > 0:
         with mp.Pool(min(num_process, len(root_nodes))) as p:
             info = p.map(mp_run, root_nodes)
+        for info_item in info:
+            if info_item is None:
+                raise Exception
     else:
         info = [mp_run(rn) for rn in root_nodes]
 
@@ -423,7 +431,8 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         final_actions.append(max_action)
 
     if len(final_actions) == 0:
-        ipdb.set_trace()
+        print("No final actions")
+        raise Exception
     plan = final_actions
     subgoals = [[None, None, None], [None, None, None]]
     # next_root, plan, subgoals = mp_run_mcts(root_nodes[0])
@@ -703,7 +712,7 @@ class MCTS_agent_particle_v2:
                     init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
                     init_vh_state = self.sim_env.get_vh_state(init_state)
                     if 'waterglass' not in [node['class_name'] for node in init_state['nodes']] and goal_spec['on_waterglass_232'][0] > 0:
-                        ipdb.set_trace()
+                        raise Exception
 
                     satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
                     self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
@@ -718,8 +727,9 @@ class MCTS_agent_particle_v2:
         else:
             subgoals = [[None, None, None], [None, None, None]]
         if len(plan) == 0:
+            print("Plan empty")
+            raise Exception
             
-            pdb.set_trace()
         
         if len(plan) > 0:
             action = plan[0]

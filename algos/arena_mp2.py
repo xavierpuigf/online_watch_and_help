@@ -1,4 +1,5 @@
 import random
+import logging
 import torch
 import copy
 import numpy as np
@@ -343,6 +344,7 @@ class ArenaMP(object):
             step_info = self.env.step(dict_actions)
         except:
             print("Time out for action: ", dict_actions)
+            logging.info("ERROR IN" + " | ".join(list(dict_actions.values())))
             raise Exception
         return step_info, dict_actions, dict_info
 
@@ -386,13 +388,14 @@ class ArenaMP(object):
                 num_failed +=1
             else:
                 num_failed = 0
-            if num_failed > 5:
+            if num_failed > 10:
                 print("Many failures")
                 raise Exception
             print("\nAgent Step:")
             print("----------")
-            print("Goals:", self.env.task_goal)
+            #print("Goals:", self.env.task_goal)
             print("Action: ", actions)
+            logging.info(' | '.join(actions.values()))
             print("Plan:", agent_info[0]['plan'][:4])
             success = infos['finished']
             if 'satisfied_goals' in infos:
