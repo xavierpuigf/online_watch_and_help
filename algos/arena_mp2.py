@@ -380,16 +380,24 @@ class ArenaMP(object):
                       'obs': []}
         success = False
         num_failed = 0
+        num_repeated = 0
+        prev_action = None
         while True:
             (obs, reward, done, infos), actions, agent_info = self.step()
             #ipdb.set_trace()
             step_failed = infos['failed_exec']
+            if actions[0] == prev_action:
+                num_repeated += 1
+            else:
+                prev_action = actions[0]
+                num_repeated = 0
             if step_failed:
                 num_failed +=1
             else:
                 num_failed = 0
-            if num_failed > 10:
+            if num_failed > 10 or num_repeated > 25:
                 print("Many failures")
+                logging.info("Many failures")
                 raise Exception
             print("\nAgent Step:")
             print("----------")

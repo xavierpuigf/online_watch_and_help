@@ -38,7 +38,7 @@ def find_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, obje
     action_list = []
     cost_list = []
     # if target == 478:
-    #     ipdb.set_trace()
+    #     )ipdb.set_trace()
     while target not in observation_ids:
         try:
             container = containerdict[target]
@@ -338,8 +338,10 @@ def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
     }
     # res = root_node * 2
     try:
-        res = mcts.run(root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal)
+        new_mcts = copy.deepcopy(mcts)
+        res = new_mcts.run(root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal)
     except:
+        print("plan fail in index", root_node.particle_id)
         raise Exception
     return res
 
@@ -356,8 +358,9 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
     root_nodes = []
     for particle_id in range(len(particles)):
         root_action = None
-        root_node = Node(id=(root_action, [goal_spec, 0, []]),
-                         state=particles[particle_id],
+        root_node = Node(id=(root_action, [copy.deepcopy(goal_spec), 0, []]),
+                         particle_id=particle_id,
+                         state=copy.deepcopy(particles[particle_id]),
                          num_visited=0,
                          sum_value=0,
                          is_expanded=False)
@@ -376,13 +379,25 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         print("No root nodes")
         raise Exception
     if num_process > 0:
-        with mp.Pool(min(num_process, len(root_nodes))) as p:
-            info = p.map(mp_run, root_nodes)
-        for info_item in info:
-            if info_item is None:
-                raise Exception
+        try:
+            with mp.Pool(min(num_process, len(root_nodes))) as p:
+                info = p.map(mp_run, root_nodes)
+            for info_item in info:
+                if info_item is None:
+                    print("ITEM IS NONE")
+                    raise Exception
+            print("Done planner")
+        except:
+            print("ERROR IN the MCTS planner")
+            pdb.set_trace()
+
+            raise Exception
     else:
-        info = [mp_run(rn) for rn in root_nodes]
+        try:
+            info = [mp_run(rn) for rn in root_nodes]
+        except:
+            pdb.set_trace()
+            raise Exception
 
     rewards_all = [inf[-1] for inf in info] 
     plans_all = [inf[1] for inf in info]
@@ -499,15 +514,16 @@ class MCTS_agent_particle_v2:
         #     if 'should_close' in self.planner_params:
         #         self.should_close = self.planner_params['should_close']
 
-        self.mcts = MCTS_particles_v2(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
-                         self.num_simulation, self.max_rollout_steps,
-                         self.c_init, self.c_base, agent_params=self.agent_params)
+        self.mcts = None 
+        #MCTS_particles_v2(self.agent_id, self.char_index, self.max_episode_length,
+        #                 self.num_simulation, self.max_rollout_steps,
+        #                 self.c_init, self.c_base, agent_params=self.agent_params)
         
         self.particles = [None for _ in range(self.num_particles)]
         self.particles_full = [None for _ in range(self.num_particles)]
 
-        if self.mcts is None:
-            raise Exception
+        #if self.mcts is None:
+        #    raise Exception
 
         # Indicates whether there is a unity simulation
         self.comm = comm
@@ -769,7 +785,7 @@ class MCTS_agent_particle_v2:
         self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed, belief_params=self.belief_params)
         self.sim_env.reset(gt_graph)
 
-        self.mcts = MCTS_particles_v2(self.sim_env, self.agent_id, self.char_index, self.max_episode_length,
+        self.mcts = MCTS_particles_v2(gt_graph, self.agent_id, self.char_index, self.max_episode_length,
                          self.num_simulation, self.max_rollout_steps,
                          self.c_init, self.c_base, seed=seed, agent_params=self.agent_params)
 

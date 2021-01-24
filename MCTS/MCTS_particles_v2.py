@@ -1,5 +1,6 @@
 import random
 import numpy as np
+from envs.graph_env import VhGraphEnv
 from anytree import AnyNode as Node
 import copy
 from termcolor import colored
@@ -11,8 +12,8 @@ import traceback
 from evolving_graph.environment import Relation
 
 class MCTS_particles_v2:
-    def __init__(self, sim_env, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
-        self.env = sim_env
+    def __init__(self, gt_graph, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
+        self.env = None
         self.discount = 0.95 #0.4
         self.agent_id = agent_id
         self.char_index = char_index
@@ -27,19 +28,7 @@ class MCTS_particles_v2:
         self.last_opened = None
         self.verbose = False
         self.agent_params = agent_params
-        if not self.env.state is None:
-            self.id2node_env =  {node['id']: node for node in self.env.state['nodes']}
-            static_classes = [
-                'bathroomcabinet',
-                'kitchencabinet',
-                'cabinet',
-                'fridge',
-                'stove',
-                'dishwasher',
-                'microwave',
-                'kitchentable',
-            ]
-            self.static_object_ids = [node['id'] for node in self.env.state['nodes'] if node['class_name'] in static_classes]
+        self.gt_graph = copy.deepcopy(gt_graph)
         np.random.seed(self.seed)
         random.seed(self.seed)
 
@@ -76,12 +65,30 @@ class MCTS_particles_v2:
         return count
         
     def run(self, curr_root, t, heuristic_dict, plan, opponent_subgoal):
+        self.env = VhGraphEnv()
+        self.env.pomdp = True
+        self.env.reset(copy.deepcopy(self.gt_graph))
+
+        if not self.env.state is None:
+            self.id2node_env =  {node['id']: node for node in self.env.state['nodes']}
+            static_classes = [
+                'bathroomcabinet',
+                'kitchencabinet',
+                'cabinet',
+                'fridge',
+                'stove',
+                'dishwasher',
+                'microwave',
+                'kitchentable',
+            ]
+            self.static_object_ids = [node['id'] for node in self.env.state['nodes'] if node['class_name'] in static_classes]
+
         state_particle = curr_root.state
         unsatisfied = state_particle[-1]
         #print(colored("Goal:", "green"), curr_root.id[1][0])
         #print(unsatisfied)
         #print(colored('-----', "green"))
-        self.opponent_subgoal = opponent_subgoal
+        self.opponent_subgoal = copy.deepcopy(opponent_subgoal)
         if self.verbose:
             print('check subgoal')
         
