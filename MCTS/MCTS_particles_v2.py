@@ -189,8 +189,12 @@ class MCTS_particles_v2:
                 continue
             leaf_node = curr_node
             # print(costs, rewards, tmp_t+it, it)
-            value, reward_rollout, actions_rollout = self.rollout(leaf_node, tmp_t + it, curr_state, last_reward)
-            
+            verbose_roll = False
+            # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
+            #     verbose_roll = True
+            value, reward_rollout, actions_rollout = self.rollout(leaf_node, tmp_t + it, curr_state, last_reward, verbose=verbose_roll)
+            # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
+            #     ipdb.set_trace()
             # TODO: is this _Correct
             if double_put:
                 raise Exception
@@ -203,7 +207,7 @@ class MCTS_particles_v2:
         plan = []
         subgoals = []
         rewards = []
-        while curr_root.is_expanded:
+        while curr_root.is_expanded and len(curr_root.children) > 0:
 
             actions_taken, children_visit, next_root = self.select_next_root(curr_root)
             curr_root = next_root
@@ -214,7 +218,7 @@ class MCTS_particles_v2:
 
         # if len(plan) > 0:
         #     elements = plan[0].split(' ')
-        #     if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[2] != self.last_opened[1]):
+        #     if need_to_close and (elements[0] == '[walk]' or elements[0] == '[open]' and elements[3] != self.last_opened[1]):
         #         if self.last_opened is not None:
         #             for edge in curr_state_tmp['edges']:
         #                 if edge['relation_type'] == 'CLOSE' and \
@@ -234,10 +238,19 @@ class MCTS_particles_v2:
         # ipdb.set_trace()
         next_root = None
         # ipdb.set_trace()
+
+        # If the goal is to put something inside something
+
+        if len(plan) == 0 and sum([x for x in curr_state[-1].values()]) > 0:
+            # ipdb.set_trace()
+            raise Exception
+        # print(plan)
+        # if len([x for x in plan if 'grab' in x]) > 1:
+        #     ipdb.set_trace()
         return next_root, plan, subgoals, rewards
 
 
-    def rollout(self, leaf_node, t, state_particle, lrw=0.):
+    def rollout(self, leaf_node, t, state_particle, lrw=0., verbose=False):
         reached_terminal = False
 
         leaf_node_values = leaf_node.id[1]
@@ -254,6 +267,7 @@ class MCTS_particles_v2:
 
         rewards = []
         actions_l = []
+        last_goal = None
         for rollout_step in range(self.max_rollout_step):#min(self.max_rollout_step, self.max_episode_length - t)):
             # # subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied)
             # print(rollout_step)
@@ -263,27 +277,62 @@ class MCTS_particles_v2:
             # print(subgoals[list_goals[rollout_step]])
 
             subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied, self.opponent_subgoal)
+            
             # print("Roll", len(subgoals))
             if len(subgoals) == 0:
                 break
 
             hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+
+            # If I have 2 hands busy, focus on the objects in 2 hands
             if len(hands_busy) == 2:     
                 subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
+
+            # If I only have 1 hand busy, put this object has to go inside somewhere, focus on it
+            # Otherwise it will be impossible to determine
+            if len(hands_busy) == 1:
+                subgoals_putin = [subg for subg in subgoals if int(subg[0].split('_')[1]) == hands_busy[0] and subg[0].split('_')[0].lower() == 'putin']
+                if len(subgoals_putin) > 0:
+                    subgoals = subgoals_putin
+            
 
             if len(subgoals) == 0:
                 raise Exception
                 #ipdb.set_trace()
+            
+            subgoal_list = [x[0] for x in subgoals]
+            if last_goal is not None and goal_selected in subgoal_list:
+                goal_selected = last_goal
 
-            curr_goal = random.randint(0, len(subgoals) - 1)
-            goal_selected = subgoals[curr_goal][0]
+            else:
+                curr_goal = random.randint(0, len(subgoals) - 1)
+                goal_selected = subgoals[curr_goal][0]
+                last_goal = goal_selected
+
             heuristic = self.heuristic_dict[goal_selected.split('_')[0]]
 
+
+
             actions, _ = heuristic(self.agent_id, self.char_index, unsatisfied, curr_state, self.env, goal_selected)
+            
+            if verbose:
+                print(hands_busy)
+                print("Rollout: ", rollout_step)
+                print("Subgoals: ", subgoals, satisfied, unsatisfied)
+                print("Goal Selected: ", goal_selected)
+                print(actions[0])
+                print()
+            # if actions[0][1][1] == 333:
+            #     print("Plan with glass")
+            #     ipdb.set_trace()
+            if len(hands_busy) == 2:
+                if 'open' in actions[0][0].lower() or 'close' in actions[0][0].lower():
+                    actions = None
             # print(actions)
 
             if actions is None:
                 delta_reward = 0
+                action = None
             else:
                 action = actions[0]
                 
@@ -297,6 +346,8 @@ class MCTS_particles_v2:
                     #ipdb.set_trace()
                 
                 if not success:
+                    # ipdb.set_trace()
+                    print("Failure in transition")
                     raise Exception
                     #ipdb.set_trace()
                     #print("Failure", action_str)
@@ -356,8 +407,8 @@ class MCTS_particles_v2:
                     # get the rooms
                     current_objects_dest = list(curr_vh_state.get_node_ids_from(objects_on_inside[0], Relation.INSIDE))
 
-            if len(current_objects_dest) == 0:
-                ipdb.set_trace()
+            # assert len(current_objects_dest) == 0
+            # raise Exception
             # Get the center of all the objects you are close to, or the room
             nodes_graph_center = np.concatenate([np.array(self.id2node_env[nodeid]['bounding_box']['center'])[None, :] for nodeid in current_objects], 0)
 
@@ -547,15 +598,19 @@ class MCTS_particles_v2:
         children_ids = [child.id[0] for child in curr_root.children]
         children_visit = [child.num_visited for child in curr_root.children]
         children_value = [child.sum_value for child in curr_root.children]
-        if self.verbose:
-            print('children_ids:', children_ids)
-            print('children_visit:', children_visit)
-            print('children_value:', children_value)
+
         # print(list([c.id.keys() for c in curr_root.children]))
         maxIndex = np.argwhere(
             children_visit == np.max(children_visit)).flatten()
         selected_child_index = random.choice(maxIndex)
         actions = curr_root.children[selected_child_index].id[1][-1]
+
+        if self.verbose:
+            print('children_ids:', [nodech.id[-1][-1] if it != selected_child_index else '**{}**'.format(nodech.id[-1][-1]) for it, nodech in enumerate(curr_root.children)])
+            # print('children_ids:', children_ids)
+            print('children_visit:', children_visit)
+            print('children_value:', children_value)
+            print('----')
         return actions, children_visit, curr_root.children[selected_child_index]
 
     def transition_subgoal(self, satisfied, unsatisfied, subgoal):
@@ -605,20 +660,29 @@ class MCTS_particles_v2:
         if len(hands_busy) == 2:
             subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
 
+        act_all = []
         for goal_predicate in subgoals:
             goal, predicate, aug_predicate = goal_predicate[0], goal_predicate[1], goal_predicate[2] # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
             action_heuristic,  _ = heuristic(self.agent_id, self.char_index, unsatisfied, state, self.env, goal)
+            act_all.append((action_heuristic, goal))
+            if ('open' in action_heuristic[0][0].lower() or 'close' in action_heuristic[0][0].lower()) and len(hands_busy) == 2:
+                continue
             if action_heuristic[0] not in actions_heuristic:
                 actions_heuristic.append(self.get_action_str(action_heuristic[0]))
 
-        # if len(hands_busy) == 1:
+        # if len(hands_bsusy) == 1:
         #     if 'put' in node.id[1][-1]:
         #         aux_node = node
         #         while aux_node.parent is not None:
         #             print(aux_node.id[1][-1])
         #             aux_node = aux_node.parent
                 # ipdb.set_trace()
+        if len(actions_heuristic) == 0 and node.id[0] is None:
+            ipdb.set_trace()
+
+        # if node.id[1][-1] == '[open] <fridge> (306)' and len(hands_busy) == 1:
+        #     ipdb.set_trace()
 
         for action in actions_heuristic:
             
@@ -645,7 +709,7 @@ class MCTS_particles_v2:
 
             new_node = Node(
                 parent=node,
-                id=(goal, [goal_spec, len(actions_heuristic), action_str]),
+                id=("Child", [goal_spec, len(actions_heuristic), action_str]),
                 state=None,
                 num_visited=0,
                 sum_value=0,
