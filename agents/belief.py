@@ -19,13 +19,15 @@ class Belief():
 
         self.knowledge_containers = True
         self.forget_rate = 0.
+        self.belief_type = "uniform"
 
         if len(belief_params) > 0:
             if 'forget_rate' in belief_params:
                 self.forget_rate = belief_params['forget_rate']
             if 'knowledge_containers' in belief_params:
                 self.knowledge_containers = belief_params['knowledge_containers']
-        
+            if 'belief_type' in belief_params:
+                self.belief_type = belief_params['belief_type']
 
         # Possible beliefs for some objects
         self.container_restrictions = {
@@ -38,7 +40,7 @@ class Belief():
 
         self.debug = False
 
-        self.high_prob = 1e9
+        # self.high_prob = 1e9
         self.low_prob = -1e9
         self.name_equivalence = load_name_equivalence()
         self.map_properties_to_pred = {
@@ -168,8 +170,10 @@ class Belief():
                 if bin_var.positive == 'OFF' and 'light' not in object_name:
                     # TODO: set a max prob
                     belief_dict[bin_var.positive] = 0.
+                elif 'light' in object_name:
+                    belief_dict[bin_var.positive] = 1. # Lights on 
                 else:
-                    belief_dict[bin_var.positive] = 0.5
+                    belief_dict[bin_var.positive] = 0. # Objectd are closed
 
             self.node_to_state_belief[node['id']] = belief_dict
 
@@ -242,8 +246,19 @@ class Belief():
             self.edge_belief[id1] = {}
             
 
+            if self.belief_type == 'uniform':
+                init_values = np.ones(len(self.container_ids))/len(self.container_ids)
+            else:
+                # This belief is that the object is either in the cabinet or in the bathroom
+                init_values = np.ones(len(self.container_ids))/len(self.container_ids)
+                id_cabinet = [(id_obj, index_cont) for id_obj, index_cont in enumerate(self.container_ids) if id_obj != None and self.id2node[id_obj]['class_name'] ==  'cabinet']
+                if len(id_cabinet) > 0:
+                    # Object is in the cabinet
+                    # Raw apprixmation
+                    init_values *= 0.2
+                    init_values[id_cabinet[0][1]] = 0.8
+                    init_values = np.log(init_values)
 
-            init_values = np.ones(len(self.container_ids))/len(self.container_ids)
             init_values_on = np.ones(len(self.surface_ids))/len(self.surface_ids)
 
             # Much more likely to be on nothing than the opposite, otherwise it will always go there
@@ -277,10 +292,23 @@ class Belief():
                     room_container = [edge['to_id'] for edge in self.graph_init['edges'] if edge['from_id'] == node['id'] and edge['relation_type'] == 'INSIDE']
                     assert(len(room_container) == 1)
                     room_index = [it for it,index in enumerate(self.room_ids) if index == room_container[0]][0]
-                    room_array = -1e9 * np.ones(len(self.room_ids))
+                    room_array = self.low_prob * np.ones(len(self.room_ids))
                     room_array[room_index] = 1
                 else:
-                    room_array = np.ones(len(self.room_ids))
+                    if self.belief_type == 'uniform':
+                        room_array = np.ones(len(self.room_ids))
+                    else:
+                        # TODO_belief: set to sometihng sensible
+                        init_values = np.ones(len(self.room_ids))
+                        id_kitchen = [(id_room, index_cont) for id_room, index_cont in enumerate(self.room_ids) if id_room != None and self.id2node[id_room]['class_name'] ==  'kitchen']
+                        if len(id_kitchen) > 0:
+                            # Object is in the cabinet
+                            # Raw apprixmation
+                            init_values *= (0.2/len(self.room_ids))
+                            init_values[id_kitchen[0][1]] = 0.8
+                            init_values = np.log(init_values)
+                        room_array = init_values
+
                 self.room_node[node['id']] = [self.room_ids, room_array]
         self.sampled_graph['edges'] = []
 
@@ -291,7 +319,8 @@ class Belief():
         self.init_belief()
 
     def sample_from_belief(self, as_vh_state=False, ids_update=None, obs=None):
-        # Sample states
+        # Sample states. Sample first inside to check if the object is inside a container
+        # If inside nothing, sample a room, if a room is sampled, sample whether it is on an object
 
         if ids_update is None:
             self.sampled_graph['edges'] = []

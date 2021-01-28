@@ -16,6 +16,7 @@ from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 from utils import utils_goals
+from utils import utils_exception
 
 
 
@@ -30,38 +31,40 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
+    num_proc = 10
 
-    num_tries = 3
+    num_tries = 4
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks.pik'
 
     agent_types = [
-            ['full', 0, 0.05, False, 0], # 0
-            ['full', 500, 0.05, False, 0], # 1
-            ['full', -500, 0.05, False, 0], # 2
-            ['partial', 0, 0.05, False, 0], # 3
-            ['partial', 0, 0.05, False, 0], # 4
-            ['partial', 0, 0.05, False, 0.2], # 5
-            ['partial', -500, 0.05, False, 0.01], # 6
-            ['partial', -500, 0.05, False, 0.2], # 7
-            ['partial', 500, 0.05, False, 0.2], # 8
+            ['full', 0, 0.05, False, 0, "uniform"], # 0
+            ['full', 500, 0.05, False, 0, "uniform"], # 1
+            ['full', -500, 0.05, False, 0, "uniform"], # 2
+            ['partial', 0, 0.05, False, 0, "uniform"], # 3
+            ['partial', 0, 0.05, False, 0, "spiked"], # 4
+            ['partial', 0, 0.05, False, 0.2, "uniform"], # 5
+            ['partial', -500, 0.05, False, 0.01, "spiked"], # 6
+            ['partial', -500, 0.05, False, 0.2, "uniform"], # 7
+            ['partial', 500, 0.05, False, 0.2, "uniform"], # 8
     ]
     agent_types_index = list(range(9))
     #random.shuffle(agent_types_index)
-    agent_types_index = [1]
+    if args.agenttype != 'all':
+        agent_types_index = [int(x) for x in args.agenttype.split(',')]
     for agent_id in agent_types_index: #len(agent_types)):
         if agent_id in [4,6]:
             continue
-        args.obs_type, open_cost, walk_cost, should_close, forget_rate = agent_types[agent_id]
+        args.obs_type, open_cost, walk_cost, should_close, forget_rate, belief_type = agent_types[agent_id]
         datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
         agent_args = {
             'obs_type': args.obs_type,
             'open_cost': open_cost,
             'should_close': should_close,
             'walk_cost': walk_cost,
-            'belief': {'forget_rate': forget_rate}
+            'belief': {'forget_rate': forget_rate, 'belief_type': belief_type}
         }
         args.mode = '{}_'.format(agent_id+1) + get_class_mode(agent_args)
         args.mode += 'v9_particles_v2'
@@ -79,8 +82,8 @@ if __name__ == '__main__':
                 if node['class_name'] == 'cutleryfork':
                     node['obj_transform']['position'][1] += 0.1
 
-        args.record_dir = '../data/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data/logging/{}_{}'.format(datafile, args.mode)
+        args.record_dir = '../data_scratch/{}/{}'.format(datafile, args.mode)
+        error_dir = '../data_scratch/logging/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -97,7 +100,7 @@ if __name__ == '__main__':
         random.seed(id_run)
         episode_ids = list(range(len(env_task_set)))
         episode_ids = sorted(episode_ids)
-        episode_ids = episode_ids[10:]
+        # episode_ids = episode_ids[10:]
 
         S = [[] for _ in range(len(episode_ids))]
         L = [[] for _ in range(len(episode_ids))]
@@ -123,7 +126,7 @@ if __name__ == '__main__':
                              c_init=0.1,
                              c_base=1000000,
                              num_samples=1,
-                             num_processes=0, 
+                             num_processes=num_proc, 
                              num_particles=20,
                              logging=True,
                              logging_graphs=True)
@@ -133,6 +136,7 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
+        # episode_ids = episode_ids[100:]
         for iter_id in range(num_tries):
             #if iter_id > 0:
 
@@ -199,7 +203,29 @@ if __name__ == '__main__':
 
                     logger.removeHandler(logger.handlers[0])
                     os.remove(failure_file)
-                except:
+                
+                except utils_exception.UnityException as e:
+                    traceback.print_exc()
+
+                    print("Unity exception")
+                    arena.reset_env()
+                    ipdb.set_trace()
+                    continue
+
+                except utils_exception.ManyFailureException as e:
+                    traceback.print_exc()
+
+                    print("ERRO HERE")
+                    logging.exception("Many failure Error")
+                    # print("OTHER ERROR")
+                    logger.removeHandler(logger.handlers[0])
+                    #exit()
+                    #arena.reset_env()
+                    print("Dione")
+                    arena.reset_env()
+                    continue
+
+                except Exception as e:
                     #with open(failure_file, 'w+') as f:
                     #    error_str = 'Failure'
                     #    error_str += '\n'
@@ -207,14 +233,17 @@ if __name__ == '__main__':
                     #    error_str += stack_form
 
                     #    f.write(error_str)
-                    #ipdb.set_trace()
+                    traceback.print_exc()
+
                     logging.exception("Error")
-                    print("ERROR")
+                    print("OTHER ERROR")
                     logger.removeHandler(logger.handlers[0])
                     #exit()
-                    #arena.reset_env()
+                    arena.reset_env()
+                    # ipdb.set_trace()
+                    # ipdb.set_trace()
+                    # pdb.set_trace()
                     continue
-
                 S[episode_id].append(is_finished)
                 L[episode_id].append(steps)
                 test_results[episode_id] = {'S': S[episode_id],
