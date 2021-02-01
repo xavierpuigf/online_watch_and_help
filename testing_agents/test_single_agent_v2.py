@@ -31,7 +31,7 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 10
+    num_proc = 5
 
     num_tries = 4
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
@@ -136,7 +136,7 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
-        # episode_ids = episode_ids[100:]
+        episode_ids = episode_ids[50:]
         for iter_id in range(num_tries):
             #if iter_id > 0:
 
@@ -222,6 +222,7 @@ if __name__ == '__main__':
                     #exit()
                     #arena.reset_env()
                     print("Dione")
+                    ipdb.set_trace()
                     arena.reset_env()
                     continue
 

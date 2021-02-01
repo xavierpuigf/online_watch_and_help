@@ -1,4 +1,5 @@
 import numpy as np
+import traceback
 import logging
 import random
 import time
@@ -8,6 +9,7 @@ import importlib
 import json
 import multiprocessing as mp
 from functools import partial
+import ipdb
 import pdb
 import pickle
 
@@ -21,6 +23,7 @@ from MCTS import *
 import sys
 sys.path.append('..')
 from utils import utils_environment as utils_env
+from utils import utils_exception
 
 
 def find_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, object_target):
@@ -340,9 +343,14 @@ def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
     try:
         new_mcts = copy.deepcopy(mcts)
         res = new_mcts.run(root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal)
-    except:
-        print("plan fail in index", root_node.particle_id)
-        raise Exception
+    except Exception as e:
+        # print("plan fail in index", root_node.particle_id)
+        # traceback.print_stack()
+        # print("raising")
+        # print("Exception...")
+        # print(utils_exception.ExceptionWrapper(e))
+        # print('---')
+        return utils_exception.ExceptionWrapper(e)
     return res
 
 
@@ -379,26 +387,37 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         print("No root nodes")
         raise Exception
     if num_process > 0:
-        try:
-            with mp.Pool(min(num_process, len(root_nodes))) as p:
-                info = p.map(mp_run, root_nodes)
-            for info_item in info:
-                if info_item is None:
-                    print("ITEM IS NONE")
-                    raise Exception
-            print("Done planner")
-        except:
-            print("ERROR IN the MCTS planner")
-            pdb.set_trace()
+        # try:
+        with mp.Pool(min(num_process, len(root_nodes))) as p:
+            info = p.map(mp_run, root_nodes)
+        for info_item in info:
+            if info_item is None:
+                print("ITEM IS NONE")
+                raise utils_exception.PlannerException
+            # print(info_item)       
+            if  isinstance(info_item, utils_exception.ExceptionWrapper):
+                # print("rasiing")
+                print("raising")
+                info_item.re_raise()
+                print("done")
 
-            raise Exception
+        # print("Done planner")
+        # except Exception as e:
+        #     print("EXcept", e)
+        #     print("ERROR IN the MCTS planner")
+
+        #     raise utils_exception.PlannerException(e)
     else:
-        try:
-            info = [mp_run(rn) for rn in root_nodes]
-        except:
-            pdb.set_trace()
-            raise Exception
+        info = [mp_run(rn) for rn in root_nodes]
+        for info_item in info:
+            if  isinstance(info_item, utils_exception.ExceptionWrapper):
+                print("rasiing")
+                info_item.re_raise()
 
+
+
+    if num_process > 0:
+        print("Plan Done")
     rewards_all = [inf[-1] for inf in info] 
     plans_all = [inf[1] for inf in info]
     index_action = 0
@@ -445,9 +464,11 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         # print(max_action, prev_index_particles)
         final_actions.append(max_action)
 
+    # If there is no action predicted but there were goals missing...
     if len(final_actions) == 0:
-        print("No final actions")
-        raise Exception
+        print("No actions")
+        ipdb.set_trace()
+
     plan = final_actions
     subgoals = [[None, None, None], [None, None, None]]
     # next_root, plan, subgoals = mp_run_mcts(root_nodes[0])

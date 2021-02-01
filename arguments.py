@@ -297,6 +297,9 @@ def get_args():
         '--display', type=str, default="2")
 
     parser.add_argument(
+            '--agenttype', type=str, default="all")
+
+    parser.add_argument(
         '--env-name',
         default='virtualhome',
         help='environment to train on (default: PongNoFrameskip-v4)')

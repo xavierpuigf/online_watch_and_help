@@ -10,6 +10,7 @@ from tqdm import tqdm
 from utils import utils_environment as utils_env
 import traceback
 from evolving_graph.environment import Relation
+from utils import utils_exception
 
 class MCTS_particles_v2:
     def __init__(self, gt_graph, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
@@ -330,7 +331,7 @@ class MCTS_particles_v2:
                     actions = None
             # print(actions)
 
-            if actions is None:
+            if actions is None or len(actions) == 0:
                 delta_reward = 0
                 action = None
             else:
@@ -679,7 +680,7 @@ class MCTS_particles_v2:
         #             aux_node = aux_node.parent
                 # ipdb.set_trace()
         if len(actions_heuristic) == 0 and node.id[0] is None:
-            ipdb.set_trace()
+            raise Exception
 
         # if node.id[1][-1] == '[open] <fridge> (306)' and len(hands_busy) == 1:
         #     ipdb.set_trace()
