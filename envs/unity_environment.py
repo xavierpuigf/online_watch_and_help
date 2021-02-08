@@ -7,6 +7,7 @@ sys.path.append(f'{curr_dir}/../../virtualhome/simulation/')
 from environment.unity_environment import UnityEnvironment as BaseUnityEnvironment
 from evolving_graph import utils as utils_env
 import pdb
+import traceback
 import numpy as np
 import copy
 import ipdb
@@ -233,15 +234,20 @@ class UnityEnvironment(BaseUnityEnvironment):
             # agent 0 has id (0 + 1)
             curr_graph = self.get_graph()
             curr_graph = utils.inside_not_trans(curr_graph)
-            self.full_graph = curr_graph
+            self.full_graph = copy.deepcopy(curr_graph)
             obs = utils_env.get_visible_nodes(curr_graph, agent_id=(agent_id+1))
             return obs
 
         elif obs_type == 'full':
             graph = self.get_graph()
+
+
+            
             curr_graph = utils.inside_not_trans(graph)
-            self.full_graph = curr_graph
+            self.full_graph = copy.deepcopy(curr_graph)
             return curr_graph
+
+
         elif obs_type == 'visible':
             # Only objects in the field of view of the agent
             raise NotImplementedError

@@ -5,6 +5,8 @@ from anytree import AnyNode as Node
 import copy
 from termcolor import colored
 import ipdb
+from termcolor import colored
+
 
 from tqdm import tqdm
 from utils import utils_environment as utils_env
@@ -27,6 +29,7 @@ class MCTS_particles_v2:
         self.heuristic_dict = None
         self.opponent_subgoal = None
         self.last_opened = None
+        self.any_verbose = False
         self.verbose = False
         self.agent_params = agent_params
         self.gt_graph = copy.deepcopy(gt_graph)
@@ -106,6 +109,11 @@ class MCTS_particles_v2:
         # profiler.start()
         last_reward = 0.
         for explore_step in tqdm(range(self.num_simulation)):
+            if explore_step % 198 == 0 and explore_step > 0 and self.any_verbose:
+
+                self.verbose = True
+            else:
+                self.verbose = False
             curr_node = curr_root
 
             # Select one particle
@@ -151,6 +159,7 @@ class MCTS_particles_v2:
                 #             ch.id[-1][-1], ch.num_visited, ch.sum_value, info['score'], info['u'], info['q']))
                 #     print('--')
                 # print(it, actions)
+                # ipdb.set_trace()
                 next_node, next_state, cost, reward = self.select_child(curr_node, curr_state)
                 # if 'put' in actions[-1] and 'put' in actions[-2]:
                 #     double_put = True
@@ -203,6 +212,12 @@ class MCTS_particles_v2:
                 # ipdb.set_trace()
             self.backup(value, node_path, costs, rewards)
             # print(colored("Finish select", "yellow"))
+            
+            if explore_step % 198 == 0 and explore_step > 0:
+
+                # self.verbose = True
+                pass
+                #ipdb.set_trace()
         
         next_root = None
         plan = []
@@ -248,6 +263,7 @@ class MCTS_particles_v2:
         # print(plan)
         # if len([x for x in plan if 'grab' in x]) > 1:
         #     ipdb.set_trace()
+
         return next_root, plan, subgoals, rewards
 
 
@@ -373,6 +389,7 @@ class MCTS_particles_v2:
         else:
             sum_reward = 0
         # print(sum_reward, reached_terminal)
+
         return sum_reward, rewards, actions_l
 
 
@@ -443,6 +460,7 @@ class MCTS_particles_v2:
         success, next_vh_state = self.env.transition(curr_vh_state, action)
         dict_vh_state = next_vh_state.to_dict()
         reward = self.check_progress(dict_vh_state, goal_spec)
+        
         return success, next_vh_state, dict_vh_state, cost, reward
 
     def calculate_score(self, curr_node, child, num_actions, info=False):
@@ -470,15 +488,33 @@ class MCTS_particles_v2:
         # print("Child...", actions)
         possible_children = [child for child in curr_node.children]
         scores = [
-            self.calculate_score(curr_node, child, len(possible_children))
+            self.calculate_score(curr_node, child, len(possible_children), info=True)
             for child in possible_children
         ]
+        scores_info = scores
+        scores = [s['score'] for s in scores]
+
         if len(scores) == 0:
             return None, None, None, None
         maxIndex = np.argwhere(scores == np.max(scores)).flatten()
         selected_child_index = random.choice(maxIndex)
         selected_child = possible_children[selected_child_index]
         
+        if self.verbose:
+            print("Selecting child")
+            print('children_ids:', end='')
+            for it, nodech in enumerate(curr_node.children):
+                if it != selected_child_index:
+                    print(nodech.id[-1][-1], end=', ')
+                else:
+                    print(colored('{}'.format(nodech.id[-1][-1]), 'yellow'), end=', ')
+            print('')
+            # print('children_ids:', children_ids)
+            # print('children_visit:', children_visit)
+            print('children_value:', [s['q'] for s in scores_info])
+            print('children_visit:', [s['u'] for s in scores_info])
+            print('children_score:', [s['score'] for s in scores_info])
+            print('----')
 
             
         # print("\nSelecting child...")
@@ -582,18 +618,26 @@ class MCTS_particles_v2:
             ipdb.set_trace()
 
         curr_value = value
+        backup_actions = [cnode.id[-1][-1].split()[0][1:-1] for cnode in node_list if isinstance(cnode.id[-1][-1], str) ]
+        if 'grab' in backup_actions and self.any_verbose:
+            self.verbose = True
+        else:
+            self.verbose = False
         while t >= 0:
             node = node_list[t]
             curr_reward = delta_reward[t]
             curr_value = curr_value * self.discount + curr_reward
             node.sum_value += curr_value
             node.num_visited += 1
+            if self.verbose:
+                print("Backup", node.id[-1][-1], curr_value, curr_reward)
             
             t -= 1
             # if value > 0:
             #     print(value, [node.id.keys() for node in node_list])
             # print(value, [node.id.keys() for node in node_list])
-
+        if self.verbose:
+            print('----')
 
     def select_next_root(self, curr_root):
         children_ids = [child.id[0] for child in curr_root.children]
@@ -605,7 +649,6 @@ class MCTS_particles_v2:
             children_visit == np.max(children_visit)).flatten()
         selected_child_index = random.choice(maxIndex)
         actions = curr_root.children[selected_child_index].id[1][-1]
-
         if self.verbose:
             print('children_ids:', [nodech.id[-1][-1] if it != selected_child_index else '**{}**'.format(nodech.id[-1][-1]) for it, nodech in enumerate(curr_root.children)])
             # print('children_ids:', children_ids)

@@ -622,6 +622,7 @@ class MCTS_agent_particle_v2:
 
         # Create the particles
         # pdb.set_trace()
+
         self.belief.update_belief(obs)
 
 
@@ -728,6 +729,7 @@ class MCTS_agent_particle_v2:
         self.last_obs = {'goal_objs': goal_ids}
         
         time1 = time.time()
+        
         if should_replan:
             # ipdb.set_trace()
             for particle_id, particle in enumerate(self.particles):
@@ -736,6 +738,7 @@ class MCTS_agent_particle_v2:
 
                 if True: #particle is None:
                     new_graph = self.belief.update_graph_from_gt_graph(obs, resample_unseen_nodes=True, update_belief=False)
+                    # ipdb.set_trace()
                     init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
                     satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
                     init_vh_state = self.sim_env.get_vh_state(init_state)
@@ -802,7 +805,6 @@ class MCTS_agent_particle_v2:
         """TODO: do no need this?"""
         #if 'waterglass' not in [node['class_name'] for node in self.init_gt_graph['nodes']]:
         #    ipdb.set_trace()
-
         self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed, belief_params=self.belief_params)
         self.sim_env.reset(gt_graph)
 
