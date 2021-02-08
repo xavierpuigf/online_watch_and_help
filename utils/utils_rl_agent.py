@@ -104,7 +104,25 @@ class GraphHelper():
             content = json.load(f)
         self.object_dict_types = content
 
+    def actionstr2index(self, action_str):
+        action_split = action_str.split()
+        action = action_split[0][1:-1]
+        obj1, obj2 = None, None
+        if 'put' in action:
+            action = 'put'
+        if len(action_split) > 1:
+            obj1 = action_split[1][1:-1]
+            if len(action_split) > 2:
+                obj2 = action_split[2][1:-1]
 
+        try:
+            action_id = self.action_dict.get_id(action)
+            obj1_id = self.object_dict.get_id(obj1)
+            obj2_id = self.object_dict.get_id(obj2)
+        except:
+            print("Error getting action {}".format(action_str))
+            raise Exception
+        return action_id, obj1_id, obj2_id
 
     def get_action_affordance_map(self, current_task=None, id2node=None):
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -196,7 +214,7 @@ class GraphHelper():
         return one_hot
 
     def build_graph(self, graph, character_id, ids=None,
-                          include_edges=False, plot_graph=False, action_space_ids=None, level=1):
+                          include_edges=False, plot_graph=False, action_space_ids=None, obs_ids=None, level=1):
         if ids is None:
             ids = [node['id'] for node in graph['nodes'] if self.object_dict.valid_el(node['class_name'])]
 
@@ -205,7 +223,9 @@ class GraphHelper():
                 assert(node['class_name'] in self.rooms)
 
         if level > 0:
+            # Include other rooms
             ids = [node['id'] for node in graph['nodes'] if node['category'] == 'Rooms'] + ids
+
         ids = [idi for idi in ids if idi != character_id]
         ids = list(set(ids))
         id2node = {node['id']: node for node in graph['nodes']}
@@ -235,7 +255,9 @@ class GraphHelper():
         id2index = {node['id']: it for it, node in enumerate(nodes)}
 
         class_names_str = [node['class_name'] for node in nodes]
+        # print(set(class_names_str))
         node_ids = [node['id'] for node in nodes]
+        # print(nodes)
 
         # The self agent is equal to no_obj
         #class_names_str[0] = 'no_obj'
@@ -244,6 +266,11 @@ class GraphHelper():
 
         class_names = np.array([self.object_dict.get_id(class_name) for class_name in class_names_str])
         node_states = np.array([self.one_hot(node['states']) for node in nodes])
+
+        if len(class_names) > max_nodes:
+            print("Error, more nodes than allowed ({}): found {}".format(max_nodes, len(class_names)))
+            print(class_names_str)
+            print('----')
 
         edge_types = np.array([self.relation_dict.get_id(edge['relation_type']) for edge in edges])
 
@@ -269,6 +296,7 @@ class GraphHelper():
         mask_nodes = np.zeros((max_nodes))
         close_nodes = np.zeros((max_nodes))
         mask_action_nodes = np.zeros((max_nodes))
+        mask_obs_nodes = np.zeros((max_nodes))
         all_class_names = np.zeros((max_nodes)).astype(np.int32)
         all_node_states = np.zeros((max_nodes, len(self.states)))
         all_node_ids = np.zeros((max_nodes)).astype(np.int32)
@@ -278,8 +306,17 @@ class GraphHelper():
             all_edge_ids[:len(edges), :] = edge_ids
             all_edge_types[:len(edges)] = edge_types
 
-        mask_action_nodes[:len(nodes)] = np.array([1 if node_id in action_space_ids else 0 for node_id in node_ids])
+        if action_space_ids is not None:
+            mask_action_nodes[:len(nodes)] = np.array([1 if node_id in action_space_ids else 0 for node_id in node_ids])
+        else:
+            mask_action_nodes[:len(nodes)] = 1.
         mask_nodes[:len(nodes)] = 1.
+
+        if obs_ids is not None:
+            mask_obs_nodes[:len(nodes)] = np.array([1 if node_id in obs_ids else 0 for node_id in node_ids])
+        else:
+            mask_obs_nodes = mask_nodes
+
         all_class_names[:len(nodes)] = class_names
         all_node_states[:len(nodes)] = node_states
         all_node_ids[:len(nodes)] = node_ids
@@ -306,6 +343,7 @@ class GraphHelper():
             'mask_object': mask_nodes,
             'mask_edge': mask_edges,
             'mask_action_node': mask_action_nodes,
+            'mask_obs_node': mask_obs_nodes,
             'node_ids': all_node_ids,
             'gt_close': close_nodes
         }
