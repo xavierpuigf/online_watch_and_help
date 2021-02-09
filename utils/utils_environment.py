@@ -2,6 +2,14 @@ import ipdb
 import copy
 import random
 
+def clean_house_obj(graph):
+    house_obj = ['window', 'door', 'floor', 'ceiling', 'wall']
+    ids = [node['id'] for node in graph['nodes'] if node['class_name'].lower() in house_obj]
+    return {
+        'nodes': [node for node in graph['nodes'] if node['id'] not in ids],
+        'edges': [edge for edge in graph['edges'] if edge['from_id'] not in ids and edge['to_id'] not in ids]
+    }
+
 def inside_not_trans(graph):
     #print([{'from_id': 425, 'to_id': 396, 'relation_type': 'ON'}, {'from_id': 425, 'to_id': 396, 'relation_type': 'INSIDE'}])
     id2node = {node['id']: node for node in graph['nodes']}

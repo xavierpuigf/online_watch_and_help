@@ -1,12 +1,14 @@
 import random
 import logging
 import torch
+from utils import utils_exception
 import copy
 import numpy as np
 from tqdm import tqdm
 import time
 import ipdb
 import ray
+import traceback
 import atexit
 
 # @ray.remote
@@ -29,6 +31,10 @@ class ArenaMP(object):
         atexit.register(self.close)
 
     def close(self):
+        print(traceback.print_exc())
+
+        print(traceback.print_stack())
+
         self.env.close()
 
     def get_port(self):
@@ -45,6 +51,7 @@ class ArenaMP(object):
                 agent.reset(ob[it], self.env.full_graph, self.env.task_goal, seed=agent.seed)
             else:
                 agent.reset(self.env.full_graph)
+
 
     def set_weigths(self, epsilon, weights):
         for agent in self.agents:
@@ -337,15 +344,16 @@ class ArenaMP(object):
             pass
             #self.env.changed_graph = True
         obs = self.env.get_observations()
+
+        
+
         action_space = self.env.get_action_space()
         dict_actions, dict_info = self.get_actions(obs, action_space, true_graph=true_graph)
+        
         try:
-            
-            step_info = self.env.step(dict_actions)
+           step_info = self.env.step(dict_actions)
         except:
-            print("Time out for action: ", dict_actions)
-            logging.info("ERROR IN" + " | ".join(list(dict_actions.values())))
-            raise Exception
+            raise utils_exception.UnityException        
         return step_info, dict_actions, dict_info
 
 
@@ -370,13 +378,12 @@ class ArenaMP(object):
                       'goals': self.task_goal,
                       'action': {0: [], 1: []},
                       'plan': {0: [], 1: []},
-                      'subgoals': {0: [], 1: []},
                       'finished': None,
                       'init_unity_graph': self.env.init_graph,
                       'goals_finished': [],
                       'belief': {0: [], 1: []},
                       'belief_graph': {0: [], 1: []},
-                      'graph': [],
+                      'graph': [self.env.init_unity_graph],
                       'obs': []}
         success = False
         num_failed = 0
@@ -396,13 +403,14 @@ class ArenaMP(object):
             else:
                 num_failed = 0
             if num_failed > 10 or num_repeated > 25:
-                print("Many failures")
-                logging.info("Many failures")
-                raise Exception
+                print("Many failures", num_failed, num_repeated)
+                # logging.info("Many failures")
+                raise utils_exception.ManyFailureException
+
             print("\nAgent Step:")
             print("----------")
             #print("Goals:", self.env.task_goal)
-            print("Action: ", actions)
+            print("Action: ", actions, infos['graph']['nodes'][0]['bounding_box'])
             logging.info(' | '.join(actions.values()))
             print("Plan:", agent_info[0]['plan'][:4])
             success = infos['finished']
@@ -421,10 +429,13 @@ class ArenaMP(object):
                     saved_info['belief'][agent_id].append(info['belief'])
                 if 'plan' in info:
                     saved_info['plan'][agent_id].append(info['plan'][:3])
-                if 'subgoals' in info:
-                    saved_info['subgoals'][agent_id].append(info['subgoals'][:3])
                 if 'obs' in info:
+                    print("TEST", len(info['obs']), len(saved_info['graph'][-2]['nodes']))
                     saved_info['obs'].append([node['id'] for node in info['obs']])
+                    ipdb.set_trace()
+                if len(saved_info['obs']) > 1 and set(saved_info['obs'][0]) != set(saved_info['obs'][1]):
+                    ipdb.set_trace()
+
             if done:
                 break
         saved_info['finished'] = success
