@@ -160,7 +160,9 @@ class Belief():
 
     def init_belief(self):
         # Set belief on object states
+        id2node = {}
         for node in self.sampled_graph['nodes']:
+            id2node[node['id']] = node
             object_name = node['class_name']
             bin_vars = self.graph_helper.get_object_binary_variables(object_name)
 
@@ -251,7 +253,10 @@ class Belief():
             else:
                 # This belief is that the object is either in the cabinet or in the bathroom
                 init_values = np.ones(len(self.container_ids))/len(self.container_ids)
-                id_cabinet = [(id_obj, index_cont) for id_obj, index_cont in enumerate(self.container_ids) if id_obj != None and self.id2node[id_obj]['class_name'] ==  'cabinet']
+                try:
+                    id_cabinet = [(id_obj, index_cont) for index_cont, id_obj in enumerate(self.container_ids) if id_obj != None and id2node[id_obj]['class_name'] ==  'cabinet']
+                except:
+                    ipdb.set_trace()
                 if len(id_cabinet) > 0:
                     # Object is in the cabinet
                     # Raw apprixmation
@@ -300,7 +305,7 @@ class Belief():
                     else:
                         # TODO_belief: set to sometihng sensible
                         init_values = np.ones(len(self.room_ids))
-                        id_kitchen = [(id_room, index_cont) for id_room, index_cont in enumerate(self.room_ids) if id_room != None and self.id2node[id_room]['class_name'] ==  'kitchen']
+                        id_kitchen = [(id_room, index_cont) for index_cont, id_room in enumerate(self.room_ids) if id_room != None and id2node[id_room]['class_name'] ==  'kitchen']
                         if len(id_kitchen) > 0:
                             # Object is in the cabinet
                             # Raw apprixmation

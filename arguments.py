@@ -3,6 +3,72 @@ import argparse
 import torch
 import pdb
 
+def get_args_pref_agent():
+    parser = argparse.ArgumentParser(description='agent preferences')
+    parser.add_argument('--dataset_path', type=str, help="The path of the environments where we test")
+    parser.add_argument('--batch_size',
+                            type=int,
+                            default=1,
+                            help='batch size for replay buffer')
+    
+    parser.add_argument('--num_workers',
+                            type=int,
+                            default=10,
+                            help='how many workers for data loader')
+
+    parser.add_argument('--max_nodes',
+                        type=int,
+                        default=100,
+                        help='how many agent attributes to predict')
+
+    parser.add_argument('--max_class_objects',
+                    type=int,
+                    default=37,
+                    help='how many agent attributes to predict')
+
+    
+    parser.add_argument('--max_actions',
+                type=int,
+                default=9,
+                help='how many agent attributes to predict')
+
+    parser.add_argument('--num_states',
+            type=int,
+            default=4,
+            help='how many agent attributes to predict')
+
+    parser.add_argument('--num_attributes',
+                        type=int,
+                        default=6,
+                        help='how many agent attributes to predict')
+
+    
+    parser.add_argument('--hidden_size',
+                        type=int,
+                        default=200,
+                        help='how many agent attributes to predict')
+    parser.add_argument('--epochs',
+                        type=int,
+                        default=1,
+                        help='number of epochs to train')
+
+    parser.add_argument('--max_tsteps',
+                    type=int,
+                    default=250,
+                    help='Max number of timesteps')
+
+
+    parser.add_argument(
+        '--no-cuda',
+        action='store_true',
+        default=False,
+        help='disables CUDA training')
+    args = parser.parse_args()
+
+    args.cuda = not args.no_cuda and torch.cuda.is_available()
+
+    
+    return args
 
 def get_args():
     parser = argparse.ArgumentParser(description='RL')

@@ -3,6 +3,7 @@ from .graph_nn import Transformer, GraphModel, GraphModelGGNN
 import pdb
 from utils.utils_models import init
 import torch
+import ipdb
 
 # class NNBase(nn.Module):
 #     def __init__(self, recurrent, recurrent_input_size, hidden_size):
@@ -374,7 +375,17 @@ class TransformerBase(nn.Module):
         input_node_embedding = self.single_object_encoding(inputs['class_objects'].long(),
                                                            inputs['object_coords'],
                                                            inputs['states_objects']).squeeze(1)
+        should_reshape = False
+        if input_node_embedding.ndim > 3:
+            should_reshape = True
+            dims = list(input_node_embedding.shape)
+            input_node_embedding = input_node_embedding.reshape([-1]+dims[-2:])
+            mask_visible = mask_visible.reshape([-1]+dims[-2:-1])
+        
         node_embedding = self.main(input_node_embedding, mask_visible)
+        if should_reshape:
+            new_dims = list(node_embedding.shape)
+            node_embedding = node_embedding.reshape(dims[:-1]+new_dims[-1:])
         return node_embedding
 
 
@@ -396,10 +407,13 @@ class ObjNameCoordStateEncode(nn.Module):
         self.combine = nn.Sequential(nn.ReLU(), nn.Linear(inp_dim, output_dim))
 
     def forward(self, class_ids, coords, state):
+        print(self.class_embedding, class_ids.max())
+
         state_embedding = self.state_embedding(state)
         class_embedding = self.class_embedding(class_ids)
         coord_embedding = self.coord_embedding(coords)
-        inp = torch.cat([class_embedding, coord_embedding, state_embedding], dim=2)
+        # ipdb.set_trace()
+        inp = torch.cat([class_embedding, coord_embedding, state_embedding], dim=-1)
 
         return self.combine(inp)
 

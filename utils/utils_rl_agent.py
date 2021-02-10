@@ -107,18 +107,18 @@ class GraphHelper():
     def actionstr2index(self, action_str):
         action_split = action_str.split()
         action = action_split[0][1:-1]
-        obj1, obj2 = None, None
+        obj1, obj2 = -1, -1
         if 'put' in action:
             action = 'put'
         if len(action_split) > 1:
-            obj1 = action_split[1][1:-1]
-            if len(action_split) > 2:
-                obj2 = action_split[2][1:-1]
+            obj1 = action_split[2][1:-1]
+            if len(action_split) > 4:
+                obj2 = action_split[4][1:-1]
 
         try:
             action_id = self.action_dict.get_id(action)
-            obj1_id = self.object_dict.get_id(obj1)
-            obj2_id = self.object_dict.get_id(obj2)
+            obj1_id = int(obj1)
+            obj2_id = int(obj2)
         except:
             print("Error getting action {}".format(action_str))
             raise Exception

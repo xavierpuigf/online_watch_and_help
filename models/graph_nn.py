@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch.nn.modules as modules
 from dgl import DGLGraph
 import dgl
+import ipdb
 from torch.nn import init
 import dgl.function as fn
 from functools import partial
@@ -366,10 +367,10 @@ class GraphModel(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, num_classes, num_nodes, in_feat, out_feat, dropout=0.1, activation='relu', nhead=1):
         super(Transformer, self).__init__()
-        encoder_layer = nn.modules.TransformerEncoderLayer(d_model=in_feat, nhead=nhead,
+        encoder_layer = nn.TransformerEncoderLayer(d_model=in_feat, nhead=nhead,
                                                            dim_feedforward=out_feat, dropout=dropout,
                                                            activation=activation)
-        self.transformer = nn.modules.TransformerEncoder(
+        self.transformer = nn.TransformerEncoder(
             encoder_layer,
             num_layers=6,
             norm=nn.modules.normalization.LayerNorm(in_feat))
@@ -387,6 +388,7 @@ class Transformer(nn.Module):
         if not self.bad_transformer:
             mask_nodes = 1 - mask_nodes
         outputs = self.transformer(inputs.transpose(0,1), src_key_padding_mask=mask_nodes.bool())
+
         outputs = outputs.squeeze(0).transpose(0,1)
         return outputs
 
