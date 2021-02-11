@@ -18,8 +18,8 @@ def get_args_pref_agent():
 
     parser.add_argument('--max_nodes',
                         type=int,
-                        default=100,
-                        help='how many agent attributes to predict')
+                        default=150,
+                        help='how many nodes does the graph have')
 
     parser.add_argument('--max_class_objects',
                     type=int,
@@ -29,7 +29,7 @@ def get_args_pref_agent():
     
     parser.add_argument('--max_actions',
                 type=int,
-                default=9,
+                default=10, # 9 + None
                 help='how many agent attributes to predict')
 
     parser.add_argument('--num_states',
@@ -54,7 +54,7 @@ def get_args_pref_agent():
 
     parser.add_argument('--max_tsteps',
                     type=int,
-                    default=250,
+                    default=100,
                     help='Max number of timesteps')
 
 

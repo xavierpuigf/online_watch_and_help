@@ -48,6 +48,8 @@ class AgentTypeDataset(Dataset):
         self.labels = labels
         self.pkl_files = pkl_files
         self.max_tsteps = args.max_tsteps
+        self.max_actions = args.max_actions
+        assert(self.max_actions == len(self.graph_helper.action_dict), '{} vs {}'.format(self.max_actions, len(self.graph_helper.action_dict)))
 
     def __len__(self):
         return len(self.pkl_files)
@@ -66,34 +68,17 @@ class AgentTypeDataset(Dataset):
         if len(program) == 0:
             print(index)
 
-        program_batch = {
-            'action': [],
-            'obj1': [],
-            'obj2': []
-        }
 
 
-        # if 'grab' in program[0]:
-        #     print(index, "Frist grab")
-        
-        for it, instr in enumerate(program):
-            instr_item = self.graph_helper.actionstr2index(instr)
-            program_batch['action'].append(instr_item[0])
-            program_batch['obj1'].append(instr_item[1])
-            program_batch['obj2'].append(instr_item[2])
 
-
-        for key in program_batch.keys():
-            unpadded_tensor = torch.tensor(program_batch[key])
-            padding_amount = self.max_tsteps - len(program)
-            padding = [0] * unpadded_tensor.dim() * 2
-            padding[-1] = padding_amount
-            tuple_pad = tuple(padding)
-            program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
 
         for it, graph in enumerate(content['graph']):
             if it == len(content['graph']) - 1:
+                # Skip the last graph
                 continue
+
+            if it >= self.max_tsteps:
+                break
             graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=True, obs_ids=content['obs'][it+1])
 
             # class names
@@ -102,12 +87,49 @@ class AgentTypeDataset(Dataset):
                     print(attribute_name, index, self.pkl_files[index])
                     return self.__getitem__(index+1)
                 time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
-            
+        
+
+        # Match graph indices to index in the tensor
+        node_ids = graph_info['node_ids']
+        indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
+
+        # We will start with a No-OP action
+        program_batch = {
+            'action': [self.max_actions - 1],
+            'obj1': [-1],
+            'obj2': [-1],
+            'indobj1': [indexgraph2ind[-1]],
+            'indobj2': [indexgraph2ind[-1]],
+        }
+
+        for it, instr in enumerate(program):
+            if it == 0:
+                # Skip for now the first instruction
+                continue
+            if it >= self.max_tsteps:
+                break
+            instr_item = self.graph_helper.actionstr2index(instr)
+            program_batch['action'].append(instr_item[0])
+            program_batch['obj1'].append(instr_item[1])
+            program_batch['obj2'].append(instr_item[2])
+            program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
+            program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+
+        num_tsteps = len(program_batch['action'])
+        for key in program_batch.keys():
+            unpadded_tensor = torch.tensor(program_batch[key])
+            padding_amount = self.max_tsteps - num_tsteps
+            padding = [0] * unpadded_tensor.dim() * 2
+            padding[-1] = padding_amount
+            tuple_pad = tuple(padding)
+            program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
+
+
         # Batch across time
         for attribute_name in time_graph.keys():
             unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
             # Do padding
-            padding_amount = self.max_tsteps - len(program)
+            padding_amount = self.max_tsteps - num_tsteps
             # ipdb.set_trace()
             padding = [0] * unpadded_tensor.dim() * 2
             padding[-1] = padding_amount

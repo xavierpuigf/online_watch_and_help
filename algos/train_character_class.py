@@ -26,7 +26,8 @@ def train_epoch(data_loader, model, epoch, args):
             'program': program,
             'graph': graph_info
         }
-        output_class = model(inputs)
+        output = model(inputs)
+        action_l, o1_l, o2_l = output
         ipdb.set_trace()
 
 def get_loaders(args):
