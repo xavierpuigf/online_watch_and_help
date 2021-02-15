@@ -6,11 +6,13 @@ from tqdm import tqdm
 import pickle as pkl
 from utils import utils_rl_agent
 import torch.nn.functional as F
+import multiprocessing as mp
+
 
 class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args):
         self.path_init = path_init
-        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args.max_nodes)
+        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args['model']['max_nodes'])
         # Build the agent types
 
         print("Loading data...")
@@ -47,15 +49,26 @@ class AgentTypeDataset(Dataset):
 
         self.labels = labels
         self.pkl_files = pkl_files
-        self.max_tsteps = args.max_tsteps
-        self.max_actions = args.max_actions
+        self.overfit = args['train']['overfit']
+        self.max_tsteps = args['model']['max_tsteps']
+        self.max_actions = args['model']['max_actions']
+        self.failed_items = mp.Array('i', len(self.pkl_files))
         assert(self.max_actions == len(self.graph_helper.action_dict), '{} vs {}'.format(self.max_actions, len(self.graph_helper.action_dict)))
 
     def __len__(self):
         return len(self.pkl_files)
 
+    def failure(self, index):
+        if index not in self.failed_items:
+            self.failed_items[index] = 1
+        return self.__getitem__(0)
+
+    def get_failures(self):
+        cont = [item for item in self.failed_items]
+        return sum(cont)
 
     def __getitem__(self, index):
+        index = 0
         with open(self.pkl_files[index], 'rb') as f:
             content = pkl.load(f)
 
@@ -73,19 +86,19 @@ class AgentTypeDataset(Dataset):
 
 
         for it, graph in enumerate(content['graph']):
-            if it == len(content['graph']) - 1:
-                # Skip the last graph
-                continue
+            # if it == len(content['graph']) - 1:
+            #     # Skip the last graph
+            #     continue
 
             if it >= self.max_tsteps:
                 break
-            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=True, obs_ids=content['obs'][it+1])
+            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=True, obs_ids=content['obs'][it])
 
             # class names
             for attribute_name in attributes_include:
                 if attribute_name not in graph_info:
                     print(attribute_name, index, self.pkl_files[index])
-                    return self.__getitem__(index+1)
+                    return self.failure(index)
                 time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
         
 
@@ -102,28 +115,41 @@ class AgentTypeDataset(Dataset):
             'indobj2': [indexgraph2ind[-1]],
         }
 
-        for it, instr in enumerate(program):
-            if it == 0:
-                # Skip for now the first instruction
-                continue
-            if it >= self.max_tsteps:
+        # We start at 1 to skip the first instruction
+        for it, instr in enumerate(program[1:]):
+            
+            # we want to add an ending action
+            if it >= self.max_tsteps - 1:
                 break
             instr_item = self.graph_helper.actionstr2index(instr)
             program_batch['action'].append(instr_item[0])
             program_batch['obj1'].append(instr_item[1])
             program_batch['obj2'].append(instr_item[2])
-            program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
-            program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+            try:
+                program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
+                program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+            except:
+                return self.failure(index)
 
-        num_tsteps = len(program_batch['action'])
+        program_batch['action'].append(self.max_actions - 1)
+        program_batch['obj1'].append(-1)
+        program_batch['obj2'].append(-1)
+        program_batch['indobj1'].append(indexgraph2ind[-1])
+        program_batch['indobj2'].append(indexgraph2ind[-1])
+
+        num_tsteps = len(program_batch['action']) - 1
         for key in program_batch.keys():
             unpadded_tensor = torch.tensor(program_batch[key])
+
+            # The program has an extra step
             padding_amount = self.max_tsteps - num_tsteps
             padding = [0] * unpadded_tensor.dim() * 2
             padding[-1] = padding_amount
             tuple_pad = tuple(padding)
             program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
 
+        length_mask = torch.zeros(self.max_tsteps)
+        length_mask[:num_tsteps] = 1.
 
         # Batch across time
         for attribute_name in time_graph.keys():
@@ -135,5 +161,10 @@ class AgentTypeDataset(Dataset):
             padding[-1] = padding_amount
             tuple_pad = tuple(padding)
             time_graph[attribute_name] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
+            # if time_graph[attribute_name].shape[0] > self.max_tsteps:
+            #     print(self.max_tsteps, num_tsteps, len(content['graph']), unpadded_tensor.shape[0])
         
-        return time_graph, program_batch, label_one_hot
+        # for attribute in program_graph.keys():
+        #     print(attribute, program_graph[attribute].shape)
+        # print('----')
+        return time_graph, program_batch, label_one_hot, length_mask

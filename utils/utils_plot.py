@@ -428,6 +428,86 @@ class Plotter:
         print("Done")
 
 
+
+class Plotter2:
+    def __init__(self, experiment_name='test', root_dir=None):
+        self.experiment_name = experiment_name
+        self.root_path = root_dir
+        
+        self.dir_name = '{}/plots/{}'.format(self.root_path, self.experiment_name)
+        self.episodes = []
+        self.index_annot = 0
+
+    def add_episode(self, info):
+        self.episodes.append(info)
+
+    def render(self):
+        print("Rendering...")
+        if not os.path.isdir(self.dir_name):
+            os.makedirs(self.dir_name)
+
+        if not os.path.isdir(self.dir_name+'/plots'):
+
+            os.makedirs(self.dir_name + '/plots')
+
+        file_name = '{}/result.html'.format(self.dir_name)
+        file_name2 = '{}/content.html'.format(self.dir_name)
+
+        content_str = """
+        <html> 
+          <head> 
+            <script src="https://cdn.plot.ly/plotly-latest.min.js" charset="utf-8"></script>
+            <script src="https://code.jquery.com/jquery-3.5.0.min.js"></script> 
+            <script> 
+            $(function(){
+              $("#includedContent").load("content.html"); 
+            });
+            </script> 
+                        <script type="text/javascript">
+            <!--
+                function toggle_visibility(id) {
+                   var e = document.getElementById(id);
+                   if(e.style.display == 'block')
+                      e.style.display = 'none';
+                   else
+                      e.style.display = 'block';
+                }
+            //-->
+            </script>
+          </head> 
+        
+          <body> 
+             <h3> """+ self.experiment_name + """ </h3>
+             <div id="includedContent"></div>
+          </body> 
+        </html>    
+        """
+
+
+        plot_html_header = """
+          <head> 
+            <script src="https://cdn.plot.ly/plotly-latest.min.js" charset="utf-8"></script>
+          </head>
+        """
+        html_str = ''
+        while self.index_annot < len(self.episodes):
+            episode = self.episodes[self.index_annot]
+            content_table, plot_html = episode.render(self.dir_name)
+            plot_html_full = '<html>' + plot_html_header + '<body>' + plot_html + '</body></html>'
+            html_str += content_table
+            with open('{}/plots/ep_{}.html'.format(self.dir_name, self.index_annot), 'w+') as fo:
+                fo.writelines(plot_html_full)
+            self.index_annot += 1
+
+        with open(file_name, 'w+') as f:
+            f.writelines(content_str)
+
+        with open(file_name2, 'a+') as f:
+            f.writelines(html_str)
+
+        print("Done")
+
+
 def delete_redundant_edges_and_ids(graph):
     class_nodes_delete = ['wall', 'floor', 'ceiling', 'door', 'curtain', 'window', 'doorjamb']
     ids_delete = [x['id'] for x in graph['nodes'] if x['class_name'] in class_nodes_delete]
@@ -655,6 +735,10 @@ class BeliefPlotter():
                     g.edge(str(edge['from_id']), str(edge['to_id']), color=colors[rt],
                            ltail='cluster_'+str(edge['from_id']), lhead='cluster_'+str(edge['to_id']), style=style[rt])
         return g
+
+
+
+
 
 
 if __name__ == '__main__':

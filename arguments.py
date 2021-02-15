@@ -6,57 +6,11 @@ import pdb
 def get_args_pref_agent():
     parser = argparse.ArgumentParser(description='agent preferences')
     parser.add_argument('--dataset_path', type=str, help="The path of the environments where we test")
-    parser.add_argument('--batch_size',
-                            type=int,
-                            default=1,
-                            help='batch size for replay buffer')
+    parser.add_argument('--config',
+                            type=str,
+                            default='config/config_default.yaml',
+                            help='path to config file')
     
-    parser.add_argument('--num_workers',
-                            type=int,
-                            default=10,
-                            help='how many workers for data loader')
-
-    parser.add_argument('--max_nodes',
-                        type=int,
-                        default=150,
-                        help='how many nodes does the graph have')
-
-    parser.add_argument('--max_class_objects',
-                    type=int,
-                    default=37,
-                    help='how many agent attributes to predict')
-
-    
-    parser.add_argument('--max_actions',
-                type=int,
-                default=10, # 9 + None
-                help='how many agent attributes to predict')
-
-    parser.add_argument('--num_states',
-            type=int,
-            default=4,
-            help='how many agent attributes to predict')
-
-    parser.add_argument('--num_attributes',
-                        type=int,
-                        default=6,
-                        help='how many agent attributes to predict')
-
-    
-    parser.add_argument('--hidden_size',
-                        type=int,
-                        default=200,
-                        help='how many agent attributes to predict')
-    parser.add_argument('--epochs',
-                        type=int,
-                        default=1,
-                        help='number of epochs to train')
-
-    parser.add_argument('--max_tsteps',
-                    type=int,
-                    default=100,
-                    help='Max number of timesteps')
-
 
     parser.add_argument(
         '--no-cuda',

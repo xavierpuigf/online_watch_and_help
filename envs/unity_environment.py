@@ -174,11 +174,10 @@ class UnityEnvironment(BaseUnityEnvironment):
             else:
                 self.comm.add_character()
 
-        _, self.init_unity_graph = self.comm.environment_graph()
-
 
         self.changed_graph = True
         graph = self.get_graph()
+        self.init_unity_graph = graph
         self.rooms = [(node['class_name'], node['id']) for node in graph['nodes'] if node['category'] == 'Rooms']
         self.id2node = {node['id']: node for node in graph['nodes']}
 
@@ -233,6 +232,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         if obs_type == 'partial':
             # agent 0 has id (0 + 1)
             curr_graph = self.get_graph()
+            curr_graph = utils.clean_house_obj(curr_graph)
             curr_graph = utils.inside_not_trans(curr_graph)
             self.full_graph = copy.deepcopy(curr_graph)
             obs = utils_env.get_visible_nodes(curr_graph, agent_id=(agent_id+1))
@@ -243,6 +243,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
 
             
+            curr_graph = utils.clean_house_obj(curr_graph)
             curr_graph = utils.inside_not_trans(graph)
             self.full_graph = copy.deepcopy(curr_graph)
             return curr_graph

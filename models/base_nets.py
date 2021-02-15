@@ -376,6 +376,7 @@ class TransformerBase(nn.Module):
                                                            inputs['object_coords'],
                                                            inputs['states_objects']).squeeze(1)
         should_reshape = False
+        # ipdb.set_trace()
         if input_node_embedding.ndim > 3:
             should_reshape = True
             dims = list(input_node_embedding.shape)
@@ -385,7 +386,7 @@ class TransformerBase(nn.Module):
         node_embedding = self.main(input_node_embedding, mask_visible)
         if should_reshape:
             new_dims = list(node_embedding.shape)
-            node_embedding = node_embedding.reshape(dims[:-1]+new_dims[-1:])
+            node_embedding = input_node_embedding.reshape(dims[:-1]+new_dims[-1:])
         return node_embedding
 
 
@@ -407,7 +408,7 @@ class ObjNameCoordStateEncode(nn.Module):
         self.combine = nn.Sequential(nn.ReLU(), nn.Linear(inp_dim, output_dim))
 
     def forward(self, class_ids, coords, state):
-        print(self.class_embedding, class_ids.max())
+        # print(self.class_embedding, class_ids.max())
 
         state_embedding = self.state_embedding(state)
         class_embedding = self.class_embedding(class_ids)
