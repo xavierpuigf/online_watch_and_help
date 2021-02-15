@@ -44,12 +44,14 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     for it, data_item in enumerate(data_loader):
         data_time.update(time.time() - end)
 
-        graph_info, program, label, len_mask = data_item
+        graph_info, program, label, len_mask, goal = data_item
         inputs = {
             'program': program,
             'graph': graph_info,
-            'mask_len': len_mask
+            'mask_len': len_mask,
+            'goal': goal
         }
+        # ipdb.set_trace()
         output = model(inputs)
         action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
         bs = action_l.shape[0]
@@ -66,6 +68,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             index_label_obj2 = index_label_obj2.cuda()
             index_label_obj1 = index_label_obj1.cuda()
             len_mask = len_mask.cuda()
+
         # ipdb.set_trace()
         # ipdb.set_trace()
         loss_action = unmerge(criterion(merge2d(action_l), merge2d(label_action)), bs)
@@ -122,24 +125,17 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             prog_gt = {'action': label_action, 'o1': index_label_obj1, 'o2': index_label_obj2, 'graph': graph_info, 'mask_len': len_mask}
             prog_pred = {'action': pred_action, 'o1': pred_o1, 'o2': pred_o2, 'graph': graph_info, 'mask_len': len_mask}
 
-            program_gt = utils_models.decode_program(data_loader.dataset.graph_helper, prog_gt)
-            program_pred = utils_models.decode_program(data_loader.dataset.graph_helper, prog_pred)
-
-            print("GT{}|Pred".format(' '*43))
-            if len(program_pred) < len(program_gt):
-                program_pred += [' ']*(len(program_gt) - len(program_pred))
-            else:
-                program_pred[:len(program_gt)]
+            str_results = utils_models.get_pred_results_str(data_loader.dataset.graph_helper, prog_gt, prog_pred)
             
-            for instr_gt, instr_pred in zip(program_gt, program_pred):
-                print('{: <45}| {}'.format(instr_gt, instr_pred))
-
-            print('{}'.format('-'*45))
+            info_res = {
+                'str': progress.display(it, do_print=False)+'\n'+str_results
+            }
+            logger.log_info(info_res)
     print("Failed Elements...", data_loader.dataset.get_failures())
 
 
 def get_loaders(args):
-    dataset = AgentTypeDataset(path_init='../data_scratch/train_env_task_set_20_full_reduced_tasks/', args=args)
+    dataset = AgentTypeDataset(path_init='../data_scratch/train_env_task_set_20_full_reduced_tasks/', args_config=args)
     train_loader = torch.utils.data.DataLoader(
             dataset, batch_size=args['train']['batch_size'], 
             shuffle=False, num_workers=args['train']['num_workers'], pin_memory=True)

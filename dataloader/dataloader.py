@@ -5,14 +5,16 @@ import glob
 from tqdm import tqdm
 import pickle as pkl
 from utils import utils_rl_agent
+from arguments import *
+import yaml
 import torch.nn.functional as F
 import multiprocessing as mp
 
 
 class AgentTypeDataset(Dataset):
-    def __init__(self, path_init, args):
+    def __init__(self, path_init, args_config):
         self.path_init = path_init
-        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args['model']['max_nodes'])
+        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'])
         # Build the agent types
 
         print("Loading data...")
@@ -49,11 +51,11 @@ class AgentTypeDataset(Dataset):
 
         self.labels = labels
         self.pkl_files = pkl_files
-        self.overfit = args['train']['overfit']
-        self.max_tsteps = args['model']['max_tsteps']
-        self.max_actions = args['model']['max_actions']
+        self.overfit = args_config['train']['overfit']
+        self.max_tsteps = args_config['model']['max_tsteps']
+        self.max_actions = args_config['model']['max_actions']
         self.failed_items = mp.Array('i', len(self.pkl_files))
-        assert(self.max_actions == len(self.graph_helper.action_dict), '{} vs {}'.format(self.max_actions, len(self.graph_helper.action_dict)))
+        assert self.max_actions == len(self.graph_helper.action_dict)+1, '{} vs {}'.format(self.max_actions, len(self.graph_helper.action_dict))
 
     def __len__(self):
         return len(self.pkl_files)
@@ -68,7 +70,8 @@ class AgentTypeDataset(Dataset):
         return sum(cont)
 
     def __getitem__(self, index):
-        index = 0
+        if self.overfit:
+            index = 0
         with open(self.pkl_files[index], 'rb') as f:
             content = pkl.load(f)
 
@@ -104,6 +107,7 @@ class AgentTypeDataset(Dataset):
 
         # Match graph indices to index in the tensor
         node_ids = graph_info['node_ids']
+        id2node = {node['id']: node for node in graph['nodes']}
         indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
 
         # We will start with a No-OP action
@@ -167,4 +171,52 @@ class AgentTypeDataset(Dataset):
         # for attribute in program_graph.keys():
         #     print(attribute, program_graph[attribute].shape)
         # print('----')
-        return time_graph, program_batch, label_one_hot, length_mask
+
+        # Encode goal
+        goals = content['goals'][0]
+
+        target_obj_class = [self.graph_helper.object_dict.get_id('no_obj')] * 6
+        target_loc_class = [self.graph_helper.object_dict.get_id('no_obj')] * 6
+        mask_goal_pred = [0.0] * 6
+
+        pre_id = 0
+        obj_pred_names, loc_pred_names = [], []
+
+        ##############################
+        #### Inputs high level policy
+        ##############################
+
+        for predicate, info in content['goals'][0].items():
+            count = info
+            if count == 0:
+                continue
+
+            # if not (predicate.startswith('on') or predicate.startswith('inside')):
+            #     continue
+
+            elements = predicate.split('_')
+            obj_class_id = int(self.graph_helper.object_dict.get_id(elements[1]))
+            loc_class_id = int(self.graph_helper.object_dict.get_id(id2node[int(elements[2])]['class_name']))
+
+            obj_pred_names.append(elements[1])
+            loc_pred_names.append(id2node[int(elements[2])]['class_name'])
+            for _ in range(count):
+                try:
+                    target_obj_class[pre_id] = obj_class_id
+                    target_loc_class[pre_id] = loc_class_id
+                    mask_goal_pred[pre_id] = 1.0
+                    pre_id += 1
+                except:
+                    pdb.set_trace()
+
+        goal = {'target_loc_class': torch.tensor(target_loc_class), 
+                'target_obj_class': torch.tensor(target_obj_class), 
+                'mask_goal_pred': torch.tensor(mask_goal_pred)}
+        return time_graph, program_batch, label_one_hot, length_mask, goal
+
+if __name__ == '__main__':
+    arguments = get_args_pref_agent()
+    with open(arguments.config, 'r') as f:
+        config = yaml.load(f)
+    dataset = AgentTypeDataset(path_init='../data_scratch/train_env_task_set_20_full_reduced_tasks/', args_config=config)
+    data = dataset[0]

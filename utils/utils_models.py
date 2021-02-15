@@ -25,6 +25,22 @@ def get_render_func(venv):
     return None
 
 
+def get_pred_results_str(graph_helper, prog_gt, prog_pred):
+    program_gt = decode_program(graph_helper, prog_gt)
+    program_pred = decode_program(graph_helper, prog_pred)
+    res_str = ''
+    res_str += "GT{}|Pred\n".format(' '*43)
+    if len(program_pred) < len(program_gt):
+        program_pred += [' ']*(len(program_gt) - len(program_pred))
+    else:
+        program_pred[:len(program_gt)]
+    
+    for instr_gt, instr_pred in zip(program_gt, program_pred):
+        res_str += '{: <45}| {}\n'.format(instr_gt, instr_pred)
+
+    res_str += '{}\n'.format('-'*45)
+    return res_str
+
 def decode_program(graph_helper, program_info):
     # ipdb.set_trace()
     program_info_new = {}
@@ -92,11 +108,14 @@ class ProgressMeter(object):
         self.meters = meters
         self.prefix = prefix
 
-    def display(self, batch):
+    def display(self, batch, do_print=True):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
-
+        
+        if do_print:
+            print('\t'.join(entries))
+        else:
+            return '\t'.join(entries)
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
@@ -213,7 +232,7 @@ def dict2md(content, tabs=0):
         else:
             actual_str = str(val)
 
-        mdown_str += '{}**{}**: {}  <br />'.format('&nbsp'*tabs, key, actual_str)
+        mdown_str += '{}**{}**: {}  <br />'.format('..'*tabs, key, actual_str)
     # print(tabs, mdown_str)
     return mdown_str
 
@@ -257,15 +276,16 @@ class LoggerSteps():
                                                                      self.experiment_name, self.tstmp))
         
         dict_args = self.args
-        text_tboard = "**experiment_name:** {}  <br />".format(self.experiment_name)
-        text_tboard += dict2md(dict_args)
+        text_tboard = "\n**experiment_name:** {}  <br />".format(self.experiment_name)
+        text_tboard += ""+dict2md(dict_args)+""
         self.tensorboard_writer.add_text("experiment_params", json.dumps(text_tboard, indent=4))
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = 'predict_action/lr{}-bs.{}'.format(
+        experiment_name = 'predict_action/lr{}-bs.{}-goalenc.{}'.format(
             args['train']['lr'],
-            args['train']['batch_size'])
+            args['train']['batch_size'],
+            args['model']['goal_inp'])
 
         if 'debug' in args:
             experiment_name += 'debug'
@@ -293,14 +313,11 @@ class LoggerSteps():
 
         except:
             pass
-        info_ep = {key: val for key, val in info_ep.items() if key not in ['pred_close']}
-        self.info_episodes.append(info_ep)
-        self.plot.add_episode(info_ep)
-        with open(self.file_name_log, 'w+') as f:
-            f.write(json.dumps(info_ep, indent=4))
-        print("Dumped in {}".format(self.file_name_log))
-        self.plot.render()
 
+        log_txt_file = '{}/logs.txt'.format(self.logs_logdir)
+        with open(log_txt_file, 'a+') as f:
+            f.write(info_ep['str'])
+        
     def save_model(self, j, model):
 
         save_path = os.path.join(self.ckpt_save_dir)

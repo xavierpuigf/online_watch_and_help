@@ -24,7 +24,11 @@ class ActionPredNetwork(nn.Module):
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
 
         # Combine previous action and graph
-        self.comb_layer = nn.Linear(self.hidden_size*2, self.hidden_size)
+        multi = 2
+        if args['goal_inp']:
+            multi = 3 # input goal as well
+
+        self.comb_layer = nn.Linear(self.hidden_size*multi, self.hidden_size)
         self.num_layer_lstm = 2
 
         self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
@@ -32,6 +36,9 @@ class ActionPredNetwork(nn.Module):
         self.object1_pred = nn.Linear(self.hidden_size*2, 1)
         self.object2_pred = nn.Linear(self.hidden_size*2, 1)
 
+        self.goal_inp = args['goal_inp']
+        if args['goal_inp']:
+            self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
 
     def forward(self, inputs):
         program = inputs['program']
@@ -48,22 +55,26 @@ class ActionPredNetwork(nn.Module):
         action_embed = self.action_embedding(program['action'])
         
         assert torch.all(inputs['graph']['node_ids'][:,0,0] == 1).item()
-        # Objects in the current obs
-
-        # index_obj1 = index_obj1[:,: , None, None].repeat([1, 1, 1, dims[-1]])
-        # index_obj2 = index_obj2[:,:, None, None].repeat([1, 1, 1, dims[-1]])
-
-        # print("get object embedding")
-
-        # print(node_embeddings.shape, index_obj1.max())
-        # obj1_embed = torch.gather(node_embeddings, 1, index_obj1).squeeze(-2)
-        # obj2_embed = torch.gather(node_embeddings, 1, index_obj2).squeeze(-2)
+        
 
         # Graph representation, it is the representation of the character
         graph_repr = node_embeddings[:, :, 0]
 
         # Input previous action and current graph
-        action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
+        if not self.goal_inp:
+
+            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
+        else:
+            # Goal encoding
+            obj_class_name = inputs['goal']['target_obj_class']  # [:, 0].long()
+            loc_class_name = inputs['goal']['target_loc_class']  # [:, 0].long()
+            mask_goal = inputs['goal']['mask_goal_pred']
+            # goal_enc = self.goal_encoder()
+            # ipdb.set_trace()
+            goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
+            goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
+            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr, goal_encoding], -1)
+
         input_embed = self.comb_layer(action_graph)
         
         # Input a combination of previous actions and graph 
