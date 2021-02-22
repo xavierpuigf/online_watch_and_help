@@ -239,12 +239,9 @@ class UnityEnvironment(BaseUnityEnvironment):
             return obs
 
         elif obs_type == 'full':
-            graph = self.get_graph()
-
-
-            
+            curr_graph = self.get_graph()
             curr_graph = utils.clean_house_obj(curr_graph)
-            curr_graph = utils.inside_not_trans(graph)
+            curr_graph = utils.inside_not_trans(curr_graph)
             self.full_graph = copy.deepcopy(curr_graph)
             return curr_graph
 

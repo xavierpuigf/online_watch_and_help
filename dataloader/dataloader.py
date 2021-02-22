@@ -38,10 +38,17 @@ class AgentTypeDataset(Dataset):
             [0, 0, 1, 0, 1, 0],
             [0, 0, 1, 1, 0, 0],
         ]
+        if args_config['train']['agents'] == 'all':
+            agents_use = list(range(len(agent_labels)))
+        else:
+            agents_use = [int(x) for x in args_config['train']['agents'].split(',')]
+
         for agent_path_name in tqdm(agent_folder):
             try:
                 agent_id = int(agent_path_name.split('/')[-1].split('_')[0]) - 1
             except:
+                continue
+            if agent_id not in agents_use:
                 continue
             curr_agent_label = agent_labels[agent_id]
             input_files = glob.glob('{}/*.pik'.format(agent_path_name))
@@ -80,6 +87,9 @@ class AgentTypeDataset(Dataset):
         attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
         time_graph = {attr_name: [] for attr_name in attributes_include}
         # print(list(content.keys()))
+        if 'action' not in content:
+            print("FAil", self.pkl_files[index]) 
+            return self.failure(index)
         program = content['action'][0]
         if len(program) == 0:
             print(index)
@@ -88,7 +98,7 @@ class AgentTypeDataset(Dataset):
 
 
 
-        for it, graph in enumerate(content['graph']):
+        for it, graph in enumerate(content['graph'][1:]):
             # if it == len(content['graph']) - 1:
             #     # Skip the last graph
             #     continue

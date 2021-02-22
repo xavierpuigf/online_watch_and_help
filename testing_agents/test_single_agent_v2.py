@@ -31,31 +31,32 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 5
+    num_proc = 0
 
-    num_tries = 4
+    num_tries = 5
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks.pik'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
-            ['full', 500, 0.05, False, 0, "uniform"], # 1
+            ['full', 0.5, 0.01, False, 0, "uniform"], # 1
             ['full', -500, 0.05, False, 0, "uniform"], # 2
             ['partial', 0, 0.05, False, 0, "uniform"], # 3
             ['partial', 0, 0.05, False, 0, "spiked"], # 4
             ['partial', 0, 0.05, False, 0.2, "uniform"], # 5
-            ['partial', -500, 0.05, False, 0.01, "spiked"], # 6
+            ['partial', -500, 0.01, False, 0.01, "spiked"], # 6
             ['partial', -500, 0.05, False, 0.2, "uniform"], # 7
-            ['partial', 500, 0.05, False, 0.2, "uniform"], # 8
+            ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
     ]
+    random_start = random.Random()
     agent_types_index = list(range(9))
     #random.shuffle(agent_types_index)
     if args.agenttype != 'all':
         agent_types_index = [int(x) for x in args.agenttype.split(',')]
     for agent_id in agent_types_index: #len(agent_types)):
-        if agent_id in [4,6]:
+        if agent_id in [4]:
             continue
         args.obs_type, open_cost, walk_cost, should_close, forget_rate, belief_type = agent_types[agent_id]
         datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
@@ -82,8 +83,8 @@ if __name__ == '__main__':
                 if node['class_name'] == 'cutleryfork':
                     node['obj_transform']['position'][1] += 0.1
 
-        args.record_dir = '../data_scratch/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data_scratch/logging/{}_{}'.format(datafile, args.mode)
+        args.record_dir = '../data_scratch/large_data/{}/{}'.format(datafile, args.mode)
+        error_dir = '../data_scratch/large_data/logging/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -97,9 +98,10 @@ if __name__ == '__main__':
         }
 
         id_run = 0
-        random.seed(id_run)
+        #random.seed(id_run)
         episode_ids = list(range(len(env_task_set)))
         episode_ids = sorted(episode_ids)
+        random_start.shuffle(episode_ids)
         # episode_ids = episode_ids[10:]
 
         S = [[] for _ in range(len(episode_ids))]
@@ -127,7 +129,7 @@ if __name__ == '__main__':
                              c_base=1000000,
                              num_samples=1,
                              num_processes=num_proc, 
-                             num_particles=20,
+                             num_particles=1,
                              logging=True,
                              logging_graphs=True)
 
@@ -136,7 +138,7 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
-        episode_ids = episode_ids[50:]
+        episode_ids = episode_ids
         for iter_id in range(num_tries):
             #if iter_id > 0:
 
@@ -176,7 +178,7 @@ if __name__ == '__main__':
                 print('episode:', episode_id)
 
                 for it_agent, agent in enumerate(arena.agents):
-                    agent.seed = it_agent + current_tried * 2
+                    agent.seed = (it_agent + current_tried * 2) * 5
 
                 
                 try:
@@ -209,7 +211,7 @@ if __name__ == '__main__':
 
                     print("Unity exception")
                     arena.reset_env()
-                    ipdb.set_trace()
+                    #ipdb.set_trace()
                     continue
 
                 except utils_exception.ManyFailureException as e:
@@ -222,7 +224,7 @@ if __name__ == '__main__':
                     #exit()
                     #arena.reset_env()
                     print("Dione")
-                    ipdb.set_trace()
+                    #ipdb.set_trace()
                     arena.reset_env()
                     continue
 

@@ -1,4 +1,5 @@
 import glob
+import yaml
 import os
 from torch.utils.tensorboard import SummaryWriter
 import datetime
@@ -282,7 +283,8 @@ class LoggerSteps():
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = 'predict_action/lr{}-bs.{}-goalenc.{}'.format(
+        experiment_name = 'predict_action/agents{}-lr{}-bs.{}-goalenc.{}_extended'.format(
+            args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
             args['model']['goal_inp'])
@@ -318,16 +320,17 @@ class LoggerSteps():
         with open(log_txt_file, 'a+') as f:
             f.write(info_ep['str'])
         
-    def save_model(self, j, model):
+    def save_model(self, j, model, optimizer):
 
         save_path = os.path.join(self.ckpt_save_dir)
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
                 yaml.dump(self.args, f)
-        torch.save([
-            model,
-        ], os.path.join(save_path, "{}.pt".format(j)))
+        torch.save({
+            'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            }, os.path.join(save_path, "{}.pt".format(j)))
 
 
 
