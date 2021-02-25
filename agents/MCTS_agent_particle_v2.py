@@ -475,7 +475,7 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
     next_root = None
 
  
-
+    ipdb.set_trace()
     if verbose:
         print('plan', plan)
         print('subgoal', subgoals)

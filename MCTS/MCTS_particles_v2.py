@@ -17,7 +17,7 @@ from utils import utils_exception
 class MCTS_particles_v2:
     def __init__(self, gt_graph, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
         self.env = None
-        self.discount = 0.95 #0.4
+        self.discount = 0.99 #0.4
         self.agent_id = agent_id
         self.char_index = char_index
         self.max_episode_length = max_episode_length
@@ -29,7 +29,7 @@ class MCTS_particles_v2:
         self.heuristic_dict = None
         self.opponent_subgoal = None
         self.last_opened = None
-        self.any_verbose = False
+        self.any_verbose = True
         self.verbose = False
         self.agent_params = agent_params
         self.gt_graph = copy.deepcopy(gt_graph)
@@ -109,7 +109,7 @@ class MCTS_particles_v2:
         # profiler.start()
         last_reward = 0.
         for explore_step in tqdm(range(self.num_simulation)):
-            if explore_step % 198 == 0 and explore_step > 0 and self.any_verbose:
+            if explore_step % (self.num_simulation - 2) == 0 and explore_step > 0 and self.any_verbose:
 
                 self.verbose = True
             else:
@@ -160,6 +160,10 @@ class MCTS_particles_v2:
                 #     print('--')
                 # print(it, actions)
                 # ipdb.set_trace()
+                if self.verbose:
+                    print("Simulation", explore_step, colored("Selecting child...", "blue"))
+                    print(len(curr_node.children))
+                    print('----')
                 next_node, next_state, cost, reward = self.select_child(curr_node, curr_state)
                 # if 'put' in actions[-1] and 'put' in actions[-2]:
                 #     double_put = True
@@ -180,11 +184,11 @@ class MCTS_particles_v2:
 
                 it += 1
                 
-                if next_node.is_expanded:
-                    node_path.append(next_node)
-                    state_path.append(next_state)
-                    costs.append(cost)
-                    rewards.append(reward)
+                # if next_node.is_expanded:
+                node_path.append(next_node)
+                state_path.append(next_state)
+                costs.append(cost)
+                rewards.append(reward)
 
                 curr_node = next_node
                 curr_state = next_state
@@ -203,6 +207,11 @@ class MCTS_particles_v2:
             # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
             #     verbose_roll = True
             value, reward_rollout, actions_rollout = self.rollout(leaf_node, tmp_t + it, curr_state, last_reward, verbose=verbose_roll)
+
+            if node_path[-1].id[1][-1] == '[walk] <fridge> (103)' and len(node_path) > 1 and  node_path[-2].id[1][-1] == '[grab] <cupcake> (368)':
+                print(colored("AQUI", "cyan"))
+                ipdb.set_trace()
+
             # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
             #     ipdb.set_trace()
             # TODO: is this _Correct
@@ -210,7 +219,7 @@ class MCTS_particles_v2:
                 raise Exception
                 #pass
                 # ipdb.set_trace()
-            self.backup(value, node_path, costs, rewards)
+            self.backup(value, node_path, costs, rewards, reward_rollout, actions_rollout)
             # print(colored("Finish select", "yellow"))
             
             if explore_step % 198 == 0 and explore_step > 0:
@@ -279,34 +288,50 @@ class MCTS_particles_v2:
         # TODO: we should start with goals at random, or with all the goals
         # Probably not needed here since we already computed whern expanding node
 
-        # subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied, self.opponent_subgoal)
-        # list_goals = list(range(len(subgoals)))
+
 
         rewards = []
         actions_l = []
+        subgoals_finished = False
         last_goal = None
         for rollout_step in range(self.max_rollout_step):#min(self.max_rollout_step, self.max_episode_length - t)):
-            # # subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied)
-            # print(rollout_step)
-            # print(len(list_goals))
-            # print(list_goals[rollout_step])
-            # print(subgoals)
-            # print(subgoals[list_goals[rollout_step]])
+                
 
-            subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied, self.opponent_subgoal)
-            
+            # If you have an object grabbed already reduce the subgoal space search and add the object you already had
+            hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+
+            unsatisfied_aux = unsatisfied.copy()
+            subgoals_hand = []
+            for hand_busy in hands_busy:
+                hand_class_name = self.id2node_env[hand_busy]['class_name']
+                pred_name_selected = None
+                for missing_pred, count_pred in unsatisfied_aux.items():
+                    if pred_name_selected is None:
+                        if count_pred > 0 and missing_pred.split('_')[1] == hand_class_name:
+                            pred_name_selected = missing_pred
+                
+                if pred_name_selected is not None:
+                    unsatisfied_aux[pred_name_selected] -= 1
+                    pred_name_split = pred_name_selected.split('_')
+                    verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
+                    subgoals_hand.append(['{}_{}_{}'.format(verb, hand_busy, pred_name_split[2]), pred_name_selected, '{}_{}_{}'.format(pred_name_split[0], hand_busy, pred_name_split[2])])
+
+            subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied_aux, self.opponent_subgoal)
+            subgoals += subgoals_hand
+
+
             # print("Roll", len(subgoals))
             if len(subgoals) == 0:
+                subgoals_finished = True
                 break
 
-            hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
 
             # If I have 2 hands busy, focus on the objects in 2 hands
             if len(hands_busy) == 2:     
                 subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
 
             # If I only have 1 hand busy, put this object has to go inside somewhere, focus on it
-            # Otherwise it will be impossible to determine
+            # Otherwise it will be impossible to open anything later
             if len(hands_busy) == 1:
                 subgoals_putin = [subg for subg in subgoals if int(subg[0].split('_')[1]) == hands_busy[0] and subg[0].split('_')[0].lower() == 'putin']
                 if len(subgoals_putin) > 0:
@@ -381,7 +406,13 @@ class MCTS_particles_v2:
             satisfied, unsatisfied = utils_env.check_progress(curr_state, goal_spec)
 
             # curr_state = next_state
+        # ipdb.set_trace()
 
+        if '<fridge> (103)' in leaf_node.id[-1][-1]:
+            print("LEAF NODE, rollout")
+            print(actions_l)
+            print('***')
+            # ipdb.set_trace()
         if len(rewards) > 0:
             sum_reward = rewards[-1]
             for r in reversed(rewards[:-1]):
@@ -389,7 +420,10 @@ class MCTS_particles_v2:
         else:
             sum_reward = 0
         # print(sum_reward, reached_terminal)
-
+        # ipdb.set_trace()
+        if subgoals_finished:
+            pass
+            #print(sum_reward, actions_l)
         return sum_reward, rewards, actions_l
 
 
@@ -437,7 +471,7 @@ class MCTS_particles_v2:
             center_dest = np.mean(nodes_graph_dest_center, 0)
 
             distance = (center_char - center_dest)**2
-            distance = np.sqrt(distance[0] + distance[2])
+            distance = max(np.sqrt(distance[0] + distance[2]), 1)
             # ipdb.set_trace()
             # if self.id2node[action_id]['category'] == "Rooms":
             #    pass
@@ -500,8 +534,13 @@ class MCTS_particles_v2:
         selected_child_index = random.choice(maxIndex)
         selected_child = possible_children[selected_child_index]
         
+        # 'grab' in curr_node.id[-1][-1] or 
+        prev_verbose = False
+        if curr_node.id[-1][-1] == [] or curr_node.id[-1][-1] == '[walk] <cupcake> (369)':
+            self.verbose = True
+
         if self.verbose:
-            print("Selecting child")
+            print("Selecting child for ", curr_node.id[-1][-1])
             print('children_ids:', end='')
             for it, nodech in enumerate(curr_node.children):
                 if it != selected_child_index:
@@ -516,6 +555,9 @@ class MCTS_particles_v2:
             print('children_score:', [s['score'] for s in scores_info])
             print('----')
 
+        self.verbose = prev_verbose
+        if 'grab' in curr_node.id[-1][-1]:
+            ipdb.set_trace()
             
         # print("\nSelecting child...")
         # for it, pc in enumerate(possible_children):
@@ -601,7 +643,7 @@ class MCTS_particles_v2:
         return leaf_node, current_child_actions
 
 
-    def backup(self, value, node_list, costs, rewards):
+    def backup(self, value, node_list, costs, rewards, reward_rollout, actions_rollout):
         t = len(node_list) - 1
 
         # Compute delta reward
@@ -623,20 +665,31 @@ class MCTS_particles_v2:
             self.verbose = True
         else:
             self.verbose = False
+
+
+        if self.verbose:
+            print(colored("ROLLOUT", "yellow"))
+            print(value, reward_rollout, actions_rollout)
+            print("======")
         while t >= 0:
             node = node_list[t]
             curr_reward = delta_reward[t]
             curr_value = curr_value * self.discount + curr_reward
+            prev_avg_value = node.sum_value/(node.num_visited+1e-9)
             node.sum_value += curr_value
             node.num_visited += 1
+
+            avg_value = node.sum_value/node.num_visited
+
             if self.verbose:
-                print("Backup", node.id[-1][-1], curr_value, curr_reward)
+                print("Backup", node.id[-1][-1], curr_value, curr_reward, 'avg val:', prev_avg_value, '-->',avg_value)
             
             t -= 1
             # if value > 0:
             #     print(value, [node.id.keys() for node in node_list])
             # print(value, [node.id.keys() for node in node_list])
         if self.verbose:
+            # pass
             print('----')
 
     def select_next_root(self, curr_root):
@@ -823,6 +876,7 @@ class MCTS_particles_v2:
 
         subgoal_space, obsed_subgoal_space, overlapped_subgoal_space = [], [], []
         for predicate, count in unsatisfied.items():
+            obj_grabbed = False
             if count > 1 or count > 0 and predicate not in [opponent_predicate_1, opponent_predicate_2]:
                 elements = predicate.split('_')
                 # print(elements)
@@ -861,6 +915,7 @@ class MCTS_particles_v2:
                                     if node['id'] in obsed_objs:
                                         obsed_subgoal_space.append(['{}_{}_{}'.format(subgoal_type, node['id'], surface), predicate, tmp_predicate])
                                     if node['id'] in inhand_objects:
+                                        obj_grabbed = True
                                         pass
                                         # return [subgoal_space[-1]]
                 elif elements[0] == 'offOn':
@@ -963,6 +1018,8 @@ class MCTS_particles_v2:
                                 if tmp_predicate not in satisfied[predicate]:
                                     subgoal_space.append(['{}_{}'.format(subgoal_type, node['id']), predicate, tmp_predicate])
 
+        if obj_grabbed:
+            ipdb.set_trace()
         return subgoal_space
 
 

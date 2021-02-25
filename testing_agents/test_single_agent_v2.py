@@ -37,7 +37,7 @@ if __name__ == '__main__':
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
-    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
@@ -138,7 +138,8 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
-        episode_ids = episode_ids
+        episode_ids = [20] #episode_ids
+        num_tries = 1
         for iter_id in range(num_tries):
             #if iter_id > 0:
 
