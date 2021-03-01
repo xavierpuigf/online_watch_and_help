@@ -32,9 +32,19 @@ class ActionPredNetwork(nn.Module):
         self.num_layer_lstm = 2
 
         self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
-        self.action_pred = nn.Linear(self.hidden_size, self.max_actions)
-        self.object1_pred = nn.Linear(self.hidden_size*2, 1)
-        self.object2_pred = nn.Linear(self.hidden_size*2, 1)
+
+
+        self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
+        self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+        self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+
+
+        self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+                                   nn.ReLU(),
+                                   nn.Linear(self.hidden_size, 1))
+        self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+                                           nn.ReLU(),
+                                           nn.Linear(self.hidden_size, 1))
 
         self.goal_inp = args['goal_inp']
         if args['goal_inp']:
@@ -96,12 +106,17 @@ class ActionPredNetwork(nn.Module):
         obj1_logit = self.object1_pred(output_and_lstm).squeeze(-1)
         obj2_logit = self.object2_pred(output_and_lstm).squeeze(-1)
 
+
+        pred_close = self.pred_close_net(graphs_at_output).squeeze(-1)
+        pred_goal = self.pred_goal_net(graphs_at_output).squeeze(-1)
+
+
         # Mask out logits according to the nodes that exist in the graph
         
         obj1_logit = obj1_logit * mask_nodes + (1 - mask_nodes) * -1e9
         obj2_logit = obj2_logit * mask_nodes + (1 - mask_nodes) * -1e9
         # ipdb.set_trace()
-        return {'action_logits': action_logits, 'o1_logits': obj1_logit, 'o2_logits': obj2_logit}
+        return {'action_logits': action_logits, 'o1_logits': obj1_logit, 'o2_logits': obj2_logit, 'pred_goal': pred_goal, 'pred_close': pred_close}
         
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)  
         # loss_o1 = None

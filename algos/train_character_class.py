@@ -32,9 +32,19 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
     losses_action = AverageMeter('LossAction', ':.4e')
     losses_o1 = AverageMeter('LossO1', ':.4e')
     losses_o2 = AverageMeter('LossO2', ':.4e')
+    losses_goal = AverageMeter('LossGoal', ':.4e')
+    losses_close = AverageMeter('LossClose', ':.4e')
+
+
     acc_action = AverageMeter('AccAction', ':6.2f')
     acc_o1 = AverageMeter('Acc O1', ':6.2f')
     acc_o2 = AverageMeter('Acc O2', ':6.2f')
+    acc_goal = AverageMeter('Acc Goal', ':6.2f')
+    acc_close = AverageMeter('Acc Close', ':6.2f')
+    rec_goal = AverageMeter('Acc Goal', ':6.2f')
+    rec_close = AverageMeter('Acc Close', ':6.2f')
+
+
     progress = ProgressMeter(
             len(data_loader),
             [batch_time, data_time, losses, losses_action, losses_o1, losses_o2, acc_action, acc_o1, acc_o2],
@@ -57,6 +67,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             with torch.no_grad():
                 output = model(inputs)
             action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
+            pred_goal, pred_close = output['pred_goal'], output['pred_close']
+
             bs = action_l.shape[0]
 
             index_label_obj1 = program['indobj1'][:, 1:]
@@ -71,6 +83,9 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                 index_label_obj2 = index_label_obj2.cuda()
                 index_label_obj1 = index_label_obj1.cuda()
                 len_mask = len_mask.cuda()
+                graph_info['mask_goal'] = graph_info['mask_goal'].cuda()
+                graph_info['mask_close'] = graph_info['mask_close'].cuda()
+                graph_info['mask_object'] = graph_info['mask_object'].cuda()
 
             # ipdb.set_trace()
             # ipdb.set_trace()
@@ -79,18 +94,30 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             loss_object2 = unmerge(criterion(merge2d(o2_l), merge2d(index_label_obj2)), bs)
 
             len_mask_avg = len_mask/len_mask.sum(1)[:, None]
+
             loss_action = (loss_action * len_mask_avg).sum(1).mean(0)
             loss_object1 = (loss_object1 * len_mask_avg).sum(1).mean(0)
             loss_object2 = (loss_object2 * len_mask_avg).sum(1).mean(0)
 
+            # idpb.set_trace()
+            loss_goal = torch.nn.BCEWithLogitsLoss(reduction='none')(pred_goal, graph_info['mask_goal'])
+            loss_close = torch.nn.BCEWithLogitsLoss(reduction='none')(pred_close, graph_info['mask_close'])
+        
+            # Average over nodes, over batch and over time
+            mask_node_avg = graph_info['mask_object'] / (1e-9 + graph_info['mask_object'].sum(-1)[:, :, None])
+            loss_goal = args['train']['loss_goal'] * ((loss_goal * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+            loss_close = args['train']['loss_close'] * ((loss_close * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
 
-            loss = loss_action + loss_object1 + loss_object2
+
+            loss = loss_action + loss_object1 + loss_object2 + loss_goal + loss_close
 
             # Update losses
             losses.update(loss.item())
             losses_action.update(loss_action.item())
             losses_o1.update(loss_object1.item())
             losses_o2.update(loss_object2.item())
+            losses_goal.update(loss_goal.item())
+            losses_close.update(loss_close.item())
 
             # Update accuracy
             pred_action = action_l.argmax(-1)
@@ -100,10 +127,22 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             action_accuracy = ((pred_action == label_action) * len_mask_avg).sum(1).mean(0)
             o1_accuracy = ((pred_o1 == index_label_obj1) * len_mask_avg).sum(1).mean(0)
             o2_accuracy = ((pred_o2 == index_label_obj2) * len_mask_avg).sum(1).mean(0)
+            goal_accuracy = ((((pred_goal > 0.5) == graph_info['mask_goal']) * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+            close_accuracy = ((((pred_close > 0.5) == graph_info['mask_close']) * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
             
+            pos_goal_avg = graph_info['mask_goal'] / ((graph_info['mask_goal'] == 1).sum(-1)[:, :, None] + 1e-9)
+            pos_close_avg = graph_info['mask_close'] / ((graph_info['mask_close'] == 1).sum(-1)[:, :, None] + 1e-9)
+            goal_recall = ((((pred_goal > 0.5) == graph_info['mask_goal']) * pos_goal_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+            close_recall = ((((pred_close > 0.5) == graph_info['mask_close']) * pos_close_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+
             acc_action.update(action_accuracy.item())
             acc_o1.update(o1_accuracy.item())
             acc_o2.update(o2_accuracy.item())
+            acc_goal.update(goal_accuracy.item())
+            acc_close.update(close_accuracy.item())
+
+            rec_goal.update(goal_recall.item())
+            rec_close.update(close_recall.item())
             
             # ipdb.set_trace()
             batch_time.update(time.time() - end)
@@ -115,11 +154,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
 
         progress.display(it)
         
-        info_log = {
-            'losses': {'total_val': losses.val, 'action_val': losses_action.val, 'object1_val': losses_o1.val, 'object2_val': losses_o2.val},
-            'accuracy': {'action_val': acc_action.val, 'object1_val': acc_o1.val, 'object2_val': acc_o2.val }
-        }
-        logger.log_data(len(data_loader_train) * epoch, info_log)
+
         
         # Print the prediction
         prog_gt = {'action': label_action, 'o1': index_label_obj1, 'o2': index_label_obj2, 'graph': graph_info, 'mask_len': len_mask}
@@ -132,6 +167,13 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
         }
         logger.log_info(info_res)
 
+    info_log = {
+        'losses': {'total_val': losses.avg, 'action_val': losses_action.avg, 'object1_val': losses_o1.avg, 'object2_val': losses_o2.avg},
+        'accuracy': {'action_val': acc_action.avg, 'object1_val': acc_o1.avg, 'object2_val': acc_o2.avg,  'goal_val':  acc_goal.avg, 'close_val': acc_close.avg, 'goal_recall_val': rec_goal.avg, 'close_recall_val': rec_close.avg}
+        # 'misc': {'epoch': }
+    }
+    logger.log_data(len(data_loader_train) * epoch, info_log)
+
 def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
     batch_time = AverageMeter('Time', ':6.3f')
@@ -140,9 +182,18 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     losses_action = AverageMeter('LossAction', ':.4e')
     losses_o1 = AverageMeter('LossO1', ':.4e')
     losses_o2 = AverageMeter('LossO2', ':.4e')
+    losses_goal = AverageMeter('LossGoal', ':.4e')
+    losses_close = AverageMeter('LossClose', ':.4e')
+    
+
     acc_action = AverageMeter('AccAction', ':6.2f')
     acc_o1 = AverageMeter('Acc O1', ':6.2f')
     acc_o2 = AverageMeter('Acc O2', ':6.2f')
+    acc_goal = AverageMeter('Acc Goal', ':6.2f')
+    acc_close = AverageMeter('Acc Close', ':6.2f')
+    rec_goal = AverageMeter('Acc Goal', ':6.2f')
+    rec_close = AverageMeter('Acc Close', ':6.2f')
+    
     progress = ProgressMeter(
             len(data_loader),
             [batch_time, data_time, losses, losses_action, losses_o1, losses_o2, acc_action, acc_o1, acc_o2],
@@ -164,6 +215,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         # ipdb.set_trace()
         output = model(inputs)
         action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
+        pred_goal, pred_close = output['pred_goal'], output['pred_close']
+
         bs = action_l.shape[0]
 
         index_label_obj1 = program['indobj1'][:, 1:]
@@ -178,6 +231,9 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             index_label_obj2 = index_label_obj2.cuda()
             index_label_obj1 = index_label_obj1.cuda()
             len_mask = len_mask.cuda()
+            graph_info['mask_goal'] = graph_info['mask_goal'].cuda()
+            graph_info['mask_close'] = graph_info['mask_close'].cuda()
+            graph_info['mask_object'] = graph_info['mask_object'].cuda()
 
         # ipdb.set_trace()
         # ipdb.set_trace()
@@ -190,14 +246,24 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         loss_object1 = (loss_object1 * len_mask_avg).sum(1).mean(0)
         loss_object2 = (loss_object2 * len_mask_avg).sum(1).mean(0)
 
+        loss_goal = torch.nn.BCEWithLogitsLoss(reduction='none')(pred_goal, graph_info['mask_goal'])
+        loss_close = torch.nn.BCEWithLogitsLoss(reduction='none')(pred_close, graph_info['mask_close'])
+        # ipdb.set_trace()
 
-        loss = loss_action + loss_object1 + loss_object2
+        # Average over nodes, over batch and over time
+        mask_node_avg = graph_info['mask_object'] / (1e-9 + graph_info['mask_object'].sum(-1)[:, :, None])
+        loss_goal = args['train']['loss_goal'] * ((loss_goal * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+        loss_close = args['train']['loss_close'] * ((loss_close * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
 
+        loss = loss_action + loss_object1 + loss_object2 + loss_goal + loss_close
+        # ipdb.set_trace()
         # Update losses
         losses.update(loss.item())
         losses_action.update(loss_action.item())
         losses_o1.update(loss_object1.item())
         losses_o2.update(loss_object2.item())
+        losses_goal.update(loss_goal.item())
+        losses_close.update(loss_close.item())
 
         # Update accuracy
         pred_action = action_l.argmax(-1)
@@ -208,9 +274,24 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         o1_accuracy = ((pred_o1 == index_label_obj1) * len_mask_avg).sum(1).mean(0)
         o2_accuracy = ((pred_o2 == index_label_obj2) * len_mask_avg).sum(1).mean(0)
         
+
+        goal_accuracy = ((((pred_goal > 0.5) == graph_info['mask_goal']) * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+        close_accuracy = ((((pred_close > 0.5) == graph_info['mask_close']) * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+
+        pos_goal_avg = graph_info['mask_goal'] / (graph_info['mask_goal'].sum(-1)[:, :, None] + 1e-9)
+        pos_close_avg = graph_info['mask_close'] / (graph_info['mask_close'].sum(-1)[:, :, None] + 1e-9)
+        goal_recall = ((((pred_goal > 0.5) == graph_info['mask_goal']) * pos_goal_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+        close_recall = ((((pred_close > 0.5) == graph_info['mask_close']) * pos_close_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
+
+        # ipdb.set_trace()
         acc_action.update(action_accuracy.item())
         acc_o1.update(o1_accuracy.item())
         acc_o2.update(o2_accuracy.item())
+        acc_goal.update(goal_accuracy.item())
+        acc_close.update(close_accuracy.item())
+
+        rec_goal.update(goal_recall.item())
+        rec_close.update(close_recall.item())
         
         # ipdb.set_trace()
 
@@ -227,7 +308,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         
             info_log = {
                 'losses': {'total': losses.val, 'action': losses_action.val, 'object1': losses_o1.val, 'object2': losses_o2.val},
-                'accuracy': {'action': acc_action.val, 'object1': acc_o1.val, 'object2': acc_o2.val },
+                'accuracy': {'action': acc_action.val, 'object1': acc_o1.val, 'object2': acc_o2.val,  'goal':  acc_goal.val, 'close': acc_close.val, 'goal_recall': rec_goal.val, 'close_recall': rec_close.val },
                 'misc': {'epoch': epoch}
             }
             logger.log_data(it + len(data_loader) * epoch, info_log)
@@ -246,8 +327,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
 
 def get_loaders(args):
-    dataset = AgentTypeDataset(path_init='../data_scratch/large_data/train_env_task_set_20_full_reduced_tasks/', args_config=args)
-    dataset_test = AgentTypeDataset(path_init='../data_scratch/large_data/test_env_task_set_10_full_reduced_tasks/', args_config=args)
+    dataset = AgentTypeDataset(path_init='../data_scratch/large_data/{}/'.format(args['data']['train_data']), args_config=args)
+    dataset_test = AgentTypeDataset(path_init='../data_scratch/large_data/{}/'.format(args['data']['test_data']), args_config=args)
     train_loader = torch.utils.data.DataLoader(
             dataset, batch_size=args['train']['batch_size'], 
             shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True)
