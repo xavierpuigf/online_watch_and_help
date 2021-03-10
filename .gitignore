@@ -29,3 +29,4 @@ interface/Player.log
 rl/logs.txt
 visualization/*.mp4
 *.sh
+dataset/*
