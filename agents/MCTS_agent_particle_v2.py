@@ -354,6 +354,16 @@ def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
     return res
 
 
+def mp_run_2(process_id, root_node, mcts, nb_steps, last_subgoal, opponent_subgoal, res):
+    res[process_id] = mp_run_mcts(
+        root_node=root_node,
+        mcts=mcts, 
+        nb_steps=nb_steps, 
+        last_subgoal=last_subgoal, 
+        opponent_subgoal=opponent_subgoal)
+
+
+
 def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_action, opponent_subgoal=None, num_process=10, verbose=True):    
     heuristic_dict = {
         'find': find_heuristic,
@@ -387,32 +397,36 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
         print("No root nodes")
         raise Exception
     if num_process > 0:
-        # try:
-        with mp.Pool(min(num_process, len(root_nodes))) as p:
-            info = p.map(mp_run, root_nodes)
-        for info_item in info:
-            if info_item is None:
-                print("ITEM IS NONE")
-                raise utils_exception.PlannerException
-            # print(info_item)       
-            if  isinstance(info_item, utils_exception.ExceptionWrapper):
-                # print("rasiing")
-                print("raising")
-                info_item.re_raise()
-                print("done")
 
-        # print("Done planner")
-        # except Exception as e:
-        #     print("EXcept", e)
-        #     print("ERROR IN the MCTS planner")
+        manager = mp.Manager()
+        res = manager.dict()
+        num_root_nodes = len(root_nodes)
+        for start_root_id in range(0, num_root_nodes, num_process):
+            end_root_id = min(start_root_id + num_process, num_root_nodes)
+            jobs = []
+            for process_id in range(start_root_id, end_root_id):
+                print(process_id)
+                p = mp.Process(target=mp_run_2,
+                               args=(process_id,
+                                     root_nodes[process_id],
+                                     mcts,
+                                     nb_steps,
+                                     last_subgoal,
+                                     opponent_subgoal,
+                                     res))
+                jobs.append(p)
+                p.start()
+            for p in jobs:
+                p.join()
+        info = [res[x] for x in range(len(root_nodes))]
 
-        #     raise utils_exception.PlannerException(e)
     else:
         info = [mp_run(rn) for rn in root_nodes]
-        for info_item in info:
-            if  isinstance(info_item, utils_exception.ExceptionWrapper):
-                print("rasiing")
-                info_item.re_raise()
+
+    for info_item in info:
+        if  isinstance(info_item, utils_exception.ExceptionWrapper):
+            print("rasiing")
+            info_item.re_raise()
 
 
 
@@ -475,7 +489,7 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
     next_root = None
 
  
-    ipdb.set_trace()
+    # ipdb.set_trace()
     if verbose:
         print('plan', plan)
         print('subgoal', subgoals)
@@ -763,7 +777,7 @@ class MCTS_agent_particle_v2:
 
             plan, root_node, subgoals = get_plan(self.mcts, self.particles, self.sim_env, nb_steps, goal_spec, last_plan, last_action, opponent_subgoal, verbose=verbose, num_process=self.num_processes)
             
-            print(colored(plan[:min(len(plan), 10)], 'cyan'))
+            # print(colored(plan[:min(len(plan), 10)], 'cyan'))
         else:
             subgoals = [[None, None, None], [None, None, None]]
         if len(plan) == 0:
@@ -784,7 +798,7 @@ class MCTS_agent_particle_v2:
             }
             if self.logging_graphs:
                 info.update(
-                    {'obs': obs['nodes']})
+                    {'obs': obs['nodes'].copy()})
         else:
             info = {}
 
