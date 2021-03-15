@@ -435,11 +435,16 @@ class ArenaMP(object):
                 if 'obs' in info:
                     # print("TEST", len(info['obs']), len(saved_info['graph'][-2]['nodes']))
                     saved_info['obs'].append([node['id'] for node in info['obs']])
+                    # print([node['states'] for node in info['obs'] if node['id'] == 103])
                     # ipdb.set_trace()
                 #if len(saved_info['obs']) > 1 and set(saved_info['obs'][0]) != set(saved_info['obs'][1]):
                 #    ipdb.set_trace()
 
             if done:
                 break
+
+        saved_info['obs'].append([node['id'] for node in obs[0]['nodes']])
+        # saved_info['obs'].append()
+
         saved_info['finished'] = success
         return success, self.env.steps, saved_info

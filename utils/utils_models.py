@@ -262,7 +262,7 @@ class LoggerSteps():
 
 
         self.file_name_log = '{}/{}/log.json'.format(self.logs_logdir, self.experiment_name)
-
+        print("Saving to: {}".format(self.experiment_name))
 
             # f.writelines(json.dumps(dict_args, indent=4))
 
@@ -274,7 +274,7 @@ class LoggerSteps():
             pass
         now = datetime.datetime.now()
         self.tensorboard_writer = SummaryWriter(log_dir=os.path.join(self.tensorboard_logdir,
-                                                                     self.experiment_name, self.tstmp))
+                                                                     self.experiment_name))
         
         dict_args = self.args
         text_tboard = "\n**experiment_name:** {}  <br />".format(self.experiment_name)
@@ -283,11 +283,15 @@ class LoggerSteps():
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = 'predict_action/agents{}-lr{}-bs.{}-goalenc.{}_extended'.format(
+        experiment_name = 'predict_action/data.{}/agents{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}'.format(
+            args['data']['train_data'],
             args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
-            args['model']['goal_inp'])
+            args['model']['goal_inp'],
+            args['train']['loss_close'],
+            args['train']['loss_goal']
+            )
 
         if 'debug' in args:
             experiment_name += 'debug'
@@ -307,6 +311,9 @@ class LoggerSteps():
 
                 self.tensorboard_writer.add_scalar("accuracy/{}".format(acc_name), acc_item, total_num_steps)
             
+            if 'misc' in info.keys():
+                for acc_name, acc_item in info['misc'].items():
+                    self.tensorboard_writer.add_scalar("misc/{}".format(acc_name), acc_item, total_num_steps)
 
 
     def log_info(self, info_ep):
