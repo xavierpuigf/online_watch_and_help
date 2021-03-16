@@ -17,7 +17,7 @@ from utils import utils_exception
 class MCTS_particles_v2:
     def __init__(self, gt_graph, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
         self.env = None
-        self.discount = 0.99 #0.4
+        self.discount = 0.95 #0.4
         self.agent_id = agent_id
         self.char_index = char_index
         self.max_episode_length = max_episode_length
@@ -29,7 +29,7 @@ class MCTS_particles_v2:
         self.heuristic_dict = None
         self.opponent_subgoal = None
         self.last_opened = None
-        self.any_verbose = True
+        self.any_verbose = False
         self.verbose = False
         self.agent_params = agent_params
         self.gt_graph = copy.deepcopy(gt_graph)
@@ -208,9 +208,9 @@ class MCTS_particles_v2:
             #     verbose_roll = True
             value, reward_rollout, actions_rollout = self.rollout(leaf_node, tmp_t + it, curr_state, last_reward, verbose=verbose_roll)
 
-            if node_path[-1].id[1][-1] == '[walk] <fridge> (103)' and len(node_path) > 1 and  node_path[-2].id[1][-1] == '[grab] <cupcake> (368)':
-                print(colored("AQUI", "cyan"))
-                ipdb.set_trace()
+            # if node_path[-1].id[1][-1] == '[walk] <fridge> (103)' and len(node_path) > 1 and  node_path[-2].id[1][-1] == '[grab] <cupcake> (368)':
+            #     print(colored("AQUI", "cyan"))
+            #     ipdb.set_trace()
 
             # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
             #     ipdb.set_trace()
@@ -408,7 +408,7 @@ class MCTS_particles_v2:
             # curr_state = next_state
         # ipdb.set_trace()
 
-        if '<fridge> (103)' in leaf_node.id[-1][-1]:
+        if '<fridge> (103)' in leaf_node.id[-1][-1] and self.any_verbose:
             print("LEAF NODE, rollout")
             print(actions_l)
             print('***')
@@ -536,7 +536,7 @@ class MCTS_particles_v2:
         
         # 'grab' in curr_node.id[-1][-1] or 
         prev_verbose = False
-        if curr_node.id[-1][-1] == [] or curr_node.id[-1][-1] == '[walk] <cupcake> (369)':
+        if (curr_node.id[-1][-1] == [] or curr_node.id[-1][-1] == '[walk] <cupcake> (369)') and self.any_verbose:
             self.verbose = True
 
         if self.verbose:
@@ -556,8 +556,8 @@ class MCTS_particles_v2:
             print('----')
 
         self.verbose = prev_verbose
-        if 'grab' in curr_node.id[-1][-1]:
-            ipdb.set_trace()
+        # if 'grab' in curr_node.id[-1][-1]:
+        #     ipdb.set_trace()
             
         # print("\nSelecting child...")
         # for it, pc in enumerate(possible_children):
@@ -660,11 +660,13 @@ class MCTS_particles_v2:
             ipdb.set_trace()
 
         curr_value = value
+
+        full_backup_actions = [cnode.id[-1][-1] for cnode in node_list]
         backup_actions = [cnode.id[-1][-1].split()[0][1:-1] for cnode in node_list if isinstance(cnode.id[-1][-1], str) ]
-        if 'grab' in backup_actions and self.any_verbose:
-            self.verbose = True
-        else:
-            self.verbose = False
+        # if ('grab' in backup_actions or '[walk] <cupcake> (369)' in full_backup_actions) and self.any_verbose:
+        #     self.verbose = True
+        # else:
+        #     self.verbose = False
 
 
         if self.verbose:
@@ -691,6 +693,11 @@ class MCTS_particles_v2:
         if self.verbose:
             # pass
             print('----')
+
+
+        # if '[walk] <cupcake> (369)' in full_backup_actions:
+        #     ipdb.set_trace()
+
 
     def select_next_root(self, curr_root):
         children_ids = [child.id[0] for child in curr_root.children]
@@ -763,6 +770,8 @@ class MCTS_particles_v2:
             heuristic = self.heuristic_dict[goal.split('_')[0]]
             action_heuristic,  _ = heuristic(self.agent_id, self.char_index, unsatisfied, state, self.env, goal)
             act_all.append((action_heuristic, goal))
+
+            # TODO(xavier): this crashes sometimes!! Check what is happening
             if ('open' in action_heuristic[0][0].lower() or 'close' in action_heuristic[0][0].lower()) and len(hands_busy) == 2:
                 continue
             if action_heuristic[0] not in actions_heuristic:
@@ -1018,8 +1027,8 @@ class MCTS_particles_v2:
                                 if tmp_predicate not in satisfied[predicate]:
                                     subgoal_space.append(['{}_{}'.format(subgoal_type, node['id']), predicate, tmp_predicate])
 
-        if obj_grabbed:
-            ipdb.set_trace()
+        # if obj_grabbed:
+        #     ipdb.set_trace()
         return subgoal_space
 
 

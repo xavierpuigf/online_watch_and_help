@@ -806,9 +806,9 @@ class MCTS_agent_particle_v2:
         # self.last_subgoal = subgoals[0] if len(subgoals) > 0 else None
         self.last_plan = plan
         # print(info['subgoals'])
-        print(action)
+        # print(action)
         time2 = time.time()
-        print("Time: ", time2 - time1)
+        # print("Time: ", time2 - time1)
         return action, info
 
     def reset(self, observed_graph, gt_graph, task_goal, seed=0, simulator_type='python', is_alice=False):

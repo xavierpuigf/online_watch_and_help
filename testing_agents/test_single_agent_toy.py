@@ -31,15 +31,15 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 10
+    num_proc = 0
 
-    num_tries = 7
+    num_tries = 1
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     
-    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks.pik'
+    # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
 
     agent_types = [
@@ -49,12 +49,12 @@ if __name__ == '__main__':
             ['partial', 0, 0.05, False, 0, "uniform"], # 3
             ['partial', 0, 0.05, False, 0, "spiked"], # 4
             ['partial', 0, 0.05, False, 0.2, "uniform"], # 5
-            ['partial', -500, 0.01, False, 0.01, "spiked"], # 6
-            ['partial', -500, 0.05, False, 0.2, "uniform"], # 7
+            ['partial', 0, 0.01, False, 0.01, "spiked"], # 6
+            ['partial', -5, 0.05, False, 0.2, "uniform"], # 7
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
     ]
     random_start = random.Random()
-    agent_types_index = list(range(9))
+    agent_types_index = list(range(6, 7))
     #random.shuffle(agent_types_index)
     if args.agenttype != 'all':
         agent_types_index = [int(x) for x in args.agenttype.split(',')]
@@ -86,8 +86,8 @@ if __name__ == '__main__':
                 if node['class_name'] == 'cutleryfork':
                     node['obj_transform']['position'][1] += 0.1
 
-        args.record_dir = '../data_scratch/large_data/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data_scratch/large_data/logging/{}_{}'.format(datafile, args.mode)
+        args.record_dir = '../data_scratch/large_data_toy/{}/{}'.format(datafile, args.mode)
+        error_dir = '../data_scratch/large_data_toy/logging/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -135,6 +135,10 @@ if __name__ == '__main__':
                              num_particles=20,
                              logging=True,
                              logging_graphs=True)
+        if args.obs_type == 'full':
+            args_common['num_particles'] = 1
+        else:
+            args_common['num_particles'] = 20
 
         args_agent1 = {'agent_id': 1, 'char_index': 0}
         args_agent1.update(args_common)
@@ -144,6 +148,12 @@ if __name__ == '__main__':
         
         # episode_ids = [20] #episode_ids
         # num_tries = 1
+        episode_ids = [0]
+        ndict = {'on_book_329': 1}
+        env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
+        env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
+
+
         for iter_id in range(num_tries):
             #if iter_id > 0:
 
@@ -172,6 +182,7 @@ if __name__ == '__main__':
                 failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
 
                 if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
+                    print(log_file_name)
                     continue
                 if os.path.isfile(failure_file):
                     os.remove(failure_file)

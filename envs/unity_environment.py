@@ -169,7 +169,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
         for i in range(self.num_agents):
             if i in self.agent_info:
-                rooms[i] = 'kitchen'
+                # rooms[i] = 'kitchen'
                 self.comm.add_character(self.agent_info[i], initial_room=rooms[i])
             else:
                 self.comm.add_character()

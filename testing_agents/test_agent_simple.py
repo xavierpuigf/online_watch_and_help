@@ -81,7 +81,8 @@ def get_environment(obs_type, executable_file, max_episode_length=250, base_port
                                 base_port=base_port)
     return env_fn
 
-def get_arena(agent_args, executable_file='.', max_episode_length=250, base_port=8080, use_editor=False, seed_agent=None):
+def get_arena(agent_args, executable_file='.', max_episode_length=250, base_port=8080, use_editor=False):
+    seed_agent = agent_args['seed']
     agents = get_agent(agent_args)
     obs_type = agent_args['obs_type']
     env_fn = get_environment(obs_type, executable_file, max_episode_length, base_port, use_editor) 
@@ -102,16 +103,20 @@ def simulate_agent(agent_args, episode_id, executable_file='../path_sim_dev/linu
     
     done = False
     obs = arena.env.get_observations()
+    actions = []
     while not done:
         
         action_space = arena.env.get_action_space()
         dict_actions, dict_info = arena.get_actions(obs, action_space)
         plan = dict_info[0]['plan']
         obs, reward, done, env_info = arena.env.step(dict_actions)
+        actions.append(dict_actions[0])
         finished = env_info['finished']
 
     if finished:
         print("Succeeded")
+        print("---------")
+        print(actions)
     else:
         print("Failed")
 
@@ -154,19 +159,20 @@ if __name__ == '__main__':
     ]
     names = ['obs_type', 'open_cost', 'walk_cost', 'should_close', 'forget_rate', 'belief_type']
     agent_args = {}
-    type_id = 3
+    type_id = 1
     for idi, name in enumerate(names):
         agent_args[name] = agent_types[type_id][idi]
 
-    agent_args['num_proc'] = 10
-    agent_args['num_particles'] = 20
+    agent_args['num_proc'] = 0
+    agent_args['num_particles'] = 1
+    agent_args['seed'] = 2
 
     sim_agent = functools.partial(
             simulate_agent,
             executable_file=args.executable_file, 
             max_episode_length=args.max_episode_length, 
             base_port=args.base_port)
-    sim_agent(agent_args=agent_args, episode_id=304)
+    sim_agent(agent_args=agent_args, episode_id=425)
 
     #pdb.set_trace()
 

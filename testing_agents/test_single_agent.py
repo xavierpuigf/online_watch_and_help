@@ -32,7 +32,7 @@ if __name__ == '__main__':
     args = get_args()
 
     num_tries = 3
-    args.executable_file = '../path_sim/linux_exec/linux_exec.x86_64'
+    args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     args.dataset_path = './dataset/train_env_task_set_20_full.pik'
@@ -67,6 +67,9 @@ if __name__ == '__main__':
             gbg_can = [node['id'] for node in init_gr['nodes'] if node['class_name'] in ['garbagecan', 'clothespile']]
             init_gr['nodes'] = [node for node in init_gr['nodes'] if node['id'] not in gbg_can]
             init_gr['edges'] = [edge for edge in init_gr['edges'] if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can]
+            for node in init_gr['nodes']:
+                if node['class_name'] == 'cutleryfork':
+                    node['obj_transform']['position'][1] += 0.1
 
         args.record_dir = '../data/{}/{}'.format(datafile, args.mode)
         error_dir = '../data/logging/{}_{}'.format(datafile, args.mode)

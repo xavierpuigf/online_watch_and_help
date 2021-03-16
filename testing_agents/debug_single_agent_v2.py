@@ -31,21 +31,18 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 10
+    num_proc = 0
 
-    num_tries = 7
+    num_tries = 5
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
-    
-    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
-
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks.pik'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
             ['full', 0.5, 0.01, False, 0, "uniform"], # 1
-            ['full', -5, 0.05, False, 0, "uniform"], # 2
+            ['full', -500, 0.05, False, 0, "uniform"], # 2
             ['partial', 0, 0.05, False, 0, "uniform"], # 3
             ['partial', 0, 0.05, False, 0, "spiked"], # 4
             ['partial', 0, 0.05, False, 0.2, "uniform"], # 5
@@ -129,10 +126,10 @@ if __name__ == '__main__':
                              num_simulation=200,
                              max_rollout_steps=5,
                              c_init=0.1,
-                             c_base=100,
+                             c_base=1000000,
                              num_samples=1,
                              num_processes=num_proc, 
-                             num_particles=20,
+                             num_particles=1,
                              logging=True,
                              logging_graphs=True)
 
@@ -141,10 +138,9 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
-        
-        # episode_ids = [20] #episode_ids
-        # num_tries = 1
-        for iter_id in range(num_tries):
+        episode_ids = episode_ids
+        episode_ids = [24]
+        for iter_id in range(4, num_tries):
             #if iter_id > 0:
 
             cnt = 0
@@ -171,8 +167,8 @@ if __name__ == '__main__':
                 log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
                 failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
 
-                if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
-                    continue
+                # if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
+                    # continue
                 if os.path.isfile(failure_file):
                     os.remove(failure_file)
                 fileh = logging.FileHandler(failure_file, 'a')
@@ -257,8 +253,9 @@ if __name__ == '__main__':
                 test_results[episode_id] = {'S': S[episode_id],
                                             'L': L[episode_id]}
                                             
-            pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
+            ipdb.set_trace()
+            # pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
             print('average steps (finishing the tasks):', np.array(steps_list).mean() if len(steps_list) > 0 else None)
             print('failed_tasks:', failed_tasks)
-            pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
+            # pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
 
