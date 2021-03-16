@@ -676,7 +676,8 @@ class MCTS_particles_v2:
         while t >= 0:
             node = node_list[t]
             curr_reward = delta_reward[t]
-            curr_value = curr_value * self.discount + curr_reward
+            # curr_value = curr_value * self.discount + curr_reward
+            curr_value += curr_reward
             prev_avg_value = node.sum_value/(node.num_visited+1e-9)
             node.sum_value += curr_value
             node.num_visited += 1

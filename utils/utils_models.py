@@ -342,119 +342,119 @@ class LoggerSteps():
 
 
 
-# class Logger():
-#     def __init__(self, args):
-#         self.args = args
-#         self.experiment_name = self.get_experiment_name()
-#         self.tensorboard_writer = None
-#         self.save_dir = args.save_dir
+class Logger():
+    def __init__(self, args):
+        self.args = args
+        self.experiment_name = self.get_experiment_name()
+        self.tensorboard_writer = None
+        self.save_dir = args.save_dir
 
-#         now = datetime.datetime.now()
-#         self.tstmp = now.strftime('%Y-%m-%d_%H-%M-%S')
-#         self.set_tensorboard()
-#         self.first_log = False
-#         self.stats = AggregatedStats()
+        now = datetime.datetime.now()
+        self.tstmp = now.strftime('%Y-%m-%d_%H-%M-%S')
+        self.set_tensorboard()
+        self.first_log = False
+        self.stats = AggregatedStats()
 
-#         save_path = os.path.join(self.save_dir, self.experiment_name)
-#         root_dir = None
-#         if args.use_editor:
-#             root_dir = '/Users/xavierpuig/Desktop/experiment_viz/'
-#         self.plot = Plotter(self.experiment_name, root_dir=root_dir)
-#         self.info_episodes = []
-#         try:
-#             os.makedirs(save_path)
-#         except OSError:
-#             pass
+        save_path = os.path.join(self.save_dir, self.experiment_name)
+        root_dir = None
+        if args.use_editor:
+            root_dir = '/Users/xavierpuig/Desktop/experiment_viz/'
+        self.plot = Plotter(self.experiment_name, root_dir=root_dir)
+        self.info_episodes = []
+        try:
+            os.makedirs(save_path)
+        except OSError:
+            pass
 
-#         self.file_name_log = '{}/{}/log.json'.format(self.save_dir, self.experiment_name)
-#         with open('{}/{}/args.txt'.format(self.save_dir, self.experiment_name), 'w+') as f:
-#             dict_args = vars(args)
-#             f.writelines(json.dumps(dict_args, indent=4))
-
-
-#     def set_tensorboard(self):
-#         now = datetime.datetime.now()
-#         self.tensorboard_writer = SummaryWriter(log_dir=os.path.join(self.args.tensorboard_logdir,
-#                                                                      self.experiment_name, self.tstmp))
-#         dict_args = vars(self.args)
-#         self.tensorboard_writer.add_text("experiment_name", json.dumps(dict_args, indent=4))
-
-#     def get_experiment_name(self):
-#         args = self.args
-#         info_mcts = 'stepmcts.{}-lep.{}-teleport.{}-beliefgraph-forcepred'.format(args.num_steps_mcts, args.max_episode_length, args.teleport)
-#         experiment_name = 'env.{}/task.{}-numproc.{}-obstype.{}-sim.{}/taskset.{}/agent.{}_alice.{}/'\
-#                           'mode.{}-algo.{}-base.{}-gamma.{}-cclose.{}-cgoal.{}-lr{}-bs.{}{}_goodTF/{}'.format(
-#             args.env_name,
-#             args.task_type,
-#             args.num_processes,
-#             args.obs_type,
-#             args.simulator_type,
-#             args.task_set,
-#             args.agent_type,
-#             args.use_alice,
-#             args.train_mode,
-#             args.algo,
-#             args.base_net,
-#             args.gamma,
-#             args.c_loss_close,
-#             args.c_loss_goal,
-#             args.lr,
-#             args.batch_size,
-#             '' if len(args.load_model) == 0 else '_finetuned',
-#             info_mcts)
-
-#         if args.debug:
-#             experiment_name += 'debug'
-#         return experiment_name
-
-#     def log_data(self, j, total_num_steps, fps, episode_rewards, dist_entropy, epsilon, successes, num_steps, info_aux):
-#         if self.first_log:
-#             self.first_log = False
-#             if self.args.tensorboard_logdir is not None:
-#                 self.set_tensorboard()
-
-#         if self.tensorboard_writer is not None:
-#             if 'accuracy_goal' in info_aux.keys():
-#                 self.tensorboard_writer.add_scalar("aux_info/accuracy_goal", np.max(info_aux['accuracy_goal']), total_num_steps)
-#                 self.tensorboard_writer.add_scalar("aux_info/precision_close", np.mean(info_aux['precision_close']), total_num_steps)
-#                 self.tensorboard_writer.add_scalar("aux_info/recall_close", np.mean(info_aux['recall_close']), total_num_steps)
-
-#                 self.tensorboard_writer.add_scalar("losses/loss_close", np.mean(info_aux['loss_close']), total_num_steps)
-#                 self.tensorboard_writer.add_scalar("losses/loss_goal", np.mean(info_aux['loss_goal']), total_num_steps)
-#             #
-#             # self.tensorboard_writer.add_scalar("losses/loss_close", np.mean(info_aux['loss_close']), total_num_steps)
-#             # self.tensorboard_writer.add_scalar("losses/loss_goal", np.mean(info_aux['loss_goal']), total_num_steps)
+        self.file_name_log = '{}/{}/log.json'.format(self.save_dir, self.experiment_name)
+        with open('{}/{}/args.txt'.format(self.save_dir, self.experiment_name), 'w+') as f:
+            dict_args = vars(args)
+            f.writelines(json.dumps(dict_args, indent=4))
 
 
+    def set_tensorboard(self):
+        now = datetime.datetime.now()
+        self.tensorboard_writer = SummaryWriter(log_dir=os.path.join(self.args.tensorboard_logdir,
+                                                                     self.experiment_name, self.tstmp))
+        dict_args = vars(self.args)
+        self.tensorboard_writer.add_text("experiment_name", json.dumps(dict_args, indent=4))
 
-#             self.tensorboard_writer.add_scalar("info/max_reward", np.max(episode_rewards), total_num_steps)
-#             self.tensorboard_writer.add_scalar("info/mean_reward", np.mean(episode_rewards), total_num_steps)
+    def get_experiment_name(self):
+        args = self.args
+        info_mcts = 'stepmcts.{}-lep.{}-teleport.{}-beliefgraph-forcepred'.format(args.num_steps_mcts, args.max_episode_length, args.teleport)
+        experiment_name = 'env.{}/task.{}-numproc.{}-obstype.{}-sim.{}/taskset.{}/agent.{}_alice.{}/'\
+                          'mode.{}-algo.{}-base.{}-gamma.{}-cclose.{}-cgoal.{}-lr{}-bs.{}{}_goodTF/{}'.format(
+            args.env_name,
+            args.task_type,
+            args.num_processes,
+            args.obs_type,
+            args.simulator_type,
+            args.task_set,
+            args.agent_type,
+            args.use_alice,
+            args.train_mode,
+            args.algo,
+            args.base_net,
+            args.gamma,
+            args.c_loss_close,
+            args.c_loss_goal,
+            args.lr,
+            args.batch_size,
+            '' if len(args.load_model) == 0 else '_finetuned',
+            info_mcts)
 
-#             # tensorboard_writer.add_scalar("median_reward", np.median(episode_rewards), total_num_steps)
-#             # tensorboard_writer.add_scalar("min_reward", np.min(episode_rewards), total_num_steps)
-#             # tensorboard_writer.add_scalar("max_reward", np.max(episode_rewards), total_num_steps)
-#             self.tensorboard_writer.add_scalar("action_entropy/action", dist_entropy[0], total_num_steps)
-#             self.tensorboard_writer.add_scalar("action_entropy/object", dist_entropy[1], total_num_steps)
-#             # self.tensorboard_writer.add_scalar("losses/value_loss", value_loss, total_num_steps)
-#             # self.tensorboard_writer.add_scalar("losses/action_loss", action_loss, total_num_steps)
-#             self.tensorboard_writer.add_scalar("info/epsilon", epsilon, total_num_steps)
-#             self.tensorboard_writer.add_scalar("info/episode", j, total_num_steps)
-#             self.tensorboard_writer.add_scalar("info/success", np.mean(successes), total_num_steps)
-#             self.tensorboard_writer.add_scalar("info/numsteps", np.mean(num_steps), total_num_steps)
-#             self.tensorboard_writer.add_scalar("info/fps", fps, total_num_steps)
+        if args.debug:
+            experiment_name += 'debug'
+        return experiment_name
 
-#     def log_info(self, info_ep):
-#         info_ep = {key: val for key, val in info_ep.items() if key not in ['pred_close']}
-#         self.info_episodes.append(info_ep)
-#         self.plot.add_episode(info_ep)
-#         with open(self.file_name_log, 'w+') as f:
-#             f.write(json.dumps(info_ep, indent=4))
-#         print("Dumped in {}".format(self.file_name_log))
-#         self.plot.render()
+    def log_data(self, j, total_num_steps, fps, episode_rewards, dist_entropy, epsilon, successes, num_steps, info_aux):
+        if self.first_log:
+            self.first_log = False
+            if self.args.tensorboard_logdir is not None:
+                self.set_tensorboard()
 
-#     def save_model(self, j, actor_critic):
-#         save_path = os.path.join(self.save_dir, self.experiment_name)
+        if self.tensorboard_writer is not None:
+            if 'accuracy_goal' in info_aux.keys():
+                self.tensorboard_writer.add_scalar("aux_info/accuracy_goal", np.max(info_aux['accuracy_goal']), total_num_steps)
+                self.tensorboard_writer.add_scalar("aux_info/precision_close", np.mean(info_aux['precision_close']), total_num_steps)
+                self.tensorboard_writer.add_scalar("aux_info/recall_close", np.mean(info_aux['recall_close']), total_num_steps)
 
-#         torch.save([
-#             actor_critic,
-#         ], os.path.join(save_path, "{}.pt".format(j)))
+                self.tensorboard_writer.add_scalar("losses/loss_close", np.mean(info_aux['loss_close']), total_num_steps)
+                self.tensorboard_writer.add_scalar("losses/loss_goal", np.mean(info_aux['loss_goal']), total_num_steps)
+            #
+            # self.tensorboard_writer.add_scalar("losses/loss_close", np.mean(info_aux['loss_close']), total_num_steps)
+            # self.tensorboard_writer.add_scalar("losses/loss_goal", np.mean(info_aux['loss_goal']), total_num_steps)
+
+
+
+            self.tensorboard_writer.add_scalar("info/max_reward", np.max(episode_rewards), total_num_steps)
+            self.tensorboard_writer.add_scalar("info/mean_reward", np.mean(episode_rewards), total_num_steps)
+
+            # tensorboard_writer.add_scalar("median_reward", np.median(episode_rewards), total_num_steps)
+            # tensorboard_writer.add_scalar("min_reward", np.min(episode_rewards), total_num_steps)
+            # tensorboard_writer.add_scalar("max_reward", np.max(episode_rewards), total_num_steps)
+            self.tensorboard_writer.add_scalar("action_entropy/action", dist_entropy[0], total_num_steps)
+            self.tensorboard_writer.add_scalar("action_entropy/object", dist_entropy[1], total_num_steps)
+            # self.tensorboard_writer.add_scalar("losses/value_loss", value_loss, total_num_steps)
+            # self.tensorboard_writer.add_scalar("losses/action_loss", action_loss, total_num_steps)
+            self.tensorboard_writer.add_scalar("info/epsilon", epsilon, total_num_steps)
+            self.tensorboard_writer.add_scalar("info/episode", j, total_num_steps)
+            self.tensorboard_writer.add_scalar("info/success", np.mean(successes), total_num_steps)
+            self.tensorboard_writer.add_scalar("info/numsteps", np.mean(num_steps), total_num_steps)
+            self.tensorboard_writer.add_scalar("info/fps", fps, total_num_steps)
+
+    def log_info(self, info_ep):
+        info_ep = {key: val for key, val in info_ep.items() if key not in ['pred_close']}
+        self.info_episodes.append(info_ep)
+        self.plot.add_episode(info_ep)
+        with open(self.file_name_log, 'w+') as f:
+            f.write(json.dumps(info_ep, indent=4))
+        print("Dumped in {}".format(self.file_name_log))
+        self.plot.render()
+
+    def save_model(self, j, actor_critic):
+        save_path = os.path.join(self.save_dir, self.experiment_name)
+
+        torch.save([
+            actor_critic,
+        ], os.path.join(save_path, "{}.pt".format(j)))

@@ -827,4 +827,3 @@ class MCTS_agent_particle_v2:
                          self.c_init, self.c_base, seed=seed, agent_params=self.agent_params)
 
         # self.mcts.should_close = self.should_close
-
