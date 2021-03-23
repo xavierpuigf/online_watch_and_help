@@ -371,8 +371,6 @@ class ArenaMP(object):
         if pred_goal is not None:
             self.task_goal = copy.deepcopy(pred_goal)
 
-        print(self.task_goal)
-        ipdb.set_trace()
 
         saved_info = {'task_id': self.env.task_id,
                       'env_id': self.env.env_id,
