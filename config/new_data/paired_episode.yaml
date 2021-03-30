@@ -1,3 +1,5 @@
+cuda: True
+exp_name: 'paired'
 data:
         train_data: 'train_env_task_set_20_full_reduced_tasks_single'
         test_data: 'test_env_task_set_10_full_reduced_tasks_single'

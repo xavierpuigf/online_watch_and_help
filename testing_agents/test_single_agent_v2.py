@@ -33,13 +33,13 @@ if __name__ == '__main__':
     args = get_args()
     num_proc = 10
 
-    num_tries = 7
+    num_tries = 3
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     
-    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
+    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
 
     agent_types = [
@@ -128,13 +128,8 @@ if __name__ == '__main__':
                              max_episode_length=20,
                              num_simulation=200,
                              max_rollout_steps=5,
-<<<<<<< HEAD
                              c_init=0.1,
                              c_base=100,
-=======
-                             c_init=10,
-                             c_base=1000,
->>>>>>> a0b444f14bfcb072e92a2255b9166063261c2e39
                              num_samples=1,
                              num_processes=num_proc, 
                              num_particles=20,
@@ -146,13 +141,11 @@ if __name__ == '__main__':
         args_agent1['agent_params'] = agent_args
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
-<<<<<<< HEAD
         
         # episode_ids = [20] #episode_ids
         # num_tries = 1
-=======
         episode_ids = episode_ids
->>>>>>> a0b444f14bfcb072e92a2255b9166063261c2e39
+
         for iter_id in range(num_tries):
             #if iter_id > 0:
 

@@ -16,7 +16,7 @@ import utils.utils_models as utils_models
 from utils.utils_models import AverageMeter, ProgressMeter, LoggerSteps
 import hydra
 from omegaconf import DictConfig, OmegaConf
-
+import pathlib
 
 
 
@@ -28,7 +28,7 @@ def unmerge(tensor, firstdim):
     dim = list(tensor.shape)
     return tensor.reshape([firstdim, -1] + dim[1:])
 
-def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logger):
+def evaluate(data_loader, data_loader_train, model, model_char, epoch, args, criterion, logger):
     model.eval()
 
     batch_time = AverageMeter('Time', ':6.3f')
@@ -179,7 +179,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
     }
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
-def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
+def train_epoch(data_loader, model, model_char, epoch, args, criterion, optimizer, logger):
 
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -209,7 +209,21 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     end = time.time()
     for it, data_item in enumerate(data_loader):
         data_time.update(time.time() - end)
+        # ipdb.set_trace()
+        data_item_cond, data_item = data_item
 
+
+        #### DATA PREP #####
+        ## Prepare data for the model to predict char embedding ##
+        graph_info, program, label, len_mask, goal = data_item_cond
+        inputs_past = {
+            'program': program,
+            'graph': graph_info,
+            'mask_len': len_mask,
+            'goal': goal
+        }
+
+        ## Prepare data for the model we want to predict ##
         graph_info, program, label, len_mask, goal = data_item
         inputs = {
             'program': program,
@@ -217,8 +231,12 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             'mask_len': len_mask,
             'goal': goal
         }
-        # ipdb.set_trace()
-        output = model(inputs)
+        ###################
+        embed_char = model_char(inputs_past)
+        ipdb.set_trace()
+        output = model(inputs, cond=embed_char[:, -1, :])
+
+        ipdb.set_trace()
         action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
         pred_goal, pred_close = output['pred_goal'], output['pred_close']
 
@@ -332,8 +350,9 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
 
 def get_loaders(args):
-    dataset = AgentTypePairedDataset(path_init='../data_scratch/large_data/{}/'.format(args['data']['train_data']), args_config=args)
-    dataset_test = AgentTypePairedDataset(path_init='../data_scratch/large_data/{}/'.format(args['data']['test_data']), args_config=args)
+    cdir = pathlib.Path(__file__).parent.absolute()
+    dataset = AgentTypePairedDataset(path_init='{}/../../data_scratch/large_data/{}/'.format(cdir, args['data']['train_data']), args_config=args)
+    dataset_test = AgentTypePairedDataset(path_init='{}/../../data_scratch/large_data/{}/'.format(cdir, args['data']['test_data']), args_config=args)
     train_loader = torch.utils.data.DataLoader(
             dataset, batch_size=args['train']['batch_size'], 
             shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True)
@@ -350,14 +369,15 @@ def main(cfg: DictConfig):
     config = cfg
     print("Config")
     print(OmegaConf.to_yaml(cfg))
-    ipdb.set_trace()
+    # ipdb.set_trace()
 
-    config['cuda'] = args.cuda
 
     train_loader, test_loader = get_loaders(config)
     model = agent_pref_policy.ActionPredNetwork(config)
-    print("CUDA: {}".format(args.cuda))
-    if args.cuda:
+    model_char = agent_pref_policy.ActionCharNetwork(config)
+
+    print("CUDA: {}".format(cfg.cuda))
+    if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
 
@@ -367,7 +387,7 @@ def main(cfg: DictConfig):
 
     logger = LoggerSteps(config)
     for epoch in range(config['train']['epochs']):
-        train_epoch(train_loader, model, epoch, config, criterion, optimizer, logger)
+        train_epoch(train_loader, model, model_char, epoch, config, criterion, optimizer, logger)
         evaluate(test_loader, train_loader, model, epoch, config, criterion, logger)
         if epoch % 10 == 0:
             logger.save_model(epoch, model, optimizer)

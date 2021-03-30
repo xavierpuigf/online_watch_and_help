@@ -14,6 +14,10 @@ from models import agent_pref_policy
 import utils.utils_models as utils_models
 from utils.utils_models import AverageMeter, ProgressMeter, LoggerSteps
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
+import pathlib
+
 
 def merge2d(tensor):
     dim = list(tensor.shape)
@@ -340,20 +344,23 @@ def get_loaders(args):
 
 
 
-def main():
-    args = get_args_pref_agent()
-
-    with open(args.config, 'r') as f:
-        config = yaml.load(f)
-    config['cuda'] = args.cuda
+@hydra.main(config_path="../config/new_data/config_default_lowlr.yaml")
+def main(cfg: DictConfig):
+    config = cfg
+    print("Config")
+    print(OmegaConf.to_yaml(cfg))
+    # ipdb.set_trace()
 
     train_loader, test_loader = get_loaders(config)
-    model = agent_pref_policy.ActionPredNetwork(config)
-    print("CUDA: {}".format(args.cuda))
-    if args.cuda:
+    if config.model.gated:
+        model = agent_pref_policy.ActionGatedPredNetwork(config)
+    else:
+        model = agent_pref_policy.ActionPredNetwork(config)
+
+    print("CUDA: {}".format(cfg.cuda))
+    if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
-
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
     print("Failures: ", train_loader.dataset.get_failures())

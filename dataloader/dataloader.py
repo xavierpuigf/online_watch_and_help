@@ -176,13 +176,13 @@ class AgentTypeDataset(Dataset):
 
             # fill up the closeness mask
             if len(close_nodes) > 0:
-                index = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
-                mask_close[np.array(index)] = 1.0
+                indexe = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
+                mask_close[np.array(indexe)] = 1.0
 
             # Fill up goal object mask
             goal_loc = [target_loc for it_pred, target_loc in enumerate(target_loc_class) if mask_goal_pred[it_pred] == 1]
             goal_obj = [target_obj for it_pred, target_obj in enumerate(target_obj_class) if mask_goal_pred[it_pred] == 1]
-            goal_obs = list(set(goal_loc + goal_obj))
+            goal_obs = list(set(goal_obj))
             for goal_id in goal_obs:
                 mask_goal[graph_info['class_objects'] == goal_id] = 1.0
 
@@ -217,6 +217,8 @@ class AgentTypeDataset(Dataset):
                 program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
                 program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
             except:
+                #print("Index", index, program, it)
+                #ipdb.set_trace()
                 return self.failure(index)
 
         program_batch['action'].append(self.max_actions - 1)

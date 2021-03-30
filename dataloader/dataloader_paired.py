@@ -10,15 +10,14 @@ import yaml
 import torch.nn.functional as F
 import multiprocessing as mp
 import numpy as np
+import os
 import random
 
-class AgentTypeDataset(Dataset):
+class AgentTypePairedDataset(Dataset):
     def __init__(self, path_init, args_config):
         self.path_init = path_init
         self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'])
         # Build the agent types
-
-
 
         agent_folder = glob.glob('{}/*'.format(path_init))
 
@@ -52,6 +51,8 @@ class AgentTypeDataset(Dataset):
         # Find for every episode another matching episode
         rand_seed = random.Random(0)
         self.neighbors_all = []
+
+        print(path_init, agent_folder)
         for agent_path_name in tqdm(agent_folder):
             try:
                 agent_id = int(agent_path_name.split('/')[-1].split('_')[0]) - 1
@@ -293,6 +294,10 @@ class AgentTypeDataset(Dataset):
         info_predict = self.obtain_info(index)
         new_index = self.neighbors_all[index]
         info_demo = self.obtain_info(new_index)
+        # for t in info_predict:
+        #     print(t.shape)
+        # for t in info_demo:
+        #     print(t.shape)
         return info_predict, info_demo
 
 if __name__ == '__main__':

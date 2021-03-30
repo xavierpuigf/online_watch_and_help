@@ -1,4 +1,5 @@
 import glob
+from omegaconf import DictConfig, OmegaConf
 import yaml
 import os
 from torch.utils.tensorboard import SummaryWriter
@@ -292,7 +293,11 @@ class LoggerSteps():
             args['train']['loss_close'],
             args['train']['loss_goal']
             )
+        if args['model']['gated']:
+            experiment_name += '_gated'
 
+        if 'exp_name' in self.args and self.args.exp_name != '':
+            experiment_name += '_{}'.format(args['exp_name'])
         if 'debug' in args:
             experiment_name += 'debug'
         return experiment_name
@@ -333,7 +338,7 @@ class LoggerSteps():
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
-                yaml.dump(self.args, f)
+                f.write(OmegaConf.to_yaml(cfg))
         torch.save({
             'model': model.state_dict(),
             'optimizer': optimizer.state_dict(),
@@ -375,7 +380,7 @@ class Logger():
     def set_tensorboard(self):
         now = datetime.datetime.now()
         self.tensorboard_writer = SummaryWriter(log_dir=os.path.join(self.args.tensorboard_logdir,
-                                                                     self.experiment_name, self.tstmp))
+                                                                     self.tstmp))
         dict_args = vars(self.args)
         self.tensorboard_writer.add_text("experiment_name", json.dumps(dict_args, indent=4))
 
