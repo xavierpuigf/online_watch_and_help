@@ -1,4 +1,5 @@
 from utils import utils_environment as utils
+import math
 import sys
 import os
 curr_dir = os.path.dirname(os.path.realpath(__file__))
@@ -9,6 +10,8 @@ from evolving_graph import utils as utils_env
 import pdb
 import traceback
 import numpy as np
+from scipy.spatial.transform import Rotation as R
+
 import copy
 import ipdb
 
@@ -228,6 +231,17 @@ class UnityEnvironment(BaseUnityEnvironment):
         return obs, reward, done, info
 
 
+    def get_angle(self, rot):
+        rot = R.from_quat(rot)
+        euler = rot.as_euler('xzy')
+        # dchange = np.sin(euler[1])*np.cos(euler[0]), np.cos(euler[1])*np.sin(euler[0])
+        # dchange = np.sin(euler[1]+euler[0]), np.cos(euler[1]+euler[0])
+        x = np.cos(euler[2])*np.cos(euler[1])
+        y = np.sin(euler[2])*np.cos(euler[1])
+        z = np.sin(euler[1])
+        dchange = y, x
+        return np.arctan2(x,y)*180 / math.pi
+
     def get_observation(self, agent_id, obs_type, info={}):
         if obs_type == 'partial':
             # agent 0 has id (0 + 1)
@@ -245,20 +259,51 @@ class UnityEnvironment(BaseUnityEnvironment):
             self.full_graph = copy.deepcopy(curr_graph)
             return curr_graph
 
+        elif obs_type == 'cone':
+            curr_graph = self.get_graph()
+            curr_graph = utils.clean_house_obj(curr_graph)
+            curr_graph = utils.inside_not_trans(curr_graph)
+            self.full_graph = copy.deepcopy(curr_graph)
+            obs = utils_env.get_visible_nodes(curr_graph, agent_id=(agent_id+1))
+
+            # TODO: implement a real coen here, with unity
+            #s, obs_cone = self.comm.get_visible_objects(camera_index)
+            agent_node = [node for node in obs['nodes'] if node['id'] == agent_id+1][0]
+            position, rotation = agent_node['obj_transform']['position'], agent_node['obj_transform']['rotation']
+            rotation_char = self.get_angle(rotation)
+            rotation_all = [(node['id'], 180.0/math.pi * np.arctan2(node['obj_transform']['position'][2] - position[2], node['obj_transform']['position'][0] - position[0])) for node in obs['nodes']]
+            rot = [rot_id for rot_id in rotation_all if abs(rot_id[1] - rotation_char) < 20]
+            rotation_ids = [r[0] for r in rot]
+            room_doors = [node['id'] for node in obs['nodes'] if node['category'] in ['Rooms', 'Doors']]
+            rotation_ids = set(rotation_ids + room_doors + [agent_id+1])
+            all_ids = [node['id'] for node in obs['nodes']]
+            missing_ids = list(set(all_ids) - set(rotation_ids))
+            print("Removed:")
+            print([node['class_name'] for node in obs['nodes'] if node['id'] in missing_ids])
+            new_obs = {
+                'nodes': [node for node in obs['nodes'] if node['id'] in rotation_ids],
+                'edges': [edge for edge in obs['edges'] if edge['from_id'] in rotation_ids and edge['to_id'] in rotation_ids]
+            }
+            return new_obs
+
 
         elif obs_type == 'visible':
             # Only objects in the field of view of the agent
             raise NotImplementedError
 
         elif obs_type == 'image':
-            camera_ids = [self.num_static_cameras + agent_id * self.num_camera_per_agent + self.CAMERA_NUM]
+            camera_ids = [self.offset_cameras + agent_id * self.num_camera_per_agent + self.CAMERA_NUM]
             if 'image_width' in info:
                 image_width = info['image_width']
                 image_height = info['image_height']
             else:
                 image_width, image_height = self.default_image_width, self.default_image_height
+            if 'obs_type' in info:
+                curr_obs_type = info['obs_type']
+            else:
+                curr_obs_type = self.default_obs_type
 
-            s, images = self.comm.camera_image(camera_ids, mode=obs_type, image_width=image_width, image_height=image_height)
+            s, images = self.comm.camera_image(camera_ids, mode=curr_obs_type, image_width=image_width, image_height=image_height)
             if not s:
                 pdb.set_trace()
             return images[0]

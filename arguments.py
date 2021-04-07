@@ -336,6 +336,9 @@ def get_args():
         default=1,
         help='how many training CPU processes to use (default: 1)')
 
+    parser.add_argument('--saveimg', action='store_true', default=False,
+            help='whether we save images')
+
 
     parser.add_argument('--use-editor', action='store_true', default=False,
                         help='whether to use an editor or executable')

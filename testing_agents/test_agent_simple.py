@@ -156,10 +156,11 @@ if __name__ == '__main__':
             ['partial', -500, 0.01, False, 0.01, "spiked"], # 6
             ['partial', -500, 0.05, False, 0.2, "uniform"], # 7
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
+            ['cone', 0, 0.05, False, 0, "uniform"], # 0
     ]
     names = ['obs_type', 'open_cost', 'walk_cost', 'should_close', 'forget_rate', 'belief_type']
     agent_args = {}
-    type_id = 1
+    type_id = 9
     for idi, name in enumerate(names):
         agent_args[name] = agent_types[type_id][idi]
 

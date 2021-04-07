@@ -786,6 +786,7 @@ class MCTS_particles_v2:
         #             aux_node = aux_node.parent
                 # ipdb.set_trace()
         if len(actions_heuristic) == 0 and node.id[0] is None:
+            print("Error, no actions found", subgoals)
             raise Exception
 
         # if node.id[1][-1] == '[open] <fridge> (306)' and len(hands_busy) == 1:

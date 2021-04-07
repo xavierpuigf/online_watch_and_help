@@ -33,28 +33,38 @@ if __name__ == '__main__':
     args = get_args()
     num_proc = 10
 
-    num_tries = 3
+    num_tries = 1
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
-    args.max_episode_length = 250
+    args.max_episode_length = 150
     args.num_per_apartment = 20
     
-    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
+    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
+    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
 
-
+    # Beliefs
+    # spiked: object is in cabinet
+    
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
             ['full', 0.5, 0.01, False, 0, "uniform"], # 1
             ['full', -5, 0.05, False, 0, "uniform"], # 2
             ['partial', 0, 0.05, False, 0, "uniform"], # 3
-            ['partial', 0, 0.05, False, 0, "spiked"], # 4
+            ['partial', 0, 0.05, False, 0, "spiked"], # 4. kitchen and cabinet
             ['partial', 0, 0.05, False, 0.2, "uniform"], # 5
             ['partial', -500, 0.01, False, 0.01, "spiked"], # 6
             ['partial', -500, 0.05, False, 0.2, "uniform"], # 7
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
+            ['cone', 0, 0.05, False, 0, "uniform"], # 9
+            ['partial', 0, 0.05, False, 0, "spiked2"], # 10 High prior for not inside
+            ['partial', 0, 0.05, False, 0, "spiked3"], # 11 For sure not in bathroom
+            ['partial', 0, 0.05, False, 0, "spiked4"], # 12 All things kithcen
+            ['partial', 0, 0.05, False, 0.1, "spiked"], # 14
+            ['partial', 0, 0.05, False, 0.1, "spiked2"] # 15
     ]
     random_start = random.Random()
     agent_types_index = list(range(9))
+    agent_types_index =  [0, 3, 4, 10, 12, 13, 14, 15]
+    agent_types_index = [10]
     #random.shuffle(agent_types_index)
     if args.agenttype != 'all':
         agent_types_index = [int(x) for x in args.agenttype.split(',')]
@@ -96,8 +106,8 @@ if __name__ == '__main__':
 
         executable_args = {
                         'file_name': args.executable_file,
-                        'x_display': 0,
-                        'no_graphics': True
+                        'x_display': args.display,
+                        'no_graphics': not args.saveimg
         }
 
         id_run = 0
@@ -112,6 +122,7 @@ if __name__ == '__main__':
         
         test_results = {}
         #episode_ids = [episode_ids[0]]
+        episode_ids = [185]
      
         def env_fn(env_id):
             return UnityEnvironment(num_agents=1,
@@ -129,7 +140,7 @@ if __name__ == '__main__':
                              num_simulation=200,
                              max_rollout_steps=5,
                              c_init=0.1,
-                             c_base=100,
+                             c_base=10000,
                              num_samples=1,
                              num_processes=num_proc, 
                              num_particles=20,
@@ -173,8 +184,9 @@ if __name__ == '__main__':
                 log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
                 failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
 
-                # if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
-                #     continue
+                if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
+                    #pass
+                    continue
                 if os.path.isfile(failure_file):
                     os.remove(failure_file)
                 fileh = logging.FileHandler(failure_file, 'a')
@@ -191,7 +203,12 @@ if __name__ == '__main__':
                 try:
                     
                     arena.reset(episode_id)
-                    success, steps, saved_info = arena.run()
+                    if args.saveimg:
+                        img_arg = os.path.join(args.record_dir, 'img', 'logs_episode.{}_iter.{}'.format(episode_id, iter_id)) 
+                        Path(img_arg).mkdir(parents=True, exist_ok=True)
+                    else:
+                        img_arg = None
+                    success, steps, saved_info = arena.run(save_img=img_arg)
 
                     print('-------------------------------------')
                     print('success' if success else 'failure')
@@ -231,7 +248,7 @@ if __name__ == '__main__':
                     #exit()
                     #arena.reset_env()
                     print("Dione")
-                    #ipdb.set_trace()
+                    ipdb.set_trace()
                     arena.reset_env()
                     continue
 
@@ -244,6 +261,12 @@ if __name__ == '__main__':
 
                     #    f.write(error_str)
                     traceback.print_exc()
+
+                    Path(args.record_dir).mkdir(parents=True, exist_ok=True)
+                    saved_info = arena.saved_info
+                    if len(saved_info['obs']) > 0:
+                        pickle.dump(saved_info, open(log_file_name, 'wb'))
+                    ipdb.set_trace()
 
                     logging.exception("Error")
                     print("OTHER ERROR")
@@ -259,7 +282,6 @@ if __name__ == '__main__':
                 test_results[episode_id] = {'S': S[episode_id],
                                             'L': L[episode_id]}
                                             
-            pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
             print('average steps (finishing the tasks):', np.array(steps_list).mean() if len(steps_list) > 0 else None)
             print('failed_tasks:', failed_tasks)
             pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))

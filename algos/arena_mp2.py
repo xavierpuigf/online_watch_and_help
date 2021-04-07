@@ -1,4 +1,5 @@
 import random
+import cv2
 import logging
 import torch
 from utils import utils_exception
@@ -28,6 +29,7 @@ class ArenaMP(object):
 
         self.max_episode_length = self.env.max_episode_length
         self.max_number_steps = max_number_steps
+        self.saved_info = None
         atexit.register(self.close)
 
     def close(self):
@@ -357,7 +359,7 @@ class ArenaMP(object):
         return step_info, dict_actions, dict_info
 
 
-    def run(self, random_goal=False, pred_goal=None):
+    def run(self, random_goal=False, pred_goal=None, save_img=None):
         """
         self.task_goal: goal inference
         self.env.task_goal: ground-truth goal
@@ -390,7 +392,17 @@ class ArenaMP(object):
         num_failed = 0
         num_repeated = 0
         prev_action = None
+        self.saved_info = saved_info
+        step = 0
         while True:
+            if save_img is not None:
+                img_info = {
+                    'image_width': 224,
+                    'image_height': 224
+                }
+                obs = self.env.get_observation(0, 'image', info=img_info)
+                cv2.imwrite('{}/img_{:04d}.png'.format(save_img, step), obs)
+            step += 1
             (obs, reward, done, infos), actions, agent_info = self.step()
             #ipdb.set_trace()
             step_failed = infos['failed_exec']
@@ -440,9 +452,11 @@ class ArenaMP(object):
 
             if done:
                 break
+            self.saved_info = saved_info
 
         saved_info['obs'].append([node['id'] for node in obs[0]['nodes']])
         # saved_info['obs'].append()
 
         saved_info['finished'] = success
+        self.saved_info = saved_info
         return success, self.env.steps, saved_info
