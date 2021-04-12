@@ -385,6 +385,7 @@ class ArenaMP(object):
                       'init_unity_graph': self.env.init_graph,
                       'goals_finished': [],
                       'belief': {0: [], 1: []},
+                      'belief_room': {0: [], 1: []},
                       'belief_graph': {0: [], 1: []},
                       'graph': [self.env.init_unity_graph],
                       'obs': []}
@@ -426,6 +427,7 @@ class ArenaMP(object):
             print("Action: ", actions, infos['graph']['nodes'][0]['bounding_box'])
             logging.info(' | '.join(actions.values()))
             print("Plan:", agent_info[0]['plan'][:4])
+            print("----------")
             success = infos['finished']
             if 'satisfied_goals' in infos:
                 saved_info['goals_finished'].append(infos['satisfied_goals'])
@@ -438,6 +440,8 @@ class ArenaMP(object):
             for agent_id, info in agent_info.items():
                 #if 'belief_graph' in info:
                 #    saved_info['belief_graph'][agent_id].append(info['belief_graph'])
+                if 'belief_room' in info:
+                    saved_info['belief_room'][agent_id].append(info['belief'])
                 if 'belief' in info:
                     saved_info['belief'][agent_id].append(info['belief'])
                 if 'plan' in info:

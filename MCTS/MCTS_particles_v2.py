@@ -748,7 +748,31 @@ class MCTS_particles_v2:
         # subgoals = [sg for sg in subgoals if sg[0] != self.opponent_subgoal] # avoid repeating
         # print('init child, subgoals:\n', subgoals)
 
-        subgoals = self.get_subgoal_space(state, satisfied, unsatisfied, self.opponent_subgoal)
+        # If you have an object grabbed already reduce the subgoal space search and add the object you already had
+        curr_state = state
+        hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+
+        unsatisfied_aux = unsatisfied.copy()
+        subgoals_hand = []
+        for hand_busy in hands_busy:
+            hand_class_name = self.id2node_env[hand_busy]['class_name']
+            pred_name_selected = None
+            for missing_pred, count_pred in unsatisfied_aux.items():
+                if pred_name_selected is None:
+                    if count_pred > 0 and missing_pred.split('_')[1] == hand_class_name:
+                        pred_name_selected = missing_pred
+            
+            if pred_name_selected is not None:
+                unsatisfied_aux[pred_name_selected] -= 1
+                pred_name_split = pred_name_selected.split('_')
+                verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
+                subgoals_hand.append(['{}_{}_{}'.format(verb, hand_busy, pred_name_split[2]), pred_name_selected, '{}_{}_{}'.format(pred_name_split[0], hand_busy, pred_name_split[2])])
+
+        subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied_aux, self.opponent_subgoal)
+        subgoals += subgoals_hand
+
+
+        #subgoals = self.get_subgoal_space(state, satisfied, unsatisfied, self.opponent_subgoal)
         if len(subgoals) == 0:
             return None, []
 

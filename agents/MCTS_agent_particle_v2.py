@@ -795,6 +795,7 @@ class MCTS_agent_particle_v2:
                 'plan': plan,
                 'subgoals': subgoals,
                 'belief': copy.deepcopy(self.belief.edge_belief),
+                'belief_room': copy.deepcopy(self.belief.room_node),
             }
             if self.logging_graphs:
                 info.update(
