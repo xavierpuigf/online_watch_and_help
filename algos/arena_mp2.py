@@ -441,7 +441,7 @@ class ArenaMP(object):
                 #if 'belief_graph' in info:
                 #    saved_info['belief_graph'][agent_id].append(info['belief_graph'])
                 if 'belief_room' in info:
-                    saved_info['belief_room'][agent_id].append(info['belief'])
+                    saved_info['belief_room'][agent_id].append(info['belief_room'])
                 if 'belief' in info:
                     saved_info['belief'][agent_id].append(info['belief'])
                 if 'plan' in info:

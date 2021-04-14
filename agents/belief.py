@@ -734,8 +734,11 @@ class Belief():
 
             else:
                 # If not visible. for sure not in this room
+                curr_prob = scipy.special.softmax(self.room_node[id_node][1])
+                prob_room = curr_prob[self.room_index_belief_dict[visible_room]]
                 self.room_node[id_node][1][self.room_index_belief_dict[visible_room]] = self.low_prob
-                if (self.room_node[id_node][1] > self.low_prob).sum() == 0:
+                #if (self.room_node[id_node][1] > self.low_prob).sum() == 0:
+                if prob_room > 0.99:
                     if id_node in self.edge_belief:
                         # If not in any room, needs to be inside something
                         self.edge_belief[id_node]['INSIDE'][1][0] = self.low_prob
