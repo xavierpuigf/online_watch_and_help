@@ -1,7 +1,12 @@
 import glob
+
 from omegaconf import DictConfig, OmegaConf
 import yaml
 import os
+import tensorflow as tf
+import tensorflow as tf
+import tensorboard as tb
+tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
@@ -274,8 +279,7 @@ class LoggerSteps():
         except:
             pass
         now = datetime.datetime.now()
-        self.tensorboard_writer = SummaryWriter(log_dir=os.path.join(self.tensorboard_logdir,
-                                                                     self.experiment_name))
+        self.tensorboard_writer = SummaryWriter(log_dir=self.tensorboard_logdir)
         
         dict_args = self.args
         text_tboard = "\n**experiment_name:** {}  <br />".format(self.experiment_name)
@@ -284,14 +288,15 @@ class LoggerSteps():
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = 'predict_action/data.{}/agents{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}'.format(
+        experiment_name = 'predict_action/data.{}/agents{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}'.format(
             args['data']['train_data'],
             args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
             args['model']['goal_inp'],
             args['train']['loss_close'],
-            args['train']['loss_goal']
+            args['train']['loss_goal'],
+            args['model']['agent_embed']
             )
         if args['model']['gated']:
             experiment_name += '_gated'
@@ -301,6 +306,29 @@ class LoggerSteps():
         if 'debug' in args:
             experiment_name += 'debug'
         return experiment_name
+
+    def log_embeds(self, total_num_steps, embed_info):
+        embeddings = embed_info.weight
+        embedding_labels = []
+        for i in range(embeddings.shape[0]):
+            agentn = int(i / 5)
+            seedn = i % 5
+            embedding_labels.append("agent.{}_seed.{}".format(agentn, seedn))
+
+        self.tensorboard_writer.add_embedding(embeddings, metadata=embedding_labels)
+
+
+    def log_data2(self, total_num_steps, info):
+        if self.first_log:
+            self.first_log = False
+            if self.tensorboard_logdir is not None:
+                self.set_tensorboard()
+
+        if self.tensorboard_writer is not None:
+            for agent_id in info.keys():
+                for acc_name, acc_item in info[agent_id]['accuracy'].items():
+                    self.tensorboard_writer.add_scalar("agents/accuracy/agent_{}/{}".format(agent_id, acc_name), acc_item, total_num_steps)
+            
 
     def log_data(self, total_num_steps, info):
         if self.first_log:
@@ -338,7 +366,7 @@ class LoggerSteps():
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
-                f.write(OmegaConf.to_yaml(cfg))
+                f.write(OmegaConf.to_yaml(self.args))
         torch.save({
             'model': model.state_dict(),
             'optimizer': optimizer.state_dict(),

@@ -8,7 +8,7 @@ def get_args_pref_agent():
     parser.add_argument('--dataset_path', type=str, help="The path of the environments where we test")
     parser.add_argument('--config',
                             type=str,
-                            default='config/config_default.yaml',
+                            default='config/agent_pref_v0/config_default_lowlr.yaml',
                             help='path to config file')
     
 

@@ -27,8 +27,15 @@ class ActionGatedPredNetwork(nn.Module):
         self.graph_encoder = base_nets.TransformerBase(**args_tf)
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
 
+
+        self.agent_embedding = nn.Embedding(args['num_agents'], self.hidden_size)
+        self.use_agent_embedding = args['agent_embed']
+
+
         # Combine previous action and graph
         multi = 2
+        if self.use_agent_embedding:
+            multi = 3
 
         self.fc_att_action = self.mlp2l(self.hidden_size , self.hidden_size)
         self.fc_att_object = self.mlp2l(self.hidden_size , self.hidden_size)
@@ -51,6 +58,8 @@ class ActionGatedPredNetwork(nn.Module):
         self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
                                            nn.ReLU(),
                                            nn.Linear(self.hidden_size, 1))
+
+
 
         self.goal_inp = args['goal_inp']
         if args['goal_inp']:
@@ -98,6 +107,14 @@ class ActionGatedPredNetwork(nn.Module):
             goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
             gated_goal = graph_repr * goal_mask_action[:, None, :]
             action_graph = torch.cat([action_embed[:, :-1, :], gated_goal], -1)
+
+
+        if self.use_agent_embedding:
+            tsteps = action_graph.shape[1]
+            
+            agent_embeddings = self.agent_embedding(inputs['label_agent'])
+            agent_embeddings = agent_embeddings[:, None, :].repeat([1, tsteps, 1])
+            action_graph = torch.cat([action_graph, agent_embeddings], -1)
 
         input_embed = self.comb_layer(action_graph)
         

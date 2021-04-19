@@ -256,7 +256,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
     #print(res, target)
     return res, cost_list
 
-def clean_graph(state, goal_spec, last_opened):
+def clean_graph(state, g1oal_spec, last_opened):
     new_graph = {}
     # get all ids
     ids_interaction = []
@@ -822,9 +822,9 @@ class MCTS_agent_particle_v2:
         #    ipdb.set_trace()
         self.belief = belief.Belief(gt_graph, agent_id=self.agent_id, seed=seed, belief_params=self.belief_params)
         self.sim_env.reset(gt_graph)
-
+        add_bp = (self.num_processes == 0)
         self.mcts = MCTS_particles_v2(gt_graph, self.agent_id, self.char_index, self.max_episode_length,
                          self.num_simulation, self.max_rollout_steps,
-                         self.c_init, self.c_base, seed=seed, agent_params=self.agent_params)
+                         self.c_init, self.c_base, seed=seed, agent_params=self.agent_params, add_bp=add_bp)
 
         # self.mcts.should_close = self.should_close

@@ -5,9 +5,16 @@ import random
 def clean_house_obj(graph):
     house_obj = ['window', 'door', 'floor', 'ceiling', 'wall']
     ids = [node['id'] for node in graph['nodes'] if node['class_name'].lower() in house_obj]
+    id2node = {node['id']: node for node in graph['nodes']}
+    def weird_edge(edge, id2node):
+        weird_on = ['dishwasher','kitchencounterdrawer', 'dishbowl', 'mousemat', 'wine', 'plate']
+        if edge['relation_type'] == 'ON' and  id2node[edge['to_id']]['class_name'] in weird_on:
+            return True
+        return False
+
     return {
         'nodes': [node for node in graph['nodes'] if node['id'] not in ids],
-        'edges': [edge for edge in graph['edges'] if edge['from_id'] not in ids and edge['to_id'] not in ids]
+        'edges': [edge for edge in graph['edges'] if edge['from_id'] not in ids and edge['to_id'] not in ids and not weird_edge(edge, id2node)]
     }
 
 def inside_not_trans(graph):

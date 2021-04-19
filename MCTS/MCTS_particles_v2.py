@@ -15,7 +15,7 @@ from evolving_graph.environment import Relation
 from utils import utils_exception
 
 class MCTS_particles_v2:
-    def __init__(self, gt_graph, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1):
+    def __init__(self, gt_graph, agent_id, char_index, max_episode_length, num_simulation, max_rollout_step, c_init, c_base, agent_params, seed=1, add_bp=False):
         self.env = None
         self.discount = 0.95 #0.4
         self.agent_id = agent_id
@@ -26,6 +26,7 @@ class MCTS_particles_v2:
         self.c_init = c_init 
         self.c_base = c_base
         self.seed = 1
+        self.add_bp = add_bp
         self.heuristic_dict = None
         self.opponent_subgoal = None
         self.last_opened = None
@@ -797,8 +798,13 @@ class MCTS_particles_v2:
             act_all.append((action_heuristic, goal))
 
             # TODO(xavier): this crashes sometimes!! Check what is happening
-            if ('open' in action_heuristic[0][0].lower() or 'close' in action_heuristic[0][0].lower()) and len(hands_busy) == 2:
-                continue
+            try:
+                if ('open' in action_heuristic[0][0].lower() or 'close' in action_heuristic[0][0].lower()) and len(hands_busy) == 2:
+                    continue
+            except:
+                if self.add_bp:
+                    ipdb.set_trace()
+                raise Exception
             if action_heuristic[0] not in actions_heuristic:
                 actions_heuristic.append(self.get_action_str(action_heuristic[0]))
 
