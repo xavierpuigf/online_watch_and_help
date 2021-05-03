@@ -43,8 +43,15 @@ class ActionGatedPredNetwork(nn.Module):
 
         self.comb_layer = nn.Linear(self.hidden_size*multi, self.hidden_size)
         self.num_layer_lstm = 2
+        self.time_aggregate = args['time_aggregate']
+        
+        if args['time_aggregate'] == 'LSTM':
+            self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
+        elif args['time_aggregate'] == 'none':
+            self.COMBTime = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+                                       nn.ReLU(),
+                                       nn.Linear(self.hidden_size, self.hidden_size))
 
-        self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
 
 
         self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
@@ -125,7 +132,10 @@ class ActionGatedPredNetwork(nn.Module):
 
 
         # Input a combination of previous actions and graph 
-        graph_output, (h_t, c_t) = self.RNN(input_embed)
+        if self.time_aggregate == 'LSTM':
+            graph_output, (h_t, c_t) = self.RNN(input_embed)
+        elif self.time_aggregate == 'none':
+            graph_output = self.COMBTime(input_embed)
 
         # skip the last graph
 

@@ -151,6 +151,11 @@ def check_progress(state, goal_spec):
     satisfied = {}
     reward = 0.
     id2node = {node['id']: node for node in state['nodes']}
+    class2id = {}
+    for node in state['nodes']:
+        if node['class_name'] not in class2id:
+            class2id[node['class_name']] = []
+        class2id[node['class_name']].append(node['id'])
 
     for key, value in goal_spec.items():
 
@@ -193,4 +198,10 @@ def check_progress(state, goal_spec):
                 predicate = '{}_{}_{}'.format(elements[0], elements[1], 1)
                 satisfied[key].append(predicate)
                 unsatisfied[key] -= 1
+        if elements[0] == 'touch':
+            for id_touch in class2id[elements[1]]:
+                if 'TOUCHED' in [st.upper() for st in id2node[id_touch]['states']]:
+                    predicate = '{}_{}_{}'.format(elements[0], id_touch, 1)
+                    satisfied[key].append(predicate)
+                    unsatisfied[key] -= 1
     return satisfied, unsatisfied

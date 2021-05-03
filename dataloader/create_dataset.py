@@ -45,7 +45,7 @@ if __name__ == '__main__':
     #with open(f'{dir_script}/../../dataset/{dataset_name}_train.pkl', 'wb+') as f:
     #    pkl.dump(dict_train, f)
 
-    with open(f'{dir_script}/../../dataset/{dataset_name}_test.pkl', 'wb+') as f:
-        pkl.dump(dict_test, f)
+    #with open(f'{dir_script}/../../dataset/{dataset_name}_test.pkl', 'wb+') as f:
+    #    pkl.dump(dict_test, f)
 
     ipdb.set_trace()

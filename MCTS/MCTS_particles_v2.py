@@ -45,6 +45,12 @@ class MCTS_particles_v2:
             if key.startswith('off'):
                 count += value
         id2node = {node['id']: node for node in state['nodes']}
+        class2id = {}
+
+        for node in state['nodes']:
+            if node['class_name'] not in class2id:
+                class2id[node['class_name']] = []
+            class2id[node['class_name']].append(node['id'])
         for key, value in goal_spec.items():
             elements = key.split('_')
             for edge in state['edges']:
@@ -66,6 +72,10 @@ class MCTS_particles_v2:
             if elements[0] == 'turnOn':
                 if 'ON' in id2node[int(elements[1])]['states']:
                     count += 1
+            if elements[0] == 'touch':
+                for id_touch in class2id[elements[1]]:
+                    if 'TOUCHED' in [st.upper() for st in id2node[id_touch]['states']]:
+                        count += 1
 
         return count
         
@@ -136,9 +146,8 @@ class MCTS_particles_v2:
 
 
             curr_node, actions = self.expand(curr_node, tmp_t, curr_state)
-            # ipdb.set_trace()
 
-            new_children = len(curr_node.children) - len(past_children)
+            #new_children = len(curr_node.children) - len(past_children)
 
             no_children = False
             # if len(actions) == 0:
@@ -357,7 +366,6 @@ class MCTS_particles_v2:
 
 
             actions, _ = heuristic(self.agent_id, self.char_index, unsatisfied, curr_state, self.env, goal_selected)
-            
             if verbose:
                 print(hands_busy)
                 print("Rollout: ", rollout_step)
@@ -488,11 +496,14 @@ class MCTS_particles_v2:
             cost = 0.05
         elif 'put' in action[0]:
             cost = 0.05
+        elif 'touch' in action[0]:
+            cost = 0.05
         else:
             print(colored("missing action {}".format(action[0]), "red"))
         # vdict = curr_vh_state.to_dict()
         # print("HANDS", [edge for edge in vdict['edges'] if 'HOLD' in edge['relation_type']])
         success, next_vh_state = self.env.transition(curr_vh_state, action)
+        #print(type(next_vh_state), type(curr_vh_state))
         dict_vh_state = next_vh_state.to_dict()
         reward = self.check_progress(dict_vh_state, goal_spec)
         
@@ -773,7 +784,6 @@ class MCTS_particles_v2:
         subgoals += subgoals_hand
 
 
-        #subgoals = self.get_subgoal_space(state, satisfied, unsatisfied, self.opponent_subgoal)
         if len(subgoals) == 0:
             return None, []
 
@@ -898,6 +908,12 @@ class MCTS_particles_v2:
         #     print(state['edges'])
 
         id2node = {node['id']: node for node in state['nodes']}
+        class2id = {}
+        for node in state['nodes']:
+            if node['class_name'] not in class2id:
+                class2id[node['class_name']] = []
+            class2id[node['class_name']].append(node['id'])
+
 
         opponent_predicate_1 = None
         opponent_predicate_2 = None
@@ -979,6 +995,12 @@ class MCTS_particles_v2:
                             container = random.choice(containers)
                             predicate = '{}_{}_{}'.format('on' if container[1] == 'kitchencounter' else 'inside', edge['from_id'], container[0])
                             goals[predicate] = 1
+                elif elements[0] == 'touch':
+                    for n_id in class2id[elements[1]]:
+                        if 'TOUCHED' not in [st.upper() for st in id2node[n_id]['states']]:
+                            tmp_predicate = 'touch_{}_{}'.format(n_id, 1)
+                            subgoal_space.append(['touch_{}'.format( n_id), predicate, tmp_predicate])
+
             elif predicate in [opponent_predicate_1, opponent_predicate_2] and len(inhand_objects_opponent) == 0:
                 elements = predicate.split('_')
                 # print(elements)

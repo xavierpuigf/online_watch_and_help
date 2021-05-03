@@ -31,4 +31,4 @@ rl/logs.txt
 visualization/*.mp4
 *.sh
 analysis/*.mp4
-analysis
+analysis/*.html
