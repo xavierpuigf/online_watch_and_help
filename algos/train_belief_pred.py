@@ -96,7 +96,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             pred_goal, pred_close = output['pred_goal'], output['pred_close']
 
             pred_belief = output['belief_logit']
-            pred_belief_room = output['belief_logit']
+            pred_belief_room = output['belief_logit_room']
 
             bs = action_l.shape[0]
 
@@ -358,7 +358,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         output = model(inputs)
         action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
         pred_goal, pred_close = output['pred_goal'], output['pred_close']
-        pred_belief_room = output['belief_logit']
+        pred_belief_room = output['belief_logit_room']
         pred_belief_container = output['belief_logit']
 
         bs = action_l.shape[0]
@@ -519,6 +519,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
                 pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[it, :][mask_belief_room_it].detach().cpu().numpy()))
                 pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[it, :][mask_belief_it].detach().cpu().numpy()))
+                #ipdb.set_trace()
 
 
             info_log = {

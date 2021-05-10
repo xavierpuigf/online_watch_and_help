@@ -363,7 +363,7 @@ class LoggerSteps():
                         names = info_plot[curr_str.replace('gt', 'names')][i]
                         x = np.arange(len(info_plot[curr_str][i]))
                         ax[i,it].bar(x-0.15, info_plot[curr_str][i], width=0.3)
-                        ax[i,it].bar(x+3.15, info_plot[curr_str.replace('gt', 'pred')][i], width=0.3)
+                        ax[i,it].bar(x+0.15, info_plot[curr_str.replace('gt', 'pred')][i], width=0.3)
                         ax[i, it].set_xticks(range(len(names)))
                         ax[i, it].set_xticklabels(names)
                         ax[i, it].set_ylim((0,1))
@@ -372,7 +372,6 @@ class LoggerSteps():
                         ax[i, it].grid(axis='y')
                         it += 1
                 self.tensorboard_writer.add_figure("belief", fig, total_num_steps)
-                ipdb.set_trace()
 
 
 
