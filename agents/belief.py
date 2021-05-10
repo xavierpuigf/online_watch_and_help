@@ -11,6 +11,83 @@ import json
 import copy
 from termcolor import colored
 
+def get_rooms(id2node, belief_type, room_ids):
+
+    if belief_type == 'uniform':
+        room_array = np.ones(len(room_ids))
+    elif belief_type == 'spiked':
+        # TODO_belief: set to sometihng sensible
+        init_values = np.ones(len(room_ids))
+        id_kitchen = [(id_room, index_cont) for index_cont, id_room in enumerate(room_ids) if id_room != None and id2node[id_room]['class_name'] ==  'kitchen']
+        if len(id_kitchen) > 0:
+            # Object is in the cabinet
+            # Raw apprixmation
+            init_values *= (0.2/len(room_ids))
+            init_values[id_kitchen[0][1]] = 0.8
+            init_values = np.log(init_values)
+        room_array = init_values
+    elif belief_type == 'spiked2':
+        room_array = np.ones(len(room_ids))
+    elif belief_type == 'spiked3':
+        raise Exception
+    elif belief_type == 'spiked4':
+        # TODO_belief: set to sometihng sensible
+        init_values = np.ones(len(room_ids))
+        id_kitchen = [(id_room, index_cont) for index_cont, id_room in enumerate(room_ids) if id_room != None and id2node[id_room]['class_name'] ==  'kitchen']
+        if len(id_kitchen) > 0:
+            # Object is in the cabinet
+            # Raw apprixmation
+            init_values *= (0.2/len(room_ids))
+            init_values[id_kitchen[0][1]] = 0.8
+            init_values = np.log(init_values)
+        room_array = init_values
+
+    else:
+        raise Exception
+
+    return room_array
+
+def get_container_prior(id2node, belief_type, container_ids):
+    if belief_type == 'uniform':
+        init_values = np.ones(len(container_ids))/len(container_ids)
+    elif belief_type == 'spiked':
+        # This belief is that the object is either in the cabinet or in the bathroom
+        init_values = np.ones(len(container_ids))/len(container_ids)
+        try:
+            id_cabinet = [(id_obj, index_cont) for index_cont, id_obj in enumerate(container_ids) if id_obj != None and id2node[id_obj]['class_name'] ==  'cabinet']
+        except:
+            ipdb.set_trace()
+        if len(id_cabinet) > 0:
+            # Object is in the cabinet
+            # Raw apprixmation
+            init_values *= 0.2
+            init_values[id_cabinet[0][1]] = 0.8
+            init_values = np.log(init_values)
+    elif belief_type == 'spiked2':
+        init_values = np.ones(len(container_ids))/len(container_ids)
+        init_values *= 0.01
+        init_values[0] = 0.99
+        init_values = np.log(init_values)
+    elif belief_type == 'spiked3':
+        raise Exception
+    elif belief_type == 'spiked4':
+        class_names = ['fridge', 'stove', 'kitchencabinet']
+        init_values = np.ones(len(container_ids))/len(container_ids)
+        try:
+            id_cabinet = [(id_obj, index_cont) for index_cont, id_obj in enumerate(container_ids) if id_obj != None and id2node[id_obj]['class_name'] in class_names]
+        except:
+            ipdb.set_trace()
+        if len(id_cabinet) > 0:
+            # Object is in the cabinet
+            # Raw apprixmation
+            init_values *= 0.1
+            for idc in id_cabinet:
+                init_values[idc[1]] = 0.9/(len(id_cabinet))
+            init_values = np.log(init_values)
+    else:
+        raise Exception
+    return  init_values
+
 class Belief():
     def __init__(self, graph_gt, agent_id, prior=None, seed=None, belief_params={}):
         if seed is not None:
@@ -247,7 +324,7 @@ class Belief():
             id1 = node['id']
             self.edge_belief[id1] = {}
             
-            init_values = self.get_container_prior(id2node)
+            init_values = get_container_prior(id2node, self.belief_type, self.container_ids)
 
             init_values_on = np.ones(len(self.surface_ids))/len(self.surface_ids)
 
@@ -285,87 +362,11 @@ class Belief():
                     room_array = self.low_prob * np.ones(len(self.room_ids))
                     room_array[room_index] = 1
                 else:
-                    room_array = self.get_rooms(id2node)
+                    room_array = get_rooms(id2node, self.belief_type, self.room_ids)
 
                 self.room_node[node['id']] = [self.room_ids, room_array]
         self.sampled_graph['edges'] = []
 
-    def get_rooms(self, id2node):
-
-        if self.belief_type == 'uniform':
-            room_array = np.ones(len(self.room_ids))
-        elif self.belief_type == 'spiked':
-            # TODO_belief: set to sometihng sensible
-            init_values = np.ones(len(self.room_ids))
-            id_kitchen = [(id_room, index_cont) for index_cont, id_room in enumerate(self.room_ids) if id_room != None and id2node[id_room]['class_name'] ==  'kitchen']
-            if len(id_kitchen) > 0:
-                # Object is in the cabinet
-                # Raw apprixmation
-                init_values *= (0.2/len(self.room_ids))
-                init_values[id_kitchen[0][1]] = 0.8
-                init_values = np.log(init_values)
-            room_array = init_values
-        elif self.belief_type == 'spiked2':
-            room_array = np.ones(len(self.room_ids))
-        elif self.belief_type == 'spiked3':
-            raise Exception
-        elif self.belief_type == 'spiked4':
-            # TODO_belief: set to sometihng sensible
-            init_values = np.ones(len(self.room_ids))
-            id_kitchen = [(id_room, index_cont) for index_cont, id_room in enumerate(self.room_ids) if id_room != None and id2node[id_room]['class_name'] ==  'kitchen']
-            if len(id_kitchen) > 0:
-                # Object is in the cabinet
-                # Raw apprixmation
-                init_values *= (0.2/len(self.room_ids))
-                init_values[id_kitchen[0][1]] = 0.8
-                init_values = np.log(init_values)
-            room_array = init_values
-
-        else:
-            raise Exception
-
-        return room_array
-
-    def get_container_prior(self, id2node):
-        if self.belief_type == 'uniform':
-            init_values = np.ones(len(self.container_ids))/len(self.container_ids)
-        elif self.belief_type == 'spiked':
-            # This belief is that the object is either in the cabinet or in the bathroom
-            init_values = np.ones(len(self.container_ids))/len(self.container_ids)
-            try:
-                id_cabinet = [(id_obj, index_cont) for index_cont, id_obj in enumerate(self.container_ids) if id_obj != None and id2node[id_obj]['class_name'] ==  'cabinet']
-            except:
-                ipdb.set_trace()
-            if len(id_cabinet) > 0:
-                # Object is in the cabinet
-                # Raw apprixmation
-                init_values *= 0.2
-                init_values[id_cabinet[0][1]] = 0.8
-                init_values = np.log(init_values)
-        elif self.belief_type == 'spiked2':
-            init_values = np.ones(len(self.container_ids))/len(self.container_ids)
-            init_values *= 0.01
-            init_values[0] = 0.99
-            init_values = np.log(init_values)
-        elif self.belief_type == 'spiked3':
-            raise Exception
-        elif self.belief_type == 'spiked4':
-            class_names = ['fridge', 'stove', 'kitchencabinet']
-            init_values = np.ones(len(self.container_ids))/len(self.container_ids)
-            try:
-                id_cabinet = [(id_obj, index_cont) for index_cont, id_obj in enumerate(self.container_ids) if id_obj != None and id2node[id_obj]['class_name'] in class_names]
-            except:
-                ipdb.set_trace()
-            if len(id_cabinet) > 0:
-                # Object is in the cabinet
-                # Raw apprixmation
-                init_values *= 0.1
-                for idc in id_cabinet:
-                    init_values[idc[1]] = 0.9/(len(id_cabinet))
-                init_values = np.log(init_values)
-        else:
-            raise Exception
-        return  init_values
 
     def reset_belief(self):
         self.sampled_graph['edges'] = []

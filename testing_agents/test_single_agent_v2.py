@@ -39,8 +39,8 @@ if __name__ == '__main__':
     args.max_episode_length = 150
     args.num_per_apartment = 20
     
-    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
+    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
 
     # Beliefs
     # spiked: object is in cabinet
@@ -175,7 +175,7 @@ if __name__ == '__main__':
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
         
         # episode_ids = [20] #episode_ids
-        num_tries = 3
+        num_tries = 1
         episode_ids = episode_ids
 
         for iter_id in range(num_tries):
