@@ -1,6 +1,7 @@
 import torch
 import time
 
+import torch.nn.functional as F
 import glob
 import yaml
 import scipy
@@ -95,7 +96,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
             pred_goal, pred_close = output['pred_goal'], output['pred_close']
 
-            pred_belief = output['belief_logit']
+
+            pred_belief_container = output['belief_logit']
             pred_belief_room = output['belief_logit_room']
 
             bs = action_l.shape[0]
@@ -124,8 +126,12 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             # Loss belief #
             # ipdb.set_trace()
             kl_div = torch.nn.KLDivLoss()
-            loss_belief_room = kl_div(pred_belief_room, gt_belief_room)
-            loss_belief_container = kl_div(pred_belief, gt_belief)
+
+            gt_belief_room = belief_info['belief_room']
+            gt_belief = belief_info['belief_container']
+
+            loss_belief_room = kl_div(F.log_softmax(pred_belief_room, 1), gt_belief_room)
+            loss_belief_container = kl_div(F.log_softmax(pred_belief_container, 1), gt_belief)
             ###############
 
 
@@ -243,26 +249,27 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
     names_belief_room_all, names_belief_container_all = [], []
     pred_belief_room_all, pred_belief_container_all = [], []
     gt_belief_room_all, gt_belief_container_all = [], []
-    for it in range(bs):
-        names_nodes = graph_info['class_objects'][it, 0, :]
-        mask_belief_room_it = belief_info['mask_belief_room'][it, :].bool()
-        mask_belief_it = belief_info['mask_belief_container'][it, :].bool() 
+    for itbs in range(bs):
+        names_nodes = graph_info['class_objects'][itbs, 0, :]
+        mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+        mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
         names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
         names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
         names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
         names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
         names_belief_container_all.append(names_belief_container)
         names_belief_room_all.append(names_belief_room)
-        gt_belief_room_all.append(gt_belief_room[it, :][mask_belief_room_it].cpu().numpy())
-        gt_belief_container_all.append(gt_belief[it, :][mask_belief_it].cpu().numpy())
+        gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
+        gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
 
-        pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[it, :][mask_belief_room_it].detach().cpu().numpy()))
-        pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[it, :][mask_belief_it].detach().cpu().numpy()))
-        ipdb.set_trace()
+        pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
+        pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+        #ipdb.set_trace()
 
 
     info_log = {
         'plots': {
+            'name': 'belief_val',
             'pred_belief_room': pred_belief_room_all,
             'gt_belief_room': gt_belief_room_all,
             'pred_belief_container': pred_belief_container_all,
@@ -272,7 +279,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             },
         'losses': {
             'total_val': losses.avg, 'action_val': losses_action.avg, 'object1_val': losses_o1.avg, 'object2_val': losses_o2.avg,
-            'kl_container': losses_kl_container.avg, 'kl_room': losses_kl_room.avg,
+            'kl_container_val': losses_kl_container.avg, 'kl_room_val': losses_kl_room.avg,
             },
         'accuracy': {'action_val': acc_action.avg, 'object1_val': acc_o1.avg, 'object2_val': acc_o2.avg,  'goal_val':  acc_goal.avg, 'close_val': acc_close.avg, 'goal_recall_val': rec_goal.avg, 'close_recall_val': rec_close.avg}
         # 'misc': {'epoch': }
@@ -388,10 +395,10 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         kl_div = torch.nn.KLDivLoss()
         gt_belief_room = belief_info['belief_room']
         gt_belief = belief_info['belief_container']
-        loss_belief_room = kl_div(pred_belief_room, gt_belief_room)
-        loss_belief_container = kl_div(pred_belief_container, gt_belief)
+        loss_belief_room = kl_div(F.log_softmax(pred_belief_room, 1), gt_belief_room)
+        loss_belief_container = kl_div(F.log_softmax(pred_belief_container, 1), gt_belief)
+
         ###############
-        #ipdb.set_trace()
 
         # ipdb.set_trace()
         # ipdb.set_trace()
@@ -504,26 +511,27 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             names_belief_room_all, names_belief_container_all = [], []
             pred_belief_room_all, pred_belief_container_all = [], []
             gt_belief_room_all, gt_belief_container_all = [], []
-            for it in range(bs):
-                names_nodes = graph_info['class_objects'][it, 0, :]
-                mask_belief_room_it = belief_info['mask_belief_room'][it, :].bool()
-                mask_belief_it = belief_info['mask_belief_container'][it, :].bool() 
+            for itbs in range(bs):
+                names_nodes = graph_info['class_objects'][itbs, 0, :]
+                mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+                mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
                 names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
                 names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
                 names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
                 names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
                 names_belief_container_all.append(names_belief_container)
                 names_belief_room_all.append(names_belief_room)
-                gt_belief_room_all.append(gt_belief_room[it, :][mask_belief_room_it].cpu().numpy())
-                gt_belief_container_all.append(gt_belief[it, :][mask_belief_it].cpu().numpy())
+                gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
+                gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
 
-                pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[it, :][mask_belief_room_it].detach().cpu().numpy()))
-                pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[it, :][mask_belief_it].detach().cpu().numpy()))
+                pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
+                pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
                 #ipdb.set_trace()
 
 
             info_log = {
                 'plots': {
+                    'name': 'belief',
                     'pred_belief_room': pred_belief_room_all,
                     'gt_belief_room': gt_belief_room_all,
                     'pred_belief_container': pred_belief_container_all,
@@ -568,8 +576,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
                 'str': progress.display(it, do_print=False)+'\n'+str_results
             }
             logger.log_info(info_res)
-
-    logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
+    
+    # logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
     print("Failed Elements...", data_loader.dataset.get_failures())
 
 
