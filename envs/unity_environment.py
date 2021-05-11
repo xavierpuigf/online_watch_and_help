@@ -42,6 +42,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         
         self.task_goal, self.goal_spec = {0: {}, 1: {}}, {0: {}, 1: {}}
         self.env_task_set = env_task_set
+        self.agent_object_touched = []
         super(UnityEnvironment, self).__init__(
             num_agents=num_agents,
             max_episode_length=max_episode_length,
@@ -56,6 +57,14 @@ class UnityEnvironment(BaseUnityEnvironment):
         self.full_graph = None
 
     
+    def get_graph(self):
+        graph = super(UnityEnvironment, self).get_graph()
+        objects_seen = self.agent_object_touched
+        for node in graph['nodes']:
+            if 'TOUCHED' not in [st.upper() for st in node['states']] and node['id'] in objects_seen:
+                node['states'].append('TOUCHED')
+        return graph
+        
 
     def reward(self):
         reward = 0.
@@ -109,6 +118,8 @@ class UnityEnvironment(BaseUnityEnvironment):
         if task_id is None:
             task_id = self.rnd.choice(list(range(len(self.env_task_set))))
         env_task = self.env_task_set[task_id]
+
+        self.agent_object_touched = []
 
         self.task_id = env_task['task_id']
         self.init_graph = copy.deepcopy(env_task['init_graph'])
@@ -193,6 +204,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         script_list = utils.convert_action(action_dict)
         failed_execution = False
         if len(script_list[0]) > 0:
+            print(script_list)
             if self.recording_options['recording']:
                 success, message = self.comm.render_script(script_list,
                                                            recording=True,
@@ -202,11 +214,17 @@ class UnityEnvironment(BaseUnityEnvironment):
                                                            file_name_prefix='task_{}'.format(self.task_id),
                                                            image_synthesis=self.recording_optios['modality'])
             else:
-                success, message = self.comm.render_script(script_list,
-                                                           recording=False,
-                                                           image_synthesis=[],
-                                                           gen_vid=False,
-                                                           skip_animation=True)
+
+                if 'touch' in script_list[0]:
+                    objid = int(action_dict[0].split('(')[1].strip()[:-1])
+                    self.agent_object_touched.append(objid)
+                    success, message = True, {}
+                else:
+                    success, message = self.comm.render_script(script_list,
+                                                               recording=False,
+                                                               image_synthesis=[],
+                                                               gen_vid=False,
+                                                               skip_animation=True)
             if not success:
                 print("NO SUCCESS")
                 print(message, script_list)
@@ -278,8 +296,8 @@ class UnityEnvironment(BaseUnityEnvironment):
             rotation_ids = set(rotation_ids + room_doors + [agent_id+1])
             all_ids = [node['id'] for node in obs['nodes']]
             missing_ids = list(set(all_ids) - set(rotation_ids))
-            print("Removed:")
-            print([node['class_name'] for node in obs['nodes'] if node['id'] in missing_ids])
+            #print("Removed:")
+            #print([node['class_name'] for node in obs['nodes'] if node['id'] in missing_ids])
             new_obs = {
                 'nodes': [node for node in obs['nodes'] if node['id'] in rotation_ids],
                 'edges': [edge for edge in obs['edges'] if edge['from_id'] in rotation_ids and edge['to_id'] in rotation_ids]

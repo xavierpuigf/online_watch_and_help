@@ -48,7 +48,8 @@ class DictObjId:
         return len(self.id2el)
 
 class GraphHelper():
-    def __init__(self, max_num_objects=100, max_num_edges=200, current_task=None, simulator_type='unity'):
+    def __init__(self, max_num_objects=100, max_num_edges=200, current_task=None, simulator_type='unity',
+                 include_touch=False):
         self.states = ['on', 'open', 'off', 'closed']
         self.relations = ['inside', 'close', 'facing', 'on']
         self.simulaor_type = simulator_type
@@ -68,6 +69,8 @@ class GraphHelper():
                 'grab',
                 'no_action'
             ]
+            if include_touch:
+                self.actions = self.actions[:-1] + ['touch', 'no_action']
             self.actions_no_args = [
                 'turnleft',
                 'walkforward',
@@ -450,6 +453,7 @@ def args_per_action(action):
     'putin': 1,
     'put': 1,
     'grab': 1,
+    'touch': 1,
     'no_action': 0,
     'walk': 1}
     return action_dict[action]

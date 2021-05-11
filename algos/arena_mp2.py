@@ -351,9 +351,13 @@ class ArenaMP(object):
 
         action_space = self.env.get_action_space()
         dict_actions, dict_info = self.get_actions(obs, action_space, true_graph=true_graph)
+
         
         try:
            step_info = self.env.step(dict_actions)
+           #for agent_id, agent in enumerate(self.agents):
+           #    agent.step(dict_actions[agent_id])
+
         except:
             raise utils_exception.UnityException        
         return step_info, dict_actions, dict_info

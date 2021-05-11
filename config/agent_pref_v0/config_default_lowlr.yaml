@@ -1,0 +1,31 @@
+cuda: True
+data:
+        train_data: 'dataset_agent_model_v0_train.pkl'
+        test_data: 'dataset_agent_model_v0_test.pkl'
+log:
+        print_every: 20
+        print_long_every: 50
+train:
+        epochs: 500
+        batch_size: 32
+        num_workers: 10
+        lr: 0.0001
+        overfit: False
+        agents: 'all'
+        loss_close: 1.0
+        loss_goal: 1.0
+test:
+        num_iters: 20
+model:
+        max_nodes: 150
+        max_class_objects: 37
+        max_actions: 10
+        num_states: 4
+        num_attributes: 6
+        hidden_size: 200
+        max_tsteps: 50
+        goal_inp: True
+        gated: False
+        agent_embed: False
+        num_agents: 100
+        time_aggregate: 'LSTM' #

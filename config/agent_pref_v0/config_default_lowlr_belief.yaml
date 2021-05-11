@@ -1,0 +1,32 @@
+cuda: True
+data:
+        train_data: 'dataset_agent_belief_v0_train.pkl'
+        test_data: 'dataset_agent_belief_v0_test.pkl'
+log:
+        print_every: 20
+        print_long_every: 50
+        delete_prior_logs: False
+train:
+        epochs: 500
+        batch_size: 32
+        num_workers: 10
+        lr: 0.0001
+        overfit: False
+        agents: 'all'
+        loss_close: 0.0
+        loss_goal: 0.0
+test:
+        num_iters: 20
+model:
+        max_nodes: 150
+        max_class_objects: 37
+        max_actions: 11
+        num_states: 4
+        num_attributes: 6
+        hidden_size: 200
+        max_tsteps: 50
+        goal_inp: True
+        gated: False
+        agent_embed: False
+        num_agents: 100
+        time_aggregate: 'LSTM' #

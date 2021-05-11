@@ -32,15 +32,15 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 10
+    num_proc = 0
 
     num_tries = 1
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 150
     args.num_per_apartment = 20
     
-    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
-    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
+    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
 
     # Beliefs
     # spiked: object is in cabinet
@@ -60,18 +60,19 @@ if __name__ == '__main__':
             ['partial', 0, 0.05, False, 0, "spiked3"], # 11 For sure not in bathroom
             ['partial', 0, 0.05, False, 0, "spiked4"], # 12 All things kithcen
             ['partial', 0, 0.05, False, 0.1, "spiked"], # 13
-            ['partial', 0, 0.05, False, 0.1, "spiked2"], # 14
-            ['partial', 0, 0.00, False, 0.1, "spiked2"] # 15
+            ['partial', 0, 0.05, False, 0.1, "spiked2"] # 14
     ]
     random_start = random.Random()
     agent_types_index = list(range(9))
-    #agent_types_index =  [0, 3, 4, 10, 12, 13, 14]
-    agent_types_index =  [4, 10, 11, 12]
-    #agent_types_index = [15]
+    agent_types_index =  [0, 3, 4, 10, 12, 13, 14]
     random_start.shuffle(agent_types_index)
     if args.agenttype != 'all':
         agent_types_index = [int(x) for x in args.agenttype.split(',')]
+    
+    agent_types_index = [0]
     for agent_id in agent_types_index: #len(agent_types)):
+        if agent_id in [4]:
+            continue
         args.obs_type, open_cost, walk_cost, should_close, forget_rate, belief_type = agent_types[agent_id]
         datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
         agent_args = {
@@ -87,9 +88,8 @@ if __name__ == '__main__':
         
         env_task_set = pickle.load(open(args.dataset_path, 'rb'))
         print(len(env_task_set))
-        to_delete = []
 
-        for item, env in enumerate(env_task_set):
+        for env in env_task_set:
             # Remove one of the goals
             new_dict_goal = {}
             for goal_pred in env['task_goal'][0]:
@@ -99,12 +99,9 @@ if __name__ == '__main__':
                 if goal_pred.split('_')[0] not in ['on', 'in', 'inside']:
                     continue
                 goal_pred_new = 'touch_' + goal_pred.split('_')[1]
-                if numpred > 0:
-                    new_dict_goal[goal_pred_new] = numpred
-            if len(new_dict_goal) == 0:
-                to_delete.append(item)
+                new_dict_goal[goal_pred_new] = numpred
             env['task_goal'][0] = new_dict_goal
-
+            ipdb.set_trace()
             init_gr = env['init_graph']
             gbg_can = [node['id'] for node in init_gr['nodes'] if node['class_name'] in ['garbagecan', 'clothespile']]
             init_gr['nodes'] = [node for node in init_gr['nodes'] if node['id'] not in gbg_can]
@@ -113,10 +110,8 @@ if __name__ == '__main__':
                 if node['class_name'] == 'cutleryfork':
                     node['obj_transform']['position'][1] += 0.1
 
-        env_task_set = [env_task_set[idi] for idi in range(len(env_task_set)) if idi not in to_delete]
-
-        args.record_dir = '../data_scratch/large_data_touch/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data_scratch/large_data_touch/logging/{}_{}'.format(datafile, args.mode)
+        args.record_dir = '../data_scratch/large_data_v2/{}/{}'.format(datafile, args.mode)
+        error_dir = '../data_scratch/large_data_v2/logging/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -125,7 +120,7 @@ if __name__ == '__main__':
 
         executable_args = {
                         'file_name': args.executable_file,
-                        'x_display': args.display if args.saveimg else None,
+                        'x_display': args.display,
                         'no_graphics': not args.saveimg
         }
 
@@ -142,6 +137,7 @@ if __name__ == '__main__':
         test_results = {}
         #episode_ids = [episode_ids[0]]
         #episode_ids = [185]
+        episode_ids = [331]
 
         
         file_failures = 'failures_{}.txt'.format(args.base_port)
@@ -205,8 +201,6 @@ if __name__ == '__main__':
                 log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
                 failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
 
-                if sum(env_task_set[episode_id]['task_goal'][0].values()) == 0:
-                    continue
                 if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
                     # pass
                     continue
@@ -243,10 +237,9 @@ if __name__ == '__main__':
                         steps_list.append(steps)
                     is_finished = 1 if success else 0
 
-                    #ipdb.set_trace()
                     Path(args.record_dir).mkdir(parents=True, exist_ok=True)
                     if len(saved_info['obs']) > 0:
-                        print(colored("Saving.."), 'green')
+                        print(colored("Saving..", log_file_name, 'green'))
                         pickle.dump(saved_info, open(log_file_name, 'wb'))
                     else:
                         with open(log_file_name, 'w+') as f:
@@ -319,9 +312,10 @@ if __name__ == '__main__':
                     continue
 
                 if failure:
-                    with open(file_failures, 'a+'):
-                        str_file = 'Episode: {}. Try: {}. Agent: {}. Failure: {}\n'.format(episode_id, iter_id, agent_id, failure_str)
-                        f.write(str_file)
+                    pass
+                    #with open(file_failures, 'a+'):
+                    #    str_file = 'Episode: {}. Try: {}. Agent: {}. Failure: {}\n'.format(episode_id, iter_id, agent_id, failure_str)
+                    #    f.write(str_file)
 
 
                 #S[episode_id].append(is_finished)

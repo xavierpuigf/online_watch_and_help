@@ -130,13 +130,27 @@ if __name__ == '__main__':
     args.num_per_apartment = 20
     
     #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
+    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
 
     # Change a bit the environment, moving a fork to a good position
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
     print(len(env_task_set))
+    to_delete = []
+    for item, env in enumerate(env_task_set):
+        new_dict_goal = {}
+        for goal_pred in env['task_goal'][0]:
+            if 'sit' in goal_pred:
+                env['task_goal'][0][goal_pred] = 0
+            numpred = env['task_goal'][0][goal_pred]
+            if goal_pred.split('_')[0] not in ['on', 'in', 'inside']:
+                continue
+            goal_pred_new = 'touch_' + goal_pred.split('_')[1]
+            if numpred > 0:
+                new_dict_goal[goal_pred_new] = numpred
+        if len(new_dict_goal) == 0:
+            to_delete.append(item)
+        env['task_goal'][0] = new_dict_goal
 
-    for env in env_task_set:
         init_gr = env['init_graph']
         gbg_can = [node['id'] for node in init_gr['nodes'] if node['class_name'] in ['garbagecan', 'clothespile']]
         init_gr['nodes'] = [node for node in init_gr['nodes'] if node['id'] not in gbg_can]
@@ -145,7 +159,7 @@ if __name__ == '__main__':
             if node['class_name'] == 'cutleryfork':
                 node['obj_transform']['position'][1] += 0.1
 
-
+    env_task_set = [env_task_set[idi] for idi in range(len(env_task_set)) if idi not in to_delete]
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
             ['full', 0.5, 0.01, False, 0, "uniform"], # 1
@@ -160,7 +174,7 @@ if __name__ == '__main__':
     ]
     names = ['obs_type', 'open_cost', 'walk_cost', 'should_close', 'forget_rate', 'belief_type']
     agent_args = {}
-    type_id = 9
+    type_id = 0
     for idi, name in enumerate(names):
         agent_args[name] = agent_types[type_id][idi]
 

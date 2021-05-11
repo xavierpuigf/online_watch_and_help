@@ -15,7 +15,39 @@ from evolving_graph.utils import load_graph_dict, load_name_equivalence, graph_d
 from evolving_graph.execution import ScriptExecutor, ExecutionInfo
 from evolving_graph.scripts import read_script_from_string
 
-from evolving_graph.environment import EnvironmentGraph, EnvironmentState
+from evolving_graph.environment import EnvironmentGraph
+from evolving_graph.environment import EnvironmentState as EnvironmentStateBase
+
+def init_from_state(env_state: EnvironmentStateBase, touched_objs):
+   env_state_new =  EnvironmentState(env_state._graph, env_state._name_equivalence, env_state.instance_selection, touched_objs)
+   env_state_new.executor_data = env_state.executor_data
+   env_state_new._script_objects = env_state._script_objects
+   env_state_new._new_nodes = env_state._new_nodes
+   env_state_new._removed_edges_from = env_state._removed_edges_from
+   env_state_new._new_edges_from = env_state._new_edges_from
+   return env_state_new
+
+class EnvironmentState(EnvironmentStateBase):
+    def __init__(self, graph: EnvironmentGraph, name_equivalence, instance_selection: bool=False, touched_objs=[]):
+        self.touched_objs = touched_objs
+        super(EnvironmentState, self).__init__(graph, name_equivalence, instance_selection)
+
+    def to_dict(self):
+        edges = []
+        from_pairs = self._new_edges_from.keys() | self._graph.get_from_pairs()
+        for from_n, r in from_pairs:
+            for to_n in self.get_node_ids_from(from_n, r):
+                edges.append({'from_id': from_n, 'relation_type': r.name, 'to_id': to_n})
+        nodes = []
+        for node in self.get_nodes():
+            dict_node = node.to_dict()
+            if dict_node['id'] in self.touched_objs:
+                dict_node['states'].append('touched')
+            nodes.append(dict_node)
+        return {'nodes': nodes, 'edges': edges}
+
+    def touch_object(self, obj_id):
+        self.touched_objs.append(obj_id)
 
 
 class VhGraphEnv():
@@ -208,8 +240,18 @@ class VhGraphEnv():
                     assert self._is_action_valid_sim(scripts.get(i), observable_object_ids)
                 
         for i in range(self.n_chars):
-            script = read_script_from_string(scripts.get(i, ""))
-            succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
+            script_string = scripts.get(i, "")
+            script = read_script_from_string(script_string)
+            touched_objs = vh_state.touched_objs
+            if '[touch]' in script_string:
+
+                succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
+                next_vh_state = init_from_state(next_vh_state, touched_objs)
+                obj_id = script.obtain_objects()[0][1]
+                next_vh_state.touch_object(obj_id)
+            else:
+                succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
+                next_vh_state = init_from_state(next_vh_state, touched_objs)
             if not succeed:
                 return False, next_vh_state
 
@@ -219,8 +261,18 @@ class VhGraphEnv():
     def get_vh_state(self, state, name_equivalence=None, instance_selection=True):
         if name_equivalence is None:
             name_equivalence = self.name_equivalence
-
-        return EnvironmentState(EnvironmentGraph(state), self.name_equivalence, instance_selection=True)
+        
+        # Remove touched state
+        touched_objs = []
+        for node in state['nodes']:
+            if 'TOUCHED' in node['states']:
+                touched_objs.append(node['id'])
+                node['states'] = [st for st in node['states'] if st != 'TOUCHED']
+        env =  EnvironmentState(EnvironmentGraph(state), self.name_equivalence, instance_selection=True, touched_objs=touched_objs)
+        for node in state['nodes']:
+            if node['id'] in touched_objs:
+                node['states'].append('TOUCHED')
+        return env
 
 
 

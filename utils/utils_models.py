@@ -280,6 +280,12 @@ class LoggerSteps():
             pass
         now = datetime.datetime.now()
         self.tensorboard_writer = SummaryWriter(log_dir=self.tensorboard_logdir)
+        if self.args['log']['delete_prior_logs']:
+            files_rm = glob.glob('{}/*'.format(self.tensorboard_logdir))
+            print("Deleting logs")
+            for fr in files_rm:
+                os.remove(fr)
+        print("Logging in: {}".format(self.tensorboard_logdir))
         
         dict_args = self.args
         text_tboard = "\n**experiment_name:** {}  <br />".format(self.experiment_name)
@@ -288,8 +294,9 @@ class LoggerSteps():
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = 'predict_action/data.{}/agents{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}'.format(
+        experiment_name = 'predict_action/data.{}/time_model.{}/agents{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}'.format(
             args['data']['train_data'],
+            args['model']['time_aggregate'],
             args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
@@ -347,6 +354,32 @@ class LoggerSteps():
             if 'misc' in info.keys():
                 for acc_name, acc_item in info['misc'].items():
                     self.tensorboard_writer.add_scalar("misc/{}".format(acc_name), acc_item, total_num_steps)
+
+            if 'plots' in info.keys():
+                info_plot = info['plots']
+                fig, ax = plt.subplots(4,2)
+                bs = len(info_plot['gt_belief_room'])
+                for i in range(min(4, bs)):
+                    it = 0
+                    for curr_str in ['gt_belief_room', 'gt_belief_container']:
+                        try:
+                            names = info_plot[curr_str.replace('gt', 'names')][i]
+                        except:
+                            ipdb.set_trace()
+                        x = np.arange(len(info_plot[curr_str][i]))
+                        ax[i,it].bar(x-0.15, info_plot[curr_str][i], width=0.3)
+                        ax[i,it].bar(x+0.15, info_plot[curr_str.replace('gt', 'pred')][i], width=0.3)
+                        ax[i, it].set_xticks(range(len(names)))
+                        ax[i, it].set_xticklabels(names)
+                        ax[i, it].set_ylim((0,1))
+                        ax[i, it].tick_params(axis='both', which='major', labelsize=8)
+                        ax[i, it].tick_params(axis='both', which='minor', labelsize=8)
+                        ax[i, it].grid(axis='y')
+                        it += 1
+                self.tensorboard_writer.add_figure(info['plots']['name'], fig, total_num_steps)
+
+
+
 
 
     def log_info(self, info_ep):

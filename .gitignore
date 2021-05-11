@@ -32,3 +32,5 @@ visualization/*.mp4
 dataset/*
 *.pdf
 *.png
+analysis/*.mp4
+analysis/*.html

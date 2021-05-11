@@ -73,6 +73,25 @@ def find_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, obje
 
     return action_list, cost_list
 
+
+def touch_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, object_target):
+    observations = simulator.get_observations(env_graph, char_index=char_index)
+    target_id = int(object_target.split('_')[-1])
+
+    observed_ids = [node['id'] for node in observations['nodes']]
+    agent_close = [edge for edge in env_graph['edges'] if ((edge['from_id'] == agent_id and edge['to_id'] == target_id) or (edge['from_id'] == target_id and edge['to_id'] == agent_id) and edge['relation_type'] == 'CLOSE')]
+
+    target_node = [node for node in env_graph['nodes'] if node['id'] == target_id][0]
+
+    target_action = [('touch', (target_node['class_name'], target_id), None)]
+    cost = [0.05]
+
+    if len(agent_close) > 0 and target_id in observed_ids:
+        return target_action, cost
+    else:
+        find_actions, find_costs = find_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, object_target)
+        return find_actions+target_action, find_costs+cost
+
 def grab_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, object_target):
     observations = simulator.get_observations(env_graph, char_index=char_index)
     target_id = int(object_target.split('_')[-1])
@@ -256,7 +275,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
     #print(res, target)
     return res, cost_list
 
-def clean_graph(state, g1oal_spec, last_opened):
+def clean_graph(state, goal_spec, last_opened):
     new_graph = {}
     # get all ids
     ids_interaction = []
@@ -327,6 +346,7 @@ def clean_graph(state, g1oal_spec, last_opened):
             "edges": [edge for edge in state['edges'] if edge['from_id'] in ids_interaction and edge['to_id'] in ids_interaction],
             "nodes": [id2node[id_node] for id_node in ids_interaction]
     }
+    
 
     return new_graph
 
@@ -337,7 +357,8 @@ def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
         'put': put_heuristic,
         'putIn': putIn_heuristic,
         'sit': sit_heuristic,
-        'turnOn': turnOn_heuristic
+        'turnOn': turnOn_heuristic,
+        'touch': touch_heuristic
     }
     # res = root_node * 2
     try:
@@ -365,14 +386,6 @@ def mp_run_2(process_id, root_node, mcts, nb_steps, last_subgoal, opponent_subgo
 
 
 def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_action, opponent_subgoal=None, num_process=10, verbose=True):    
-    heuristic_dict = {
-        'find': find_heuristic,
-        'grab': grab_heuristic,
-        'put': put_heuristic,
-        'putIn': putIn_heuristic,
-        'sit': sit_heuristic,
-        'turnOn': turnOn_heuristic
-    }
     root_nodes = []
     for particle_id in range(len(particles)):
         root_action = None
@@ -405,7 +418,7 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
             end_root_id = min(start_root_id + num_process, num_root_nodes)
             jobs = []
             for process_id in range(start_root_id, end_root_id):
-                print(process_id)
+                # print(process_id)
                 p = mp.Process(target=mp_run_2,
                                args=(process_id,
                                      root_nodes[process_id],
@@ -440,6 +453,7 @@ def get_plan(mcts, particles, env, nb_steps, goal_spec, last_subgoal, last_actio
     
     final_actions = []
     lambd = 0.5
+    #ipdb.set_trace()
     while index_action < length_plan:
         max_action = None
         max_score = None
@@ -630,8 +644,10 @@ class MCTS_agent_particle_v2:
                 self.last_obs['state'] = state_ids
                 self.last_obs['edges'] = edge_ids
         return new_obs
+    
 
     def get_action(self, obs, goal_spec, opponent_subgoal=None):
+        # ipdb.set_trace()
 
 
         # Create the particles
@@ -703,7 +719,7 @@ class MCTS_agent_particle_v2:
                                 print("IS CLOSED")
 
                 
-                if 'open' in last_plan[0] or 'close' in last_plan[0] or 'put' in last_plan[0] or 'grab' in last_plan[0]:
+                if 'open' in last_plan[0] or 'close' in last_plan[0] or 'put' in last_plan[0] or 'grab' in last_plan[0] or 'touch' in last_plan[0]:
                     if len(last_plan) == 1:
                         should_replan = True
                     else:
@@ -750,27 +766,15 @@ class MCTS_agent_particle_v2:
                 belief_states = []
                 obs_ids = [node['id'] for node in obs['nodes']]
 
-                if True: #particle is None:
-                    new_graph = self.belief.update_graph_from_gt_graph(obs, resample_unseen_nodes=True, update_belief=False)
-                    # ipdb.set_trace()
-                    init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
-                    satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
-                    init_vh_state = self.sim_env.get_vh_state(init_state)
+                # if True: #particle is None:
+                new_graph = self.belief.update_graph_from_gt_graph(obs, resample_unseen_nodes=True, update_belief=False)
 
-                    self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
+                init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
+                satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
+                init_vh_state = self.sim_env.get_vh_state(init_state)
 
-                else:
-                    prev_graph = self.particles_full[particle_id]
-                    new_graph = self.belief.update_graph_from_gt_graph(
-                        obs, sampled_graph=prev_graph, resample_unseen_nodes=True, update_belief=False)
-                    init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
-                    init_vh_state = self.sim_env.get_vh_state(init_state)
-                    if 'waterglass' not in [node['class_name'] for node in init_state['nodes']] and goal_spec['on_waterglass_232'][0] > 0:
-                        raise Exception
+                self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
 
-                    satisfied, unsatisfied = utils_env.check_progress(init_state, goal_spec)
-                    self.particles[particle_id] = (init_vh_state, init_state, satisfied, unsatisfied)
-                
 
                 self.particles_full[particle_id] = new_graph
             # print('-----')
@@ -781,6 +785,7 @@ class MCTS_agent_particle_v2:
         else:
             subgoals = [[None, None, None], [None, None, None]]
         if len(plan) == 0:
+            ipdb.set_trace()
             print("Plan empty")
             raise Exception
             
