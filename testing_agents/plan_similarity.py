@@ -16,8 +16,6 @@ try:
 except ImportError:
     pass
 
-from envs.unity_environment import UnityEnvironment
-from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 from utils import utils_goals
@@ -132,7 +130,8 @@ if __name__ == '__main__':
         args.mode = '{}_'.format(agent_id+1) + get_class_mode(agent_args)
         args.mode += 'v9_particles_v2_modeinfo'
 
-        args.record_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/data_scratch/large_data_v2/{}/{}'.format(datafile, args.mode)
+        #args.record_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/data_scratch/large_data_v2/{}/{}'.format(datafile, args.mode)
+        args.record_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/data_scratch/large_data_touch_v2/{}/{}'.format(datafile, args.mode)
         print(args.record_dir)
 
         for episode_id in range(1):#range(num_episodes):
