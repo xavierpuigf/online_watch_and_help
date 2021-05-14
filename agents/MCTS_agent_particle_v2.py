@@ -726,7 +726,7 @@ class MCTS_agent_particle_v2:
                         curr_plan = last_plan[1:]
 
 
-                if 'open' in curr_plan[0] or 'close' in curr_plan[0] or 'put' in curr_plan[0] or 'grab' in curr_plan[0]:
+                if 'open' in curr_plan[0] or 'close' in curr_plan[0] or 'put' in curr_plan[0] or 'grab' in curr_plan[0] or 'touch' in curr_plan[0]:
                     obj_id = int(curr_plan[0].split('(')[1].split(')')[0])
                     if not obj_id in close_ids or not obj_id in visible_ids:
                         should_replan = True
@@ -815,6 +815,7 @@ class MCTS_agent_particle_v2:
         # print(action)
         time2 = time.time()
         # print("Time: ", time2 - time1)
+        print("Replanning... ", should_replan)
         return action, info
 
     def reset(self, observed_graph, gt_graph, task_goal, seed=0, simulator_type='python', is_alice=False):

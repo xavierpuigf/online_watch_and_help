@@ -1,4 +1,5 @@
 import torch
+import json
 import time
 
 import torch.nn.functional as F
@@ -29,7 +30,7 @@ def unmerge(tensor, firstdim):
     dim = list(tensor.shape)
     return tensor.reshape([firstdim, -1] + dim[1:])
 
-def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logger):
+def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logger, save_folder=None):
     model.eval()
 
     batch_time = AverageMeter('Time', ':6.3f')
@@ -75,6 +76,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
         prefix="Epoch: [{}]".format(epoch))
     
     end = time.time()
+    infos = []
     for it, data_item in enumerate(data_loader):
         if it < args['test']['num_iters']:
             data_time.update(time.time() - end)
@@ -244,7 +246,43 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
         info_res = {
             'str': progress.display(it, do_print=False)+'\n'+str_results
         }
-        logger.log_info(info_res)
+        if logger is not None:
+            logger.log_info(info_res)
+
+        if save_folder is not None:
+            for cind in range(bs):
+                cindex = int(belief_info['index'][cind].item())
+
+                folder_name = data_loader.dataset.pkl_files[cindex]
+                itbs = cind
+                names_nodes = graph_info['class_objects'][itbs, 0, :]
+                mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+                mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
+                names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
+                names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
+                names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
+                names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
+                gt_belief_r = gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy()
+                gt_belief_c = gt_belief[itbs, :][mask_belief_it].cpu().numpy()
+                pred_belief_r = scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy())
+                pred_belief_c = scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy())
+                info = {
+                        'index': cindex,
+                        'filename': data_loader.dataset.pkl_files[cindex],
+                        'pred_belief_room': pred_belief_r.tolist(),
+                        'pred_belief_container': pred_belief_c.tolist(),
+                        'gt_belief_room': gt_belief_r.tolist(),
+                        'gt_belief_container': gt_belief_c.tolist(),
+                        'names_belief_room': names_belief_room,
+                        'names_belief_container': names_belief_container
+                }
+                infos.append(info)
+
+    if len(infos) > 0:
+        infos = {'data': args['data']['test_data'], 'info': infos}
+        print(f"Saving results in {save_folder}")
+        with open(f'{save_folder}/results.json', 'w+') as f:
+            f.write(json.dumps(infos))
 
     names_belief_room_all, names_belief_container_all = [], []
     pred_belief_room_all, pred_belief_container_all = [], []
@@ -266,7 +304,6 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
         pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
         #ipdb.set_trace()
 
-
     info_log = {
         'plots': {
             'name': 'belief_val',
@@ -284,7 +321,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
         'accuracy': {'action_val': acc_action.avg, 'object1_val': acc_o1.avg, 'object2_val': acc_o2.avg,  'goal_val':  acc_goal.avg, 'close_val': acc_close.avg, 'goal_recall_val': rec_goal.avg, 'close_recall_val': rec_close.avg}
         # 'misc': {'epoch': }
     }
-    logger.log_data(len(data_loader_train) * epoch, info_log)
+    if logger is not None:
+        logger.log_data(len(data_loader_train) * epoch, info_log)
 
     info_log2 = {}
     for agent_id in meter_dict.keys():
@@ -301,8 +339,9 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                     'close_recall_val': meter_dict[agent_id]['rec_close'].val 
                 },
             }
-
-    logger.log_data2(it + len(data_loader) * epoch, info_log2)
+    
+    if logger is not None:
+        logger.log_data2(it + len(data_loader) * epoch, info_log2)
 
 
 def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
@@ -353,6 +392,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         data_time.update(time.time() - end)
 
         graph_info, program, label, len_mask, goal, label_agent, real_label_agent, belief_info = data_item
+        #print(real_label_agent)
         inputs = {
             'program': program,
             'graph': graph_info,
@@ -361,7 +401,6 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             'label_agent': label_agent,
             'belief_info': belief_info
         }
-        # ipdb.set_trace()
         output = model(inputs)
         action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
         pred_goal, pred_close = output['pred_goal'], output['pred_close']
@@ -547,6 +586,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
                 'accuracy': {'action': acc_action.val, 'object1': acc_o1.val, 'object2': acc_o2.val,  'goal':  acc_goal.val, 'close': acc_close.val, 'goal_recall': rec_goal.val, 'close_recall': rec_close.val },
                 'misc': {'epoch': epoch}
             }
+            #ipdb.set_trace()
             logger.log_data(it + len(data_loader) * epoch, info_log)
             info_log2 = {}
             for agent_id in meter_dict.keys():
@@ -590,7 +630,7 @@ def get_loaders(args):
 
     test_loader = torch.utils.data.DataLoader(
             dataset_test, batch_size=args['train']['batch_size'], 
-            shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True)
+            shuffle=not args['eval'], num_workers=args['train']['num_workers'], pin_memory=True)
     return train_loader, test_loader
 
 
@@ -614,17 +654,29 @@ def main(cfg: DictConfig):
         model = nn.DataParallel(model)
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
+
+
+    if len(config['ckpt']) > 0:
+        print("Loading from {}".format(config['ckpt']))
+        ckpt = torch.load(config['ckpt'])
+        model.load_state_dict(ckpt['model'])
+        optimizer.load_state_dict(ckpt['optimizer'])
     print("Failures: ", train_loader.dataset.get_failures())
+    
+    if not config['eval']:
+        logger = LoggerSteps(config)
 
-    logger = LoggerSteps(config)
+        logger.save_model(0, model, optimizer)
 
-    logger.save_model(0, model, optimizer)
+        for epoch in range(config['train']['epochs']):
+            train_epoch(train_loader, model, epoch, config, criterion, optimizer, logger)
+            evaluate(test_loader, train_loader, model, epoch, config, criterion, logger)
+            if epoch % 10 == 0:
+                logger.save_model(epoch, model, optimizer)
+    else:
+        epoch = 0
+        evaluate(test_loader, train_loader, model, epoch, config, criterion, None, save_folder=config['save_folder'])
 
-    for epoch in range(config['train']['epochs']):
-        train_epoch(train_loader, model, epoch, config, criterion, optimizer, logger)
-        evaluate(test_loader, train_loader, model, epoch, config, criterion, logger)
-        if epoch % 10 == 0:
-            logger.save_model(epoch, model, optimizer)
 
 
 if __name__ == '__main__':

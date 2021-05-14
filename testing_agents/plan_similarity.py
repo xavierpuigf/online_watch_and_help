@@ -9,7 +9,9 @@ import pickle
 import json
 import random
 import numpy as np
+import multiprocessing as mp
 from numpy import linalg as LA
+import matplotlib.pyplot as plt
 from pathlib import Path
 try:
     from dtw import dtw
@@ -69,6 +71,50 @@ def action_code(action):
     return code
 
 
+def read_episodes(agent_id, agent_types, args, num_episodes, num_seeds, agent_paths, agent_actions):
+    args.obs_type, open_cost, walk_cost, should_close, forget_rate, belief_type = agent_types[agent_id]
+    datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
+    agent_args = {
+        'obs_type': args.obs_type,
+        'open_cost': open_cost,
+        'should_close': should_close,
+        'walk_cost': walk_cost,
+        'belief': {'forget_rate': forget_rate, 'belief_type': belief_type}
+    }
+    args.mode = '{}_'.format(agent_id+1) + get_class_mode(agent_args)
+    args.mode += 'v9_particles_v2_modeinfo'
+
+    args.record_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/data_scratch/large_data_touch_v2/{}/{}'.format(datafile, args.mode)
+    print(args.record_dir)
+
+    paths = {}
+    actions = {}
+    for episode_id in range(0, num_episodes, 10):
+        print(agent_id, episode_id)
+        paths[episode_id] = []
+        actions[episode_id] = []
+        for seed_id in range(num_seeds):
+            file_path = '{}/logs_episode.{}_iter.{}.pik'.format(args.record_dir, episode_id, seed_id)
+            if not os.path.exists(file_path): continue
+            data = pickle.load(open(file_path, 'rb'))
+            # print(data.keys())
+            # print(data['env_id'], data['task_name'], data['goals'])
+            T = len(data['graph'])
+            agent_path = [None] * T
+            for t in range(T):
+                agent_pos = [n['bounding_box']['center'] for n in data['graph'][t]['nodes'] if n['class_name'] == 'character']
+                assert len(agent_pos) == 1
+                agent_path[t] = agent_pos[0]
+            paths[episode_id].append(np.array(agent_path))
+            T = len(data['action'][0])
+            agent_action = [None] * T
+            for t in range(T):
+                agent_action[t] = action_code(data['action'][0][t])
+            actions[episode_id].append(np.array(agent_action))
+    agent_paths[agent_id] = paths
+    agent_actions[agent_id] = actions
+
+
 if __name__ == '__main__':
     args = get_args()
     num_proc = 10
@@ -106,76 +152,83 @@ if __name__ == '__main__':
     ]
     random_start = random.Random()
     agent_types_index = list(range(9))
-    agent_types_index =  [0, 3, 4, 10, 12, 13, 14]
+    agent_types_index =  [0, 3, 4, 10, 12]#, 13, 14]
     # random_start.shuffle(agent_types_index)
     if args.agenttype != 'all':
         agent_types_index = [int(x) for x in args.agenttype.split(',')]
 
 
-    agent_paths = {}
-    agent_actions = {}
+    # agent_paths = {}
+    # agent_actions = {}
 
-    for agent_id in agent_types_index: #len(agent_types)):
-        agent_paths[agent_id] = {}
-        agent_actions[agent_id] = {}
-        args.obs_type, open_cost, walk_cost, should_close, forget_rate, belief_type = agent_types[agent_id]
-        datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
-        agent_args = {
-            'obs_type': args.obs_type,
-            'open_cost': open_cost,
-            'should_close': should_close,
-            'walk_cost': walk_cost,
-            'belief': {'forget_rate': forget_rate, 'belief_type': belief_type}
-        }
-        args.mode = '{}_'.format(agent_id+1) + get_class_mode(agent_args)
-        args.mode += 'v9_particles_v2_modeinfo'
+    manager = mp.Manager()
+    agent_paths = manager.dict()
+    agent_actions = manager.dict()
+    num_processes = 10
+        
+    for start_root_id in range(0, len(agent_types_index), num_processes):
+        end_root_id = min(start_root_id + num_processes, len(agent_types_index))
+        jobs = []
+        for process_id in range(start_root_id, end_root_id):
+            agent_id = agent_types_index[process_id]
+            print(process_id, agent_id)
+            p = mp.Process(target=read_episodes,
+                           args=(agent_id, agent_types, args, num_episodes, num_seeds, 
+                                 agent_paths, agent_actions))
+            jobs.append(p)
+            p.start()
+        for p in jobs:
+            p.join()
 
-        #args.record_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/data_scratch/large_data_v2/{}/{}'.format(datafile, args.mode)
-        args.record_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/data_scratch/large_data_touch_v2/{}/{}'.format(datafile, args.mode)
-        print(args.record_dir)
+    D_agent_pos = np.empty([len(agent_types_index), len(agent_types_index)])
+    for id_1 in range(len(agent_types_index) - 1):
+        agent_id_1 = agent_types_index[id_1]
+        for id_2 in range(id_1, len(agent_types_index)):
+            agent_id_2 = agent_types_index[id_2]
+            dist_lists = []
+            for episode_id, curr_episode_paths_1 in agent_paths[agent_id_1].items():
+                N1 = len(curr_episode_paths_1)
+                curr_episode_paths_2 = agent_paths[agent_id_2][episode_id]
+                N2 = len(curr_episode_paths_2)
+                for i in range(N1):
+                    for j in range(N2):
+                        curr_dist = dtw_dist(curr_episode_paths_1[i], curr_episode_paths_2[j], dist=dist_l2)
+                        dist_lists.append(curr_dist)
+            D_agent_pos[id_1, id_2] = np.mean(dist_lists)
+            D_agent_pos[id_2, id_1] = D_agent_pos[id_1, id_2]
+    print(D_agent_pos)
+    fig, ax = plt.subplots(1,1)
+    img = ax.imshow(D_agent_pos)
+    ax.set_xticklabels([0] + agent_types_index)
+    ax.set_yticklabels([0] + agent_types_index)
+    fig.colorbar(img)
+    fig.tight_layout()
+    fig.savefig('./testing_agents/D_agent_pos_{}.pdf'.format(num_episodes))
 
-        for episode_id in range(1):#range(num_episodes):
-            agent_paths[agent_id][episode_id] = []
-            agent_actions[agent_id][episode_id] = []
-            for seed_id in range(num_seeds):
-                file_path = '{}/logs_episode.{}_iter.{}.pik'.format(args.record_dir, episode_id, seed_id)
-                if not os.path.exists(file_path): continue
-                data = pickle.load(open(file_path, 'rb'))
-                # print(data.keys())
-                # print(data['env_id'], data['task_name'], data['goals'])
-                T = len(data['graph'])
-                agent_path = [None] * T
-                for t in range(T):
-                    agent_pos = [n['bounding_box']['center'] for n in data['graph'][t]['nodes'] if n['class_name'] == 'character']
-                    assert len(agent_pos) == 1
-                    agent_path[t] = agent_pos[0]
-                agent_paths[agent_id][episode_id].append(np.array(agent_path))
-                T = len(data['action'][0])
-                agent_action = [None] * T
-                for t in range(T):
-                    agent_action[t] = action_code(data['action'][0][t])
-                agent_actions[agent_id][episode_id].append(np.array(agent_action))
-
-    for agent_id in agent_types_index:
-        dist_lists = []
-        for episode_id, curr_episode_paths in agent_paths[agent_id].items():
-            N = len(curr_episode_paths)
-            for i in range(N - 1):
-                for j in range(i + 1, N):
-                    curr_dist = dtw_dist(curr_episode_paths[i], curr_episode_paths[j], dist=dist_l2)
-                    dist_lists.append(curr_dist)
-
-        print(agent_id, np.mean(dist_lists), np.std(dist_lists))
-
-    for agent_id in agent_types_index:
-        dist_lists = []
-        for episode_id, curr_episode_actions in agent_actions[agent_id].items():
-            N = len(curr_episode_actions)
-            for i in range(N - 1):
-                for j in range(i + 1, N):
-                    curr_dist = dtw_dist(curr_episode_actions[i], curr_episode_actions[j], dist=dist_code)
-                    dist_lists.append(curr_dist)
-
-        print(agent_id, np.mean(dist_lists), np.std(dist_lists))
+    D_agent_action = np.empty([len(agent_types_index), len(agent_types_index)])
+    for id_1 in range(len(agent_types_index) - 1):
+        agent_id_1 = agent_types_index[id_1]
+        for id_2 in range(id_1, len(agent_types_index)):
+            agent_id_2 = agent_types_index[id_2]
+            dist_lists = []
+            for episode_id, curr_episode_actions_1 in agent_actions[agent_id_1].items():
+                N1 = len(curr_episode_actions_1)
+                curr_episode_actions_2 = agent_actions[agent_id_2][episode_id]
+                N2 = len(curr_episode_actions_2)
+                for i in range(N1):
+                    for j in range(N2):
+                        curr_dist = dtw_dist(curr_episode_actions_1[i], curr_episode_actions_2[j], dist=dist_l2)
+                        dist_lists.append(curr_dist)
+            D_agent_action[id_1, id_2] = np.mean(dist_lists)
+            D_agent_action[id_2, id_1] = D_agent_action[id_1, id_2]
+    print(D_agent_action)
+    plt.clf()
+    fig, ax = plt.subplots(1,1)
+    img = ax.imshow(D_agent_action)
+    ax.set_xticklabels([0] + agent_types_index)
+    ax.set_yticklabels([0] + agent_types_index)
+    fig.colorbar(img)
+    fig.tight_layout()
+    plt.savefig('./testing_agents/D_agent_action_{}.pdf'.format(num_episodes))
                 
 

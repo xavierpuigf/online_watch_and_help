@@ -19,7 +19,6 @@ test_results/*
 logdir/*
 dataset/watch_data*
 dataset_*
-dataset/*
 init_reward/result/*
 initial_environments/data/init_envs/*
 *.p
@@ -30,5 +29,8 @@ interface/Player.log
 rl/logs.txt
 visualization/*.mp4
 *.sh
+dataset/*
+*.pdf
+*.png
 analysis/*.mp4
 analysis/*.html

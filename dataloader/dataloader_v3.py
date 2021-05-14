@@ -95,6 +95,7 @@ class AgentTypeDataset(Dataset):
         if self.overfit:
             index = 0
         file_name = self.pkl_files[index]
+        #print(file_name)
         seed_number = int(file_name.split('.')[-2]) 
         with open(file_name, 'rb') as f:
             content = pkl.load(f)
@@ -239,9 +240,10 @@ class AgentTypeDataset(Dataset):
         # Define initial belief
         room_ids = initial_belief_room[0]
         container_ids = initial_belief[0]
-        initial_belief_values, initial_belief_room_values = set_init_belief(id2node, self.labels[it], room_ids, container_ids) 
+        initial_belief_values, initial_belief_room_values = set_init_belief(id2node, self.labels[index], room_ids, container_ids) 
         initial_belief_room[1] = initial_belief_room_values
         initial_belief[1] = initial_belief_values
+        #print(initial_belief_room_values)
 
 
         sm_room = scipy.special.softmax(initial_belief_room[1])
@@ -273,7 +275,8 @@ class AgentTypeDataset(Dataset):
             'mask_belief_container': mask_belief_container,
             'mask_belief_room': mask_belief_room,
             'belief_room': belief_room,
-            'belief_container': belief_container
+            'belief_container': belief_container,
+            'index': index
         }
 
         # We start at 1 to skip the first instruction
@@ -343,6 +346,7 @@ class AgentTypeDataset(Dataset):
 
         label_agent = seed_number + self.labels[index] * 5
         real_label = self.labels[index]
+        # ipdb.set_trace()
         return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, belief_info
 
 if __name__ == '__main__':
@@ -350,6 +354,6 @@ if __name__ == '__main__':
     config_file = 'config/agent_pref_v0/config_default_lowlr_belief.yaml'
     with open(config_file, 'r') as f:
         config = yaml.load(f)
-    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_belief_v0_train.pkl', args_config=config)
+    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_belief_v2_train.pkl', args_config=config)
     data = dataset[0]
     ipdb.set_trace()
