@@ -24,7 +24,12 @@ class ActionGatedPredNetwork(nn.Module):
                 'num_classes': self.max_num_classes,
                 'num_states': self.num_states,
         }
-        self.graph_encoder = base_nets.TransformerBase(**args_tf)
+
+        if args['state_encoder'] == 'TF':
+            self.graph_encoder = base_nets.TransformerBase(**args_tf)
+        elif args['state_encoder'] == 'GNN':
+            self.graph_encoder = base_nets.GNNBase(**args_tf)
+
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
 
 

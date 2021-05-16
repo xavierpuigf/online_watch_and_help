@@ -219,13 +219,24 @@ class GraphModelGGNN(nn.Module):
 
     def forward(self, inputs):
         keys = ['class_objects', 'states_objects', 'edge_tuples', 'edge_classes', 'mask_object', 'mask_edge']
+        new_inps = {}
+        did_reshape = True
+        # We assume we get a batc x time tensor
+        for key in keys:
+            aux = inputs[key]
+            dims = list(aux.shape)
+            bs, ts = dims[:2]
+            aux = aux.reshape([-1]+dims[2:])
+            new_inps[key] = torch.unbind(aux)
+
         [all_class_names, node_states,
          all_edge_ids, all_edge_types,
-         mask_nodes, mask_edges] = [torch.unbind(inputs[key]) for key in keys]
+         mask_nodes, mask_edges] = [new_inps[key] for key in keys]
         num_envs = len(all_class_names)
         hs = []
         graphs = []
         #print('Graphs', num_envs)
+        empty_graphs = []
         for env_id in range(num_envs):
             g = DGLGraph()
             num_nodes = int(mask_nodes[env_id].sum().item())
@@ -233,34 +244,55 @@ class GraphModelGGNN(nn.Module):
             #print(num_edges)
             ids = all_class_names[env_id][:num_nodes]
             node_states_curr = node_states[env_id][:num_nodes]
-            g.add_nodes(num_nodes)
 
-            if num_edges > 0:
-                edge_types = all_edge_types[env_id][:num_edges].long()
-                #try:
-                g.add_edges(all_edge_ids[env_id][:num_edges, 0].long(),
-                            all_edge_ids[env_id][:num_edges, 1].long(),
-                            {'rel_type': edge_types.long()})
-                            #     'norm': torch.ones((num_edges, 1)).to(edge_types.device)})
-                #except:
-                #    pdb.set_trace()
-            feats_in = self.feat_in(ids.long(), node_states_curr)
-            g.ndata['h'] = feats_in
-            graphs.append(g)
+
+            if num_nodes > 0:
+                g.add_nodes(num_nodes)
+                # ipdb.set_trace()
+                if num_edges > 0:
+                    edge_types = all_edge_types[env_id][:num_edges].long()
+                    #try:
+                    g.add_edges(all_edge_ids[env_id][:num_edges, 0].long(),
+                                all_edge_ids[env_id][:num_edges, 1].long(),
+                                {'rel_type': edge_types})
+                                #     'norm': torch.ones((num_edges, 1)).to(edge_types.device)})
+                    #except:
+                    #    pdb.set_trace()
+                feats_in = self.feat_in(ids.long(), node_states_curr)
+                g.ndata['h'] = feats_in
+                graphs.append(g)
+            else:
+                empty_graphs.append(env_id)
+
         #print('----s')
         batch_graph = dgl.batch(graphs)
         #if len(graphs) > 1:
         #    pdb.set_trace()
         batch_graph = self.ggnn(batch_graph)
         graphs = dgl.unbatch(batch_graph)
+
         hs_list = []
         # pdb.set_trace()
-        for graph in graphs:
-            curr_graph = graph.ndata.pop('h').unsqueeze(0)
-            curr_nodes = curr_graph.shape[1]
-            curr_graph = F.pad(curr_graph, (0,0,0, self.num_nodes - curr_nodes), 'constant', 0.)
-            hs_list.append(curr_graph)
+        itergraph = 0
+        for index in range(num_envs):
+            if index in empty_graphs:
+                padded_graph = torch.zeros(1, self.num_nodes, self.out_dim)
+                if inputs['class_objects'].is_cuda:
+                    padded_graph = padded_graph.cuda()
+                hs_list.append(padded_graph)
+
+            else:
+                graph = graphs[itergraph]
+                curr_graph = graph.ndata.pop('h').unsqueeze(0)
+                curr_nodes = curr_graph.shape[1]
+                curr_graph = F.pad(curr_graph, (0,0,0, self.num_nodes - curr_nodes), 'constant', 0.)
+                hs_list.append(curr_graph)
+                itergraph += 1
+
         hs = torch.cat(hs_list, dim=0)
+
+        if did_reshape:
+            hs = hs.reshape([bs, ts]+list(hs.shape[1:]))
         return hs
 
 
