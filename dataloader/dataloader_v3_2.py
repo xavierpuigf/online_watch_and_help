@@ -1,25 +1,37 @@
 from torch.utils.data import Dataset
-from torch.utils.data.dataloader import default_collate
-import dgl
+import scipy
 import torch
 import ipdb
-
 import glob
 from tqdm import tqdm
 import pickle as pkl
 from utils import utils_rl_agent
 from arguments import *
+from agents import belief
 import yaml
 import torch.nn.functional as F
 import multiprocessing as mp
 import numpy as np
 
+def set_init_belief(id2node, label_agent, room_ids, container_ids):
+    label_agent_dict = {
+            4: 'spiked',
+            10: 'spiked2',
+            11: 'spiked3',
+            12: 'spiked4'
+    }
+    belief_type = label_agent_dict[label_agent]
+    init_values_container = belief.get_container_prior(id2node, belief_type, container_ids)
+    init_values_room = belief.get_rooms(id2node, belief_type, room_ids)
+    return init_values_container, init_values_room
+
 
 class AgentTypeDataset(Dataset):
-    def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False):
+    def __init__(self, path_init, args_config, split='train'):
         self.path_init = path_init
-        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'])
-        self.get_edges = args_config['model']['state_encoder'] == 'GNN'
+        self.graph_helper = utils_rl_agent.GraphHelper(
+                max_num_objects=args_config['model']['max_nodes'], 
+                include_touch=True)
         # Build the agent types
 
         with open(self.path_init, 'rb+') as f:
@@ -61,7 +73,6 @@ class AgentTypeDataset(Dataset):
         self.max_tsteps = args_config['model']['max_tsteps']
         self.max_actions = args_config['model']['max_actions']
         self.failed_items = mp.Array('i', len(self.pkl_files))
-        self.args_config = args_config
         
         print("Loading data...")
         print("Filename: {}. Episodes: {}. Objects: {}".format(path_init, len(self.pkl_files), len(self.graph_helper.object_dict)))
@@ -84,10 +95,10 @@ class AgentTypeDataset(Dataset):
         if self.overfit:
             index = 0
         file_name = self.pkl_files[index]
+        #print(file_name)
         seed_number = int(file_name.split('.')[-2]) 
         with open(file_name, 'rb') as f:
             content = pkl.load(f)
-
 
 
         ##############################
@@ -110,6 +121,12 @@ class AgentTypeDataset(Dataset):
         obj_pred_names, loc_pred_names = [], []
 
         id2node = {node['id']: node for node in content['graph'][0]['nodes']}
+        class2id = {}
+        for node in content['graph'][0]['nodes']:
+            if node['class_name'] not in class2id:
+                class2id[node['class_name']] = []
+            class2id[node['class_name']].append(node['id'])
+
         for predicate, info in content['goals'][0].items():
             count = info
             if count == 0:
@@ -117,13 +134,15 @@ class AgentTypeDataset(Dataset):
 
             # if not (predicate.startswith('on') or predicate.startswith('inside')):
             #     continue
-
             elements = predicate.split('_')
             obj_class_id = int(self.graph_helper.object_dict.get_id(elements[1]))
-            loc_class_id = int(self.graph_helper.object_dict.get_id(id2node[int(elements[2])]['class_name']))
+            if len(elements) < 3:
+                loc_class_id = 1
+            else:
+                loc_class_id = int(self.graph_helper.object_dict.get_id(id2node[int(elements[2])]['class_name']))
 
-            obj_pred_names.append(elements[1])
-            loc_pred_names.append(id2node[int(elements[2])]['class_name'])
+            #obj_pred_names.append(elements[1])
+            #loc_pred_names.append(id2node[int(elements[2])]['class_name'])
             for _ in range(count):
                 try:
                     target_obj_class[pre_id] = obj_class_id
@@ -132,6 +151,9 @@ class AgentTypeDataset(Dataset):
                     pre_id += 1
                 except:
                     pdb.set_trace()
+
+
+        #ipdb.set_trace()
 
         goal = {'target_loc_class': torch.tensor(target_loc_class), 
                 'target_obj_class': torch.tensor(target_obj_class), 
@@ -142,8 +164,6 @@ class AgentTypeDataset(Dataset):
         label_one_hot = torch.tensor(self.labels[index])
         # print(content.keys())
         attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
-        if self.get_edges:
-            attributes_include += ['edge_tuples', 'edge_classes', 'mask_edge']
         time_graph = {attr_name: [] for attr_name in attributes_include}
         # print(list(content.keys()))
 
@@ -162,7 +182,8 @@ class AgentTypeDataset(Dataset):
 
             if it >= self.max_tsteps:
                 break
-            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it])
+            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=True, obs_ids=content['obs'][it])
+            ipdb.set_trace()
 
             # class names
             for attribute_name in attributes_include:
@@ -208,13 +229,67 @@ class AgentTypeDataset(Dataset):
             'indobj2': [indexgraph2ind[-1]],
         }
 
+        # Get the belief at the first step
+        # We pick the last object since for now all of them have the same belief
+
+
+        obj_id =  class2id[elements[1]][0]
+
+        initial_belief = content['belief'][0][0][obj_id]['INSIDE']
+        initial_belief_room = content['belief_room'][0][0][obj_id]
+
+        # Define initial belief
+        room_ids = initial_belief_room[0]
+        container_ids = initial_belief[0]
+        initial_belief_values, initial_belief_room_values = set_init_belief(id2node, self.labels[index], room_ids, container_ids) 
+        initial_belief_room[1] = initial_belief_room_values
+        initial_belief[1] = initial_belief_values
+        #print(initial_belief_room_values)
+
+
+        sm_room = scipy.special.softmax(initial_belief_room[1])
+        sm_belief = scipy.special.softmax(initial_belief[1])
+        mask_belief_room, mask_belief_container = [0]*len(node_ids), [0]*len(node_ids)
+
+        belief_room, belief_container = [0]*len(node_ids), [0]*len(node_ids)
+        for it, ind in enumerate(initial_belief_room[0]):
+            try:
+                index_belief_ind = indexgraph2ind[ind]
+                mask_belief_room[index_belief_ind] = 1
+                belief_room[index_belief_ind] = sm_room[it]
+            except:
+                print("Error loading belief")
+
+        for it, ind in enumerate(initial_belief[0]):
+            if ind is None:
+                ind = -1
+            try:
+                index_belief_ind = indexgraph2ind[ind]
+                mask_belief_container[index_belief_ind] = 1
+                belief_container[index_belief_ind] = sm_belief[it]
+            except:
+                print("Error Loading belief")
+
+
+        ####
+        belief_info = {
+            'mask_belief_container': mask_belief_container,
+            'mask_belief_room': mask_belief_room,
+            'belief_room': belief_room,
+            'belief_container': belief_container,
+            'index': index
+        }
+
         # We start at 1 to skip the first instruction
         for it, instr in enumerate(program):
             
             # we want to add an ending action
             if it >= self.max_tsteps - 1:
                 break
-            instr_item = self.graph_helper.actionstr2index(instr)
+            try:
+                instr_item = self.graph_helper.actionstr2index(instr)
+            except:
+                ipdb.set_trace()
             program_batch['action'].append(instr_item[0])
             program_batch['obj1'].append(instr_item[1])
             program_batch['obj2'].append(instr_item[2])
@@ -233,6 +308,11 @@ class AgentTypeDataset(Dataset):
         program_batch['indobj2'].append(indexgraph2ind[-1])
 
         num_tsteps = len(program_batch['action']) - 1
+        
+        for key in belief_info.keys():
+            belief_info[key] = torch.tensor(belief_info[key]).float()
+
+
         for key in program_batch.keys():
             unpadded_tensor = torch.tensor(program_batch[key])
 
@@ -267,48 +347,44 @@ class AgentTypeDataset(Dataset):
 
         label_agent = seed_number + self.labels[index] * 5
         real_label = self.labels[index]
+        # ipdb.set_trace()
 
-        if self.args_config['model']['state_encoder'] == 'GNN' and build_graphs_in_loader:
+        # if use graphs
+        if args['model']['state_encoder'] == 'GNN':
             time_graph['graph'] = build_graph(time_graph)
-        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label
+
+        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, belief_info
+
 
 def build_graph(time_graph):
     graphs = []
-    tsteps = len(time_graph['mask_object'])
     for t in range(tsteps):
-        g = dgl.DGLGraph()
+        g = DGLGraph()
         num_nodes = time_graph['mask_object'][t].sum()
-        num_edges = int(time_graph['mask_edge'][t].sum())
-        edge_tuples = time_graph['edge_tuples'][t]
-        edge_classes = time_graph['edge_classes'][t]
+        num_edges = time_graph['mask_edge'][t].sum()
         g.add_nodes(num_nodes)
-        g.add_edges(edge_tuples[:num_edges, 0].long(), edge_tuples[:num_edges, 1].long(), 
-                {'rel_type': edge_classes[:num_edges]})
+        g.add_edges(edge_tuples[t, :num_edges, 0], edge_tuples[t, :num_edges, 1], edge_classes[:num_edges])
         graphs.append(g)
     return graphs
 
 def collate_fn(inputs):
-    new_inputs = []
-    for i in range(1, len(inputs[0])):
-        new_inputs.append(default_collate([inp[i] for inp in inputs]))
-    
-    first_inp = {}
-    for key in inputs[0][0].keys():
-        if key not in ['graph', 'edge_tuples', 'edge_classes', 'mask_edge']:
-            first_inp[key] = default_collate([inp[0][key] for inp in inputs])
+    for i in range(1, len(inputs)):
+        inputs[i] = default_collate(inputs[i])
 
-    #ipdb.set_trace()
-    graph_list = [inp[0]['graph'] for inp in inputs]
-    graph_list = [graph for graphs in graph_list for graph in graphs]
-    #print(type(graph_list[0]))
-    first_inp['graph'] = dgl.batch(graph_list)
-    new_inputs = [first_inp] + new_inputs
-    return new_inputs
+    for key in inputs[0].keys():
+        if key != 'graph':
+            inputs[0][key] = default_collate(inputs[0][key])
+
+    ipdb.set_trace()
+    inputs[0]['graph'] = dgl.batch(inputs[0]['graph'])
+    return inputs
+
 
 if __name__ == '__main__':
     arguments = get_args_pref_agent()
-    with open(arguments.config, 'r') as f:
+    config_file = 'config/agent_pref_v0/config_default_lowlr_belief.yaml'
+    with open(config_file, 'r') as f:
         config = yaml.load(f)
-    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_model_v0_train.pkl', args_config=config)
+    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_belief_v2_train.pkl', args_config=config)
     data = dataset[0]
-    # ipdb.set_trace()
+    ipdb.set_trace()

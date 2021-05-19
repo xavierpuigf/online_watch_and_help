@@ -39,11 +39,12 @@ class AgentTypeDataset(Dataset):
             agent_files = pkl.load(f)
             agent_files = agent_files
 
-        agent_type_max = max(agent_files.values())
+        agent_type_max = max([x[0] for x in agent_files.values()])
         
         # clean the agent folder
         pkl_files = []
         labels = []
+        other_files = []
         agent_labels = [
             # full/partial, mem high, mem low, open high, open low, spiked/uniform
             [1, 0, 0, 0, 0, 0],
@@ -61,14 +62,17 @@ class AgentTypeDataset(Dataset):
         else:
             agents_use = [int(x) for x in args_config['train']['agents'].split(',')]
 
-        for filename, label_agent in agent_files.items():
+        agents_use = [x for x in agents_use if x != 0]
+        for filename, [label_agent, otherfiles] in agent_files.items():
             if label_agent in agents_use:
                 pkl_files.append(filename)
                 labels.append(label_agent)
+                other_files.append(otherfiles)
 
 
         self.max_labels = agent_type_max+1 
         self.labels = labels
+        self.other_files = other_files
         self.pkl_files = pkl_files
         self.overfit = args_config['train']['overfit']
         self.max_tsteps = args_config['model']['max_tsteps']
@@ -84,6 +88,7 @@ class AgentTypeDataset(Dataset):
         return len(self.pkl_files)
 
     def failure(self, index):
+        # print("Fail", index)
         if index not in self.failed_items:
             self.failed_items[index] = 1
         return self.__getitem__(0)
@@ -92,32 +97,11 @@ class AgentTypeDataset(Dataset):
         cont = [item for item in self.failed_items]
         return sum(cont)
 
-    def __getitem__(self, index):
-        if self.overfit:
-            index = 0
-        file_name = self.pkl_files[index]
-        #print(file_name)
-        seed_number = int(file_name.split('.')[-2]) 
-        with open(file_name, 'rb') as f:
-            content = pkl.load(f)
-
-
-        ##############################
-        #### Inputs high level policy
-        ##############################
-        # Encode goal
-        if 'action' not in content:
-            print("FAil", self.pkl_files[index]) 
-            return self.failure(index)
-        
-
-
+    def process_content(self, content):
         goals = content['goals'][0]
-
         target_obj_class = [self.graph_helper.object_dict.get_id('no_obj')] * 6
         target_loc_class = [self.graph_helper.object_dict.get_id('no_obj')] * 6
         mask_goal_pred = [0.0] * 6
-
         pre_id = 0
         obj_pred_names, loc_pred_names = [], []
 
@@ -133,8 +117,6 @@ class AgentTypeDataset(Dataset):
             if count == 0:
                 continue
 
-            # if not (predicate.startswith('on') or predicate.startswith('inside')):
-            #     continue
             elements = predicate.split('_')
             obj_class_id = int(self.graph_helper.object_dict.get_id(elements[1]))
             if len(elements) < 3:
@@ -151,28 +133,20 @@ class AgentTypeDataset(Dataset):
                     mask_goal_pred[pre_id] = 1.0
                     pre_id += 1
                 except:
-                    pdb.set_trace()
+                    raise Exception
+        goal = {
+            'target_loc_class': torch.tensor(target_loc_class), 
+            'target_obj_class': torch.tensor(target_obj_class), 
+            'mask_goal_pred': torch.tensor(mask_goal_pred)
+        }
 
-
-        #ipdb.set_trace()
-
-        goal = {'target_loc_class': torch.tensor(target_loc_class), 
-                'target_obj_class': torch.tensor(target_obj_class), 
-                'mask_goal_pred': torch.tensor(mask_goal_pred)}
-
-
-
-        label_one_hot = torch.tensor(self.labels[index])
-        # print(content.keys())
         attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
         if self.get_edges:
             attributes_include += ['edge_tuples', 'edge_classes', 'mask_edge']
         time_graph = {attr_name: [] for attr_name in attributes_include}
         # print(list(content.keys()))
 
-        program = content['action'][0]
-        if len(program) == 0:
-            print(index)
+
 
 
         time_graph['mask_close'] = []
@@ -186,6 +160,8 @@ class AgentTypeDataset(Dataset):
             if it >= self.max_tsteps:
                 break
             graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=True, obs_ids=content['obs'][it])
+            prev_nodes = [node['id'] for node in graph['nodes']]
+            
             #ipdb.set_trace()
 
             # class names
@@ -217,11 +193,34 @@ class AgentTypeDataset(Dataset):
 
             time_graph['mask_close'].append(torch.tensor(mask_close))
             time_graph['mask_goal'].append(torch.tensor(mask_goal))
-            # ipdb.set_trace()
+                
+        num_tsteps = min(len(content['graph']), self.max_tsteps)
 
+        # print('TSTEPS', num_tsteps)
+        for attribute_name in time_graph.keys():
+            unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]][:num_tsteps]).float()
+            # Do padding
+            padding_amount = self.max_tsteps - num_tsteps
+            # if padding_amount < 0:
+            #     num_tsteps2 = len(content['action'][0])
+            #     print(num_tsteps, num_tsteps2)
+
+            # ipdb.set_trace()
+            padding = [0] * unpadded_tensor.dim() * 2
+            padding[-1] = padding_amount
+            tuple_pad = tuple(padding)
+            time_graph[attribute_name] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
+
+        return graph_info, time_graph, class2id, goal, id2node
+
+    def get_program_info(self, content, graph_info):
         # Match graph indices to index in the tensor
         node_ids = graph_info['node_ids']
         indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
+
+        program = content['action'][0]
+        if len(program) == 0:
+            print(index)
 
         # We will start with a No-OP action
         program_batch = {
@@ -231,11 +230,133 @@ class AgentTypeDataset(Dataset):
             'indobj1': [indexgraph2ind[-1]],
             'indobj2': [indexgraph2ind[-1]],
         }
+                # We start at 1 to skip the first instruction
+        for it, instr in enumerate(program):
+            
+            # we want to add an ending action
+            if it >= self.max_tsteps - 1:
+                break
+            instr_item = self.graph_helper.actionstr2index(instr)
+            program_batch['action'].append(instr_item[0])
+            program_batch['obj1'].append(instr_item[1])
+            program_batch['obj2'].append(instr_item[2])
+            try:
+                program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
+                program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+            except:
+                # print("erorr in ", instr)
+                raise Exception
+        program_batch['action'].append(self.max_actions - 1)
+        program_batch['obj1'].append(-1)
+        program_batch['obj2'].append(-1)
+        program_batch['indobj1'].append(indexgraph2ind[-1])
+        program_batch['indobj2'].append(indexgraph2ind[-1])
+        
 
-        # Get the belief at the first step
-        # We pick the last object since for now all of them have the same belief
+        num_tsteps = min(len(program_batch['action']) - 1, self.max_tsteps)
+        # print('TSTEP2S', num_tsteps)
+
+        length_mask = torch.zeros(self.max_tsteps)
+        length_mask[:num_tsteps] = 1.
+
+        for key in program_batch.keys():
+            unpadded_tensor = torch.tensor(program_batch[key])
+
+            # The program has an extra step
+            padding_amount = self.max_tsteps - num_tsteps
+            padding = [0] * unpadded_tensor.dim() * 2
+            padding[-1] = padding_amount
+            tuple_pad = tuple(padding)
+            program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
+            #print(program_batch[key].shape)
+
+        return program_batch, length_mask, indexgraph2ind
 
 
+    def __getitem__(self, index):
+        if self.overfit:
+            index = 0
+        file_name = self.pkl_files[index]
+        file_names = self.other_files[index] 
+        # print(len(file_names))
+        #print(file_name)
+        seed_number = int(file_name.split('.')[-2]) 
+        with open(file_names[0], 'rb') as f:
+            content = pkl.load(f)
+
+        other_content = []
+        for it in range(1, len(file_names)):
+            with open(file_names[it], 'rb') as f:
+                other_content.append(pkl.load(f))
+
+        # print("Loaded")
+        ##############################
+        #### Inputs high level policy
+        ##############################
+        # Encode goal
+        if 'action' not in content:
+            print("FAil", self.pkl_files[index]) 
+            return self.failure(index)
+        
+
+        # try:
+        # print("Lod1")
+        try:
+
+            graph_info, time_graph, class2id, goal, id2node = self.process_content(content)
+            program_batch, length_mask, indexgraph2ind = self.get_program_info(content, graph_info)
+        # print("CONTE")
+        except:
+
+            return self.failure(index)
+        other_data = {
+            'time_graph': [],
+            'program_batch': [],
+            'length_mask': [],
+            'goal': [],
+        }
+
+        for itc, ct in enumerate(other_content):
+            try:
+                graph_info_o, time_graph_o, _, goal_o, _ = self.process_content(ct)
+                program_batch_o, length_mask_o, _ = self.get_program_info(ct, graph_info_o)
+            except:
+
+                return self.failure(index)
+            other_data['time_graph'].append(time_graph_o)
+            other_data['program_batch'].append(program_batch_o)
+            other_data['length_mask'].append(length_mask_o)
+            other_data['goal'].append(goal_o)
+
+        # Merge data from the episodes
+        goal_data_batch = {}
+        program_data_batch = {}
+        time_graph_batch = {}
+        for goalk in goal.keys():
+            goal_data_batch[goalk] = torch.cat([g[goalk].unsqueeze(0) for g in other_data['goal']])
+            # print(goalk, goal_data_batch[goalk].shape)
+
+        for progk in program_batch.keys():
+            program_data_batch[progk] = torch.cat([g[progk].unsqueeze(0) for g in other_data['program_batch']])
+            # print(progk, program_data_batch[progk].shape)
+
+        for graphk in time_graph.keys():
+            time_graph_batch[graphk] = torch.cat([g[graphk].unsqueeze(0) for g in other_data['time_graph']])
+            # print(graphk, time_graph_batch[graphk].shape)
+
+        # ipdb.set_trace()
+        other_data['time_graph'] = time_graph_batch
+        other_data['goal'] = goal_data_batch
+        other_data['program_batch'] = program_data_batch
+        other_data['length_mask'] = torch.cat([lm.unsqueeze(0) for lm in other_data['length_mask']])
+
+        label_one_hot = torch.tensor(self.labels[index])
+        
+
+        #############
+        # Get Belief
+        ############
+        elements = list(content['goals'][0].keys())[0].split('_')
         obj_id =  class2id[elements[1]][0]
 
         initial_belief = content['belief'][0][0][obj_id]['INSIDE']
@@ -249,7 +370,7 @@ class AgentTypeDataset(Dataset):
         initial_belief[1] = initial_belief_values
         #print(initial_belief_room_values)
 
-
+        node_ids = graph_info['node_ids']
         sm_room = scipy.special.softmax(initial_belief_room[1])
         sm_belief = scipy.special.softmax(initial_belief[1])
         mask_belief_room, mask_belief_container = [0]*len(node_ids), [0]*len(node_ids)
@@ -282,84 +403,24 @@ class AgentTypeDataset(Dataset):
             'belief_container': belief_container,
             'index': index
         }
-
-        # We start at 1 to skip the first instruction
-        for it, instr in enumerate(program):
-            
-            # we want to add an ending action
-            if it >= self.max_tsteps - 1:
-                break
-            try:
-                instr_item = self.graph_helper.actionstr2index(instr)
-            except:
-                ipdb.set_trace()
-            program_batch['action'].append(instr_item[0])
-            program_batch['obj1'].append(instr_item[1])
-            program_batch['obj2'].append(instr_item[2])
-            try:
-                program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
-                program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
-            except:
-                #print("Index", index, program, it)
-                #ipdb.set_trace()
-                return self.failure(index)
-
-        program_batch['action'].append(self.max_actions - 1)
-        program_batch['obj1'].append(-1)
-        program_batch['obj2'].append(-1)
-        program_batch['indobj1'].append(indexgraph2ind[-1])
-        program_batch['indobj2'].append(indexgraph2ind[-1])
-
-        num_tsteps = len(program_batch['action']) - 1
         
         for key in belief_info.keys():
             belief_info[key] = torch.tensor(belief_info[key]).float()
-
-
-        for key in program_batch.keys():
-            unpadded_tensor = torch.tensor(program_batch[key])
-
-            # The program has an extra step
-            padding_amount = self.max_tsteps - num_tsteps
-            padding = [0] * unpadded_tensor.dim() * 2
-            padding[-1] = padding_amount
-            tuple_pad = tuple(padding)
-            program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
-            # print(program_batch[key].shape, padding_amount, )
-
-
-        length_mask = torch.zeros(self.max_tsteps)
-        length_mask[:num_tsteps] = 1.
-
-        # Batch across time
-        for attribute_name in time_graph.keys():
-            unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
-            # Do padding
-            padding_amount = self.max_tsteps - num_tsteps
-            # ipdb.set_trace()
-            padding = [0] * unpadded_tensor.dim() * 2
-            padding[-1] = padding_amount
-            tuple_pad = tuple(padding)
-            time_graph[attribute_name] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
-            # if time_graph[attribute_name].shape[0] > self.max_tsteps:
-            #     print(self.max_tsteps, num_tsteps, len(content['graph']), unpadded_tensor.shape[0])
-        
-        # for attribute in program_graph.keys():
-        #     print(attribute, program_graph[attribute].shape)
-        # print('----')
+            # print(belief_info[key].shape)
 
 
 
         label_agent = seed_number + self.labels[index] * 5
         real_label = self.labels[index]
         # ipdb.set_trace()
-        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, belief_info
+        # print("ok", index)
+        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, belief_info, other_data
 
 if __name__ == '__main__':
     arguments = get_args_pref_agent()
     config_file = 'config/agent_pref_v0/config_default_lowlr_belief.yaml'
     with open(config_file, 'r') as f:
         config = yaml.load(f)
-    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_belief_v2_train.pkl', args_config=config)
+    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_belief_v2_paired_train.pkl', args_config=config)
     data = dataset[0]
-    ipdb.set_trace()
+    # ipdb.set_trace()

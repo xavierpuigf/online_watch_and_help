@@ -59,7 +59,7 @@ class GatedGraphConv(nn.Module):
             init.xavier_normal_(linear.weight, gain=gain)
             init.zeros_(linear.bias)
 
-    def forward(self, graph):
+    def forward(self, graph, feat):
         """Compute Gated Graph Convolution layer.
 
         Parameters
@@ -87,7 +87,7 @@ class GatedGraphConv(nn.Module):
         # feat = th.cat([feat, zero_pad], -1)
 
         for _ in range(self._n_steps):
-            feat = graph.ndata['h']
+            graph.ndata['h'] = feat
             # graph.ndata['h'] = feat
             for i in range(self._n_etypes):
                 eids = (graph.edata['rel_type'] == (i+1)).nonzero().view(-1)
@@ -99,8 +99,8 @@ class GatedGraphConv(nn.Module):
             graph.update_all(fn.copy_e('W_e*h', 'm'), fn.sum('m', 'a'))
             a = graph.ndata.pop('a') # (N, D)
             feat = self.gru(a, feat)
-            graph.ndata['h'] = feat
-        return graph
+            #graph.ndata['h'] = feat
+        return feat
 
 class RGCNLayer(nn.Module):
     def __init__(self, in_feat, out_feat, num_rels, num_bases=-1, bias=None,
@@ -218,7 +218,12 @@ class GraphModelGGNN(nn.Module):
         self.class_encoding = self.feat_in.class_encoding
 
     def forward(self, inputs):
-        keys = ['class_objects', 'states_objects', 'edge_tuples', 'edge_classes', 'mask_object', 'mask_edge']
+        if 'edge_tuples' in inputs.keys():
+            graph_built = False
+            keys = ['class_objects', 'states_objects', 'edge_tuples', 'edge_classes', 'mask_object', 'mask_edge']
+        else:
+            graph_built = True
+            keys = ['class_objects', 'states_objects', 'mask_object']
         new_inps = {}
         did_reshape = True
         # We assume we get a batc x time tensor
@@ -227,72 +232,90 @@ class GraphModelGGNN(nn.Module):
             dims = list(aux.shape)
             bs, ts = dims[:2]
             aux = aux.reshape([-1]+dims[2:])
-            new_inps[key] = torch.unbind(aux)
+            new_inps[key] = aux # torch.unbind(aux)
 
-        [all_class_names, node_states,
-         all_edge_ids, all_edge_types,
-         mask_nodes, mask_edges] = [new_inps[key] for key in keys]
+        if graph_built:
+            [all_class_names, node_states, mask_nodes] = [new_inps[key] for key in keys]
+        else:
+            # all_edge_ids, all_edge_types, 
+            [all_class_names, node_states, all_edge_ids, all_edge_types, mask_nodes, mask_edges] = [new_inps[key] for key in keys]
+
+        #print("NODES", mask_nodes.sum())
         num_envs = len(all_class_names)
         hs = []
         graphs = []
         #print('Graphs', num_envs)
         empty_graphs = []
-        for env_id in range(num_envs):
-            g = DGLGraph()
-            num_nodes = int(mask_nodes[env_id].sum().item())
-            num_edges = int(mask_edges[env_id].sum().item())
-            #print(num_edges)
-            ids = all_class_names[env_id][:num_nodes]
-            node_states_curr = node_states[env_id][:num_nodes]
+        
+        # Flatten all the nodes
+        dims_cn = list(all_class_names.shape)
+        dims_ns = list(node_states.shape)
+        all_class_names = all_class_names.reshape([-1] + dims_cn[2:])
+        node_states = node_states.reshape([-1] + dims_ns[2:])
+        mask_nodes_r = mask_nodes.reshape([-1]).bool()
+        feat_in_batch = self.feat_in(all_class_names[mask_nodes_r].long(), node_states[mask_nodes_r])
+
+        if not graph_built:
+            for env_id in range(num_envs):
+                g = DGLGraph()
+                num_nodes = int(mask_nodes[env_id].sum().item())
+                num_edges = int(mask_edges[env_id].sum().item())
 
 
-            if num_nodes > 0:
-                g.add_nodes(num_nodes)
-                # ipdb.set_trace()
-                if num_edges > 0:
-                    edge_types = all_edge_types[env_id][:num_edges].long()
-                    #try:
-                    g.add_edges(all_edge_ids[env_id][:num_edges, 0].long(),
-                                all_edge_ids[env_id][:num_edges, 1].long(),
-                                {'rel_type': edge_types})
-                                #     'norm': torch.ones((num_edges, 1)).to(edge_types.device)})
-                    #except:
-                    #    pdb.set_trace()
-                feats_in = self.feat_in(ids.long(), node_states_curr)
-                g.ndata['h'] = feats_in
-                graphs.append(g)
-            else:
-                empty_graphs.append(env_id)
+                if num_nodes > 0:
+                    g.add_nodes(num_nodes)
+                    # ipdb.set_trace()
+                    if num_edges > 0:
+                        edge_types = all_edge_types[env_id][:num_edges].long()
+                        #try:
+                        #ipdb.set_trace()
+                        g.add_edges(all_edge_ids[env_id][:num_edges, 0].long(),
+                                    all_edge_ids[env_id][:num_edges, 1].long(),
+                                    {'rel_type': edge_types})
+                                    #     'norm': torch.ones((num_edges, 1)).to(edge_types.device)})
+                    graphs.append(g)
+                else:
+                    empty_graphs.append(env_id)
 
-        #print('----s')
-        batch_graph = dgl.batch(graphs)
-        #if len(graphs) > 1:
-        #    pdb.set_trace()
-        batch_graph = self.ggnn(batch_graph)
-        graphs = dgl.unbatch(batch_graph)
+            #print('----s')
+            batch_graph = dgl.batch(graphs)
+        else:
+            batch_graph = inputs['graph']
+        feats_out = self.ggnn(batch_graph, feat_in_batch)
 
-        hs_list = []
-        # pdb.set_trace()
-        itergraph = 0
-        for index in range(num_envs):
-            if index in empty_graphs:
-                padded_graph = torch.zeros(1, self.num_nodes, self.out_dim)
-                if inputs['class_objects'].is_cuda:
-                    padded_graph = padded_graph.cuda()
-                hs_list.append(padded_graph)
+        feats_out_tensor = torch.zeros(all_class_names.shape[0], self.out_dim)
+        if inputs['class_objects'].is_cuda:
+            feats_out_tensor = feats_out_tensor.cuda()
+        feats_out_tensor[mask_nodes_r] = feats_out
+    
+        #hs = hs.reshape(bs, ts, sefl.num_nodes, self.out_dim)
+        feats_out_tensor = feats_out_tensor.reshape([bs, ts, self.num_nodes, -1])
+        hs = feats_out_tensor
+        #ipdb.set_trace()
+        #graphs = dgl.unbatch(batch_graph)
 
-            else:
-                graph = graphs[itergraph]
-                curr_graph = graph.ndata.pop('h').unsqueeze(0)
-                curr_nodes = curr_graph.shape[1]
-                curr_graph = F.pad(curr_graph, (0,0,0, self.num_nodes - curr_nodes), 'constant', 0.)
-                hs_list.append(curr_graph)
-                itergraph += 1
+        #hs_list = []
+        ## pdb.set_trace()
+        #itergraph = 0
+        #for index in range(num_envs):
+        #    if index in empty_graphs:
+        #        padded_graph = torch.zeros(1, self.num_nodes, self.out_dim)
+        #        if inputs['class_objects'].is_cuda:
+        #            padded_graph = padded_graph.cuda()
+        #        hs_list.append(padded_graph)
 
-        hs = torch.cat(hs_list, dim=0)
+        #    else:
+        #        graph = graphs[itergraph]
+        #        curr_graph = graph.ndata.pop('h').unsqueeze(0)
+        #        curr_nodes = curr_graph.shape[1]
+        #        curr_graph = F.pad(curr_graph, (0,0,0, self.num_nodes - curr_nodes), 'constant', 0.)
+        #        hs_list.append(curr_graph)
+        #        itergraph += 1
 
-        if did_reshape:
-            hs = hs.reshape([bs, ts]+list(hs.shape[1:]))
+        #hs = torch.cat(hs_list, dim=0)
+
+        #if did_reshape:
+        #    hs = hs.reshape([bs, ts]+list(hs.shape[1:]))
         return hs
 
 

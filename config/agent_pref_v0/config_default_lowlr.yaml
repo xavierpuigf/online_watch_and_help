@@ -5,10 +5,11 @@ data:
 log:
         print_every: 20
         print_long_every: 50
+        delete_prior_logs: False
 train:
         epochs: 500
         batch_size: 32
-        num_workers: 10
+        num_workers: 32
         lr: 0.0001
         overfit: False
         agents: 'all'
@@ -29,3 +30,4 @@ model:
         agent_embed: False
         num_agents: 100
         time_aggregate: 'LSTM' #
+        state_encoder: 'TF' # GNN

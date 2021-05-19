@@ -1,17 +1,19 @@
 import torch
+import json
 import time
 
+import torch.nn.functional as F
 import glob
 import yaml
+import scipy
 import pickle as pkl
 from tqdm import tqdm
 import ipdb
-from dataloader.dataloader_v2 import AgentTypeDataset
-from dataloader import dataloader_v2 as dataloader_v2
+from dataloader.dataloader_v3_paired import AgentTypeDataset
 from arguments import *
 from torch import nn
 import torch.optim as optim
-from models import agent_pref_policy
+from models import agent_pref_policy, agent_belief_inference
 import utils.utils_models as utils_models
 from utils.utils_models import AverageMeter, ProgressMeter, LoggerSteps
 
@@ -28,7 +30,7 @@ def unmerge(tensor, firstdim):
     dim = list(tensor.shape)
     return tensor.reshape([firstdim, -1] + dim[1:])
 
-def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logger):
+def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logger, save_folder=None):
     model.eval()
 
     batch_time = AverageMeter('Time', ':6.3f')
@@ -39,6 +41,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
     losses_o2 = AverageMeter('LossO2', ':.4e')
     losses_goal = AverageMeter('LossGoal', ':.4e')
     losses_close = AverageMeter('LossClose', ':.4e')
+    losses_kl_container = AverageMeter('LossKLContainer', ':.4e')
+    losses_kl_room = AverageMeter('LossKLRoom', ':.4e')
 
     ### Performance metrics
     acc_action = AverageMeter('AccAction', ':6.2f')
@@ -67,22 +71,25 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
 
     progress = ProgressMeter(
             len(data_loader),
-            [batch_time, data_time, losses, losses_action, losses_o1, losses_o2, acc_action, acc_o1, acc_o2],
+            [batch_time, data_time, losses, losses_action, losses_o1, losses_o2, acc_action, acc_o1, acc_o2,
+                losses_kl_room, losses_kl_container],
         prefix="Epoch: [{}]".format(epoch))
     
     end = time.time()
+    infos = []
     for it, data_item in enumerate(data_loader):
         if it < args['test']['num_iters']:
             data_time.update(time.time() - end)
 
 
-            graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
+            graph_info, program, label, len_mask, goal, label_agent, real_label_agent, belief_info = data_item
             inputs = {
                 'program': program,
                 'graph': graph_info,
                 'mask_len': len_mask,
                 'goal': goal,
-                'label_agent': label_agent
+                'label_agent': label_agent,
+                'belief_info': belief_info
 
             }
             # ipdb.set_trace()
@@ -90,6 +97,10 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                 output = model(inputs)
             action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
             pred_goal, pred_close = output['pred_goal'], output['pred_close']
+
+
+            pred_belief_container = output['belief_logit']
+            pred_belief_room = output['belief_logit_room']
 
             bs = action_l.shape[0]
 
@@ -108,9 +119,24 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                 graph_info['mask_goal'] = graph_info['mask_goal'].cuda()
                 graph_info['mask_close'] = graph_info['mask_close'].cuda()
                 graph_info['mask_object'] = graph_info['mask_object'].cuda()
+                belief_info['mask_belief_room'] = belief_info['mask_belief_room'].cuda()
+                belief_info['mask_belief_container'] = belief_info['mask_belief_container'].cuda()
+                belief_info['belief_room'] = belief_info['belief_room'].cuda()
+                belief_info['belief_container'] = belief_info['belief_container'].cuda()
 
+            ### Compute Losses ###
+            # Loss belief #
             # ipdb.set_trace()
-            # ipdb.set_trace()
+            kl_div = torch.nn.KLDivLoss()
+
+            gt_belief_room = belief_info['belief_room']
+            gt_belief = belief_info['belief_container']
+
+            loss_belief_room = kl_div(F.log_softmax(pred_belief_room, 1), gt_belief_room)
+            loss_belief_container = kl_div(F.log_softmax(pred_belief_container, 1), gt_belief)
+            ###############
+
+
             loss_action = unmerge(criterion(merge2d(action_l), merge2d(label_action)), bs)
             loss_object1 = unmerge(criterion(merge2d(o1_l), merge2d(index_label_obj1)), bs)
             loss_object2 = unmerge(criterion(merge2d(o2_l), merge2d(index_label_obj2)), bs)
@@ -131,7 +157,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             loss_close = args['train']['loss_close'] * ((loss_close * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
 
 
-            loss = loss_action + loss_object1 + loss_object2 + loss_goal + loss_close
+            #loss = loss_action + loss_object1 + loss_object2 + loss_goal + loss_close
+            loss = loss_belief_container + loss_belief_room
 
             # Update losses
             losses.update(loss.item())
@@ -140,6 +167,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             losses_o2.update(loss_object2.item())
             losses_goal.update(loss_goal.item())
             losses_close.update(loss_close.item())
+            losses_kl_container.update(loss_belief_container.item())
+            losses_kl_room.update(loss_belief_room.item())
 
             # Update accuracy
             pred_action = action_l.argmax(-1)
@@ -217,14 +246,83 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
         info_res = {
             'str': progress.display(it, do_print=False)+'\n'+str_results
         }
-        logger.log_info(info_res)
+        if logger is not None:
+            logger.log_info(info_res)
+
+        if save_folder is not None:
+            for cind in range(bs):
+                cindex = int(belief_info['index'][cind].item())
+
+                folder_name = data_loader.dataset.pkl_files[cindex]
+                itbs = cind
+                names_nodes = graph_info['class_objects'][itbs, 0, :]
+                mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+                mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
+                names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
+                names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
+                names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
+                names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
+                gt_belief_r = gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy()
+                gt_belief_c = gt_belief[itbs, :][mask_belief_it].cpu().numpy()
+                pred_belief_r = scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy())
+                pred_belief_c = scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy())
+                info = {
+                        'index': cindex,
+                        'filename': data_loader.dataset.pkl_files[cindex],
+                        'pred_belief_room': pred_belief_r.tolist(),
+                        'pred_belief_container': pred_belief_c.tolist(),
+                        'gt_belief_room': gt_belief_r.tolist(),
+                        'gt_belief_container': gt_belief_c.tolist(),
+                        'names_belief_room': names_belief_room,
+                        'names_belief_container': names_belief_container
+                }
+                infos.append(info)
+
+    if len(infos) > 0:
+        infos = {'data': args['data']['test_data'], 'info': infos}
+        print(f"Saving results in {save_folder}")
+        with open(f'{save_folder}/results.json', 'w+') as f:
+            f.write(json.dumps(infos))
+
+    names_belief_room_all, names_belief_container_all = [], []
+    pred_belief_room_all, pred_belief_container_all = [], []
+    gt_belief_room_all, gt_belief_container_all = [], []
+    for itbs in range(bs):
+        names_nodes = graph_info['class_objects'][itbs, 0, :]
+        mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+        mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
+        names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
+        names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
+        names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
+        names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
+        names_belief_container_all.append(names_belief_container)
+        names_belief_room_all.append(names_belief_room)
+        gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
+        gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
+
+        pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
+        pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+        #ipdb.set_trace()
 
     info_log = {
-        'losses': {'total_val': losses.avg, 'action_val': losses_action.avg, 'object1_val': losses_o1.avg, 'object2_val': losses_o2.avg},
+        'plots': {
+            'name': 'belief_val',
+            'pred_belief_room': pred_belief_room_all,
+            'gt_belief_room': gt_belief_room_all,
+            'pred_belief_container': pred_belief_container_all,
+            'gt_belief_container': gt_belief_container_all,
+            'names_belief_room': names_belief_room_all,
+            'names_belief_container': names_belief_container_all
+            },
+        'losses': {
+            'total_val': losses.avg, 'action_val': losses_action.avg, 'object1_val': losses_o1.avg, 'object2_val': losses_o2.avg,
+            'kl_container_val': losses_kl_container.avg, 'kl_room_val': losses_kl_room.avg,
+            },
         'accuracy': {'action_val': acc_action.avg, 'object1_val': acc_o1.avg, 'object2_val': acc_o2.avg,  'goal_val':  acc_goal.avg, 'close_val': acc_close.avg, 'goal_recall_val': rec_goal.avg, 'close_recall_val': rec_close.avg}
         # 'misc': {'epoch': }
     }
-    logger.log_data(len(data_loader_train) * epoch, info_log)
+    if logger is not None:
+        logger.log_data(len(data_loader_train) * epoch, info_log)
 
     info_log2 = {}
     for agent_id in meter_dict.keys():
@@ -241,8 +339,9 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                     'close_recall_val': meter_dict[agent_id]['rec_close'].val 
                 },
             }
-
-    logger.log_data2(it + len(data_loader) * epoch, info_log2)
+    
+    if logger is not None:
+        logger.log_data2(it + len(data_loader) * epoch, info_log2)
 
 
 def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
@@ -255,6 +354,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     losses_o2 = AverageMeter('LossO2', ':.4e')
     losses_goal = AverageMeter('LossGoal', ':.4e')
     losses_close = AverageMeter('LossClose', ':.4e')
+    losses_kl_container = AverageMeter('LossKLContainer', ':.4e')
+    losses_kl_room = AverageMeter('LossKLRoom', ':.4e')
     
 
     acc_action = AverageMeter('AccAction', ':6.2f')
@@ -267,7 +368,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     
     progress = ProgressMeter(
             len(data_loader),
-            [batch_time, data_time, losses, losses_action, losses_o1, losses_o2, acc_action, acc_o1, acc_o2],
+            [batch_time, data_time, losses, losses_action, losses_o1, losses_o2, acc_action, acc_o1, acc_o2,
+             losses_kl_room, losses_kl_container],
         prefix="Epoch: [{}]".format(epoch))
 
     model.train()
@@ -289,20 +391,25 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     for it, data_item in enumerate(data_loader):
         data_time.update(time.time() - end)
 
-        graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
-        #ipdb.set_trace()
+        graph_info, program, label, len_mask, goal, label_agent, real_label_agent, belief_info, other_info = data_item
+        #print(real_label_agent)
+        # ipdb.set_trace()
+        
         inputs = {
             'program': program,
             'graph': graph_info,
             'mask_len': len_mask,
             'goal': goal,
-            'label_agent': label_agent
+            'label_agent': label_agent,
+            'belief_info': belief_info
+
         }
-        # ipdb.set_trace()
-        print(inputs['graph']['graph'], inputs['graph']['mask_object'].sum())
-        output = model(inputs)
+
+        output = model(inputs, other_info)
         action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
         pred_goal, pred_close = output['pred_goal'], output['pred_close']
+        pred_belief_room = output['belief_logit_room']
+        pred_belief_container = output['belief_logit']
 
         bs = action_l.shape[0]
 
@@ -321,6 +428,20 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             graph_info['mask_goal'] = graph_info['mask_goal'].cuda()
             graph_info['mask_close'] = graph_info['mask_close'].cuda()
             graph_info['mask_object'] = graph_info['mask_object'].cuda()
+            belief_info['mask_belief_room'] = belief_info['mask_belief_room'].cuda()
+            belief_info['mask_belief_container'] = belief_info['mask_belief_container'].cuda()
+            belief_info['belief_room'] = belief_info['belief_room'].cuda()
+            belief_info['belief_container'] = belief_info['belief_container'].cuda()
+
+        ### Compute Losses ###
+        # Loss belief #
+        kl_div = torch.nn.KLDivLoss()
+        gt_belief_room = belief_info['belief_room']
+        gt_belief = belief_info['belief_container']
+        loss_belief_room = kl_div(F.log_softmax(pred_belief_room, 1), gt_belief_room)
+        loss_belief_container = kl_div(F.log_softmax(pred_belief_container, 1), gt_belief)
+
+        ###############
 
         # ipdb.set_trace()
         # ipdb.set_trace()
@@ -342,7 +463,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         loss_goal = args['train']['loss_goal'] * ((loss_goal * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
         loss_close = args['train']['loss_close'] * ((loss_close * mask_node_avg).sum(-1) * len_mask_avg).sum(1).mean(0)
 
-        loss = loss_action + loss_object1 + loss_object2 + loss_goal + loss_close
+        #loss = loss_action + loss_object1 + loss_object2 + loss_goal + loss_close
+        loss = loss_belief_container + loss_belief_room
         # ipdb.set_trace()
         # Update losses
         losses.update(loss.item())
@@ -351,6 +473,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         losses_o2.update(loss_object2.item())
         losses_goal.update(loss_goal.item())
         losses_close.update(loss_close.item())
+        losses_kl_container.update(loss_belief_container.item())
+        losses_kl_room.update(loss_belief_room.item())
 
         # Update accuracy
         pred_action = action_l.argmax(-1)
@@ -425,12 +549,48 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         if it % args['log']['print_every'] == 0:
             progress.display(it)
         if it % args['log']['print_long_every'] == 0:
-        
+            
+            # Obtain the names of the nodes we will account for
+            names_belief_room_all, names_belief_container_all = [], []
+            pred_belief_room_all, pred_belief_container_all = [], []
+            gt_belief_room_all, gt_belief_container_all = [], []
+            for itbs in range(bs):
+                names_nodes = graph_info['class_objects'][itbs, 0, :]
+                mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+                mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
+                names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
+                names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
+                names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
+                names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
+                names_belief_container_all.append(names_belief_container)
+                names_belief_room_all.append(names_belief_room)
+                gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
+                gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
+
+                pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
+                pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+                #ipdb.set_trace()
+
+
             info_log = {
-                'losses': {'total': losses.val, 'action': losses_action.val, 'object1': losses_o1.val, 'object2': losses_o2.val},
+                'plots': {
+                    'name': 'belief',
+                    'pred_belief_room': pred_belief_room_all,
+                    'gt_belief_room': gt_belief_room_all,
+                    'pred_belief_container': pred_belief_container_all,
+                    'gt_belief_container': gt_belief_container_all,
+                    'names_belief_room': names_belief_room_all,
+                    'names_belief_container': names_belief_container_all
+                    },
+                'losses': {
+                    'total': losses.val, 'action': losses_action.val, 
+                    'object1': losses_o1.val, 'object2': losses_o2.val,
+                    'kl_container': losses_kl_container.val, 'kl_room': losses_kl_room.val,
+                    },
                 'accuracy': {'action': acc_action.val, 'object1': acc_o1.val, 'object2': acc_o2.val,  'goal':  acc_goal.val, 'close': acc_close.val, 'goal_recall': rec_goal.val, 'close_recall': rec_close.val },
                 'misc': {'epoch': epoch}
             }
+            #ipdb.set_trace()
             logger.log_data(it + len(data_loader) * epoch, info_log)
             info_log2 = {}
             for agent_id in meter_dict.keys():
@@ -438,6 +598,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
                 if meter_dict[agent_id]['count'] > 0:
                     info_log2[agent_id] = {
                         'accuracy': {
+
                             'action': meter_dict[agent_id]['acc_action'].val, 
                             'object1': meter_dict[agent_id]['acc_o1'].val, 
                             'object2': meter_dict[agent_id]['acc_o2'].val,  
@@ -459,28 +620,26 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
                 'str': progress.display(it, do_print=False)+'\n'+str_results
             }
             logger.log_info(info_res)
-
-    logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
+    
+    # logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
     print("Failed Elements...", data_loader.dataset.get_failures())
 
 
 def get_loaders(args):
     dataset = AgentTypeDataset(path_init='../dataset/{}'.format(args['data']['train_data']), args_config=args)
     dataset_test = AgentTypeDataset(path_init='../dataset/{}'.format(args['data']['test_data']), args_config=args)
-    if args['model']['state_encoder'] == 'GNN':
-        collate_fn = dataloader_v2.collate_fn
     train_loader = torch.utils.data.DataLoader(
             dataset, batch_size=args['train']['batch_size'], 
-            shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True, collate_fn=collate_fn)
+            shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True)
 
     test_loader = torch.utils.data.DataLoader(
             dataset_test, batch_size=args['train']['batch_size'], 
-            shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True, collate_fn=collate_fn)
+            shuffle=not args['eval'], num_workers=args['train']['num_workers'], pin_memory=True)
     return train_loader, test_loader
 
 
 
-@hydra.main(config_path="../config/agent_pref_v0/config_default_lowlr.yaml")
+@hydra.main(config_path="../config/agent_pref_v0/config_default_lowlr_belief.yaml")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
@@ -489,27 +648,40 @@ def main(cfg: DictConfig):
 
     train_loader, test_loader = get_loaders(config)
     if config.model.gated:
-        model = agent_pref_policy.ActionGatedPredNetwork(config)
+        model = agent_belief_inference.ActionGatedPredNetwork(config)
     else:
-        model = agent_pref_policy.ActionPredNetwork(config)
+        model = agent_belief_inference.ActionPredNetwork(config)
 
+    model = agent_belief_inference.ModelAggregate(model, config)
     print("CUDA: {}".format(cfg.cuda))
     if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
     criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
+
+
+    if len(config['ckpt']) > 0:
+        print("Loading from {}".format(config['ckpt']))
+        ckpt = torch.load(config['ckpt'])
+        model.load_state_dict(ckpt['model'])
+        optimizer.load_state_dict(ckpt['optimizer'])
     print("Failures: ", train_loader.dataset.get_failures())
+    
+    if not config['eval']:
+        logger = LoggerSteps(config)
 
-    logger = LoggerSteps(config)
+        logger.save_model(0, model, optimizer)
 
-    logger.save_model(0, model, optimizer)
+        for epoch in range(config['train']['epochs']):
+            train_epoch(train_loader, model, epoch, config, criterion, optimizer, logger)
+            evaluate(test_loader, train_loader, model, epoch, config, criterion, logger)
+            if epoch % 10 == 0:
+                logger.save_model(epoch, model, optimizer)
+    else:
+        epoch = 0
+        evaluate(test_loader, train_loader, model, epoch, config, criterion, None, save_folder=config['save_folder'])
 
-    for epoch in range(config['train']['epochs']):
-        train_epoch(train_loader, model, epoch, config, criterion, optimizer, logger)
-        evaluate(test_loader, train_loader, model, epoch, config, criterion, logger)
-        if epoch % 10 == 0:
-            logger.save_model(epoch, model, optimizer)
 
 
 if __name__ == '__main__':

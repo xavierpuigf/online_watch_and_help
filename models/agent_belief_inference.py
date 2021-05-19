@@ -4,6 +4,47 @@ import torch.nn.functional as F
 import torch.nn as nn
 import ipdb
 
+class ModelAggregate(nn.Module):
+    def __init__(self, model, args):
+        super(ModelAggregate, self).__init__()
+        self.model_single_ep = model
+
+    def forward(self, inputs, other_inputs):
+        # first, we platten the episodes
+        other_episode_inputs = {}
+        other_inputs_tg_flatten = {}
+        other_inputs_program_flatten = {}
+
+
+        other_episode_inputs['graph'] = {}
+        other_episode_inputs['program'] = {}
+        other_episode_inputs['goal'] = {}
+
+        for key in other_inputs['time_graph']:
+            dims = list(other_inputs['time_graph'][key].shape)
+            bs, neps = dims[:2]
+            other_episode_inputs['graph'][key] = torch.reshape(other_inputs['time_graph'][key], [-1]+dims[2:])
+
+        for key in other_inputs['program_batch']:
+            dims = list(other_inputs['program_batch'][key].shape)
+            other_episode_inputs['program'][key] = torch.reshape(other_inputs['program_batch'][key], [-1]+dims[2:])
+
+        for key in other_inputs['goal']:
+            dims = list(other_inputs['goal'][key].shape)
+            other_episode_inputs['goal'][key] = torch.reshape(other_inputs['goal'][key], [-1]+dims[2:])
+
+
+        dims = list(other_inputs['length_mask'].shape)
+        other_episode_inputs['mask_len'] = torch.reshape(other_inputs['length_mask'], [-1]+dims[2:])
+
+        # ipdb.set_trace()
+
+        outputs_eps = self.model_single_ep(other_episode_inputs, compute_belief=False)
+        laststep = other_episode_inputs['mask_len'].sum(dim=-1).long() - 1
+        outputs_eps = torch.gather(outputs_eps, 1, laststep[:, None, None].repeat(1, 1, outputs_eps.shape[-1]))[:, 0, :]
+        output_eps = outputs_eps.reshape([bs, neps, -1]).mean(1)
+        return self.model_single_ep(inputs, context_feat=output_eps)
+
 class ActionGatedPredNetwork(nn.Module):
 
     def mlp2l(self, dim_in, dim_out):
@@ -24,7 +65,11 @@ class ActionGatedPredNetwork(nn.Module):
                 'num_classes': self.max_num_classes,
                 'num_states': self.num_states,
         }
-        self.graph_encoder = base_nets.TransformerBase(**args_tf)
+        if args['state_encoder'] == 'TF':
+            self.graph_encoder = base_nets.TransformerBase(**args_tf)
+        elif args['state_encoder'] == 'GNN':
+            self.graph_encoder = base_nets.GNNBase(**args_tf)
+        #self.graph_encoder = base_nets.TransformerBase(**args_tf)
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
 
 
@@ -47,8 +92,12 @@ class ActionGatedPredNetwork(nn.Module):
         
         if args['time_aggregate'] == 'LSTM':
             self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
+            self.RNN2 = nn.LSTM(self.hidden_size*2, self.hidden_size, self.num_layer_lstm, batch_first=True)
         elif args['time_aggregate'] == 'none':
             self.COMBTime = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+                                       nn.ReLU(),
+                                       nn.Linear(self.hidden_size, self.hidden_size))
+            self.COMBTime2 = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size),
                                        nn.ReLU(),
                                        nn.Linear(self.hidden_size, self.hidden_size))
 
@@ -74,7 +123,7 @@ class ActionGatedPredNetwork(nn.Module):
         if args['goal_inp']:
             self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
 
-    def forward(self, inputs, cond=None):
+    def forward(self, inputs, cond=None, compute_belief=True, context_feat=None):
         # Cond is an embedding of the past, optionally used
 
         program = inputs['program']
@@ -90,6 +139,9 @@ class ActionGatedPredNetwork(nn.Module):
         dims = list(node_embeddings.shape)
         action_embed = self.action_embedding(program['action'])
         
+
+        #print(program['action'].shape, node_embeddings.shape)
+        #ipdb.set_trace()
         assert torch.all(inputs['graph']['node_ids'][:,0,0] == 1).item()
         
 
@@ -135,9 +187,24 @@ class ActionGatedPredNetwork(nn.Module):
 
         # Input a combination of previous actions and graph 
         if self.time_aggregate == 'LSTM':
-            graph_output, (h_t, c_t) = self.RNN(input_embed)
+            tstep, nnodes = list(input_embed.shape)[1:3]
+            if context_feat is None:
+                graph_output, (h_t, c_t) = self.RNN(input_embed)
+            else:
+                context_feat = context_feat[:, None, :].repeat(1, tstep, 1)
+                input_embed = torch.cat([input_embed, context_feat], -1)
+                graph_output, (h_t, c_t) = self.RNN2(input_embed)
+
         elif self.time_aggregate == 'none':
-            graph_output = self.COMBTime(input_embed)
+            if context_Feat is None:
+                graph_output = self.COMBTime(input_embed)
+            else:
+                context_feat = context_feat[:, None, :].repeat(1, tstep, 1)
+                input_embed = torch.cat([input_embed, context_feat], -1)
+                graph_output = self.COMBTime2(input_embed)
+
+        if not compute_belief:
+            return graph_output
 
         # skip the last graph
 
@@ -150,7 +217,7 @@ class ActionGatedPredNetwork(nn.Module):
         graphs_at_output = node_embeddings
         graphs_at_output_gate1 =  goal_mask_object1[:, None, None, :] * graphs_at_output
         graphs_at_output_gate2 = goal_mask_object2[:, None, None, :] * graphs_at_output
-
+        
         output_and_lstm1 = torch.cat([graph_output_nodes, graphs_at_output_gate1], -1)
         output_and_lstm2 = torch.cat([graph_output_nodes, graphs_at_output_gate2], -1)
 
@@ -163,8 +230,12 @@ class ActionGatedPredNetwork(nn.Module):
 
         # Belief prediction
         # Only interested in the last step belief
-        belief_logit = self.belief_pred(output_and_lstm2).squeeze(-1)[:, -1, :]
-        belief_logit_room = self.belief_pred_rooms(output_and_lstm2).squeeze(-1)[:, -1, :]
+        laststep = mask_len.sum(dim=-1).long() - 1
+        laststep = laststep[:, None, None]
+        # outputs_eps = torch.gather(outputs_eps, 1, laststep[:, None, None].repeat(1, 1, outputs_eps.shape[-1]))
+        
+        belief_logit = torch.gather(self.belief_pred(output_and_lstm2).squeeze(-1), 1, laststep)[:, 0, :]
+        belief_logit_room = torch.gather(self.belief_pred_rooms(output_and_lstm2).squeeze(-1), 1, laststep)[:, 0, :]
 
 
         pred_close = self.pred_close_net(graphs_at_output).squeeze(-1)
@@ -286,6 +357,7 @@ class ActionPredNetwork(nn.Module):
         ipdb.set_trace()
         # Input a combination of previous actions and graph 
         graph_output, (h_t, c_t) = self.RNN(input_embed)
+        
 
         # skip the last graph
 

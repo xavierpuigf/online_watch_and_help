@@ -293,8 +293,8 @@ class GraphHelper():
             pdb.set_trace()
 
         mask_edges = np.zeros(max_edges)
-        all_edge_ids = np.zeros((max_edges, 2))
-        all_edge_types = np.zeros((max_edges))
+        all_edge_ids = np.zeros((max_edges, 2)).astype(np.int32)
+        all_edge_types = np.zeros((max_edges)).astype(np.int32)
 
         mask_nodes = np.zeros((max_nodes))
         close_nodes = np.zeros((max_nodes))

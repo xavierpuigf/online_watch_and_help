@@ -1,7 +1,10 @@
 cuda: True
+eval: False
+ckpt: ""
+save_folder: ""
 data:
-        train_data: 'dataset_agent_belief_v0_train.pkl'
-        test_data: 'dataset_agent_belief_v0_test.pkl'
+        train_data: 'dataset_agent_belief_v2_train.pkl'
+        test_data: 'dataset_agent_belief_v2_test.pkl'
 log:
         print_every: 20
         print_long_every: 50
@@ -18,6 +21,7 @@ train:
 test:
         num_iters: 20
 model:
+        multi_episode: False
         max_nodes: 150
         max_class_objects: 37
         max_actions: 11
@@ -29,4 +33,5 @@ model:
         gated: False
         agent_embed: False
         num_agents: 100
+        state_encoder: 'TF'
         time_aggregate: 'LSTM' #
