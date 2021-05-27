@@ -82,7 +82,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             data_time.update(time.time() - end)
 
 
-            graph_info, program, label, len_mask, goal, label_agent, real_label_agent, belief_info = data_item
+            graph_info, program, label, len_mask, goal, label_agent, real_label_agent, belief_info, other_info = data_item
             inputs = {
                 'program': program,
                 'graph': graph_info,
@@ -94,7 +94,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             }
             # ipdb.set_trace()
             with torch.no_grad():
-                output = model(inputs)
+                output = model(inputs, other_info)
             action_l, o1_l, o2_l = output['action_logits'], output['o1_logits'], output['o2_logits']
             pred_goal, pred_close = output['pred_goal'], output['pred_close']
 

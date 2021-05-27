@@ -22,6 +22,8 @@ test:
         num_iters: 20
 model:
         multi_episode: False
+        nroomsbelief: 4
+        ncontbelief: 8
         max_nodes: 150
         max_class_objects: 37
         max_actions: 11
@@ -35,3 +37,5 @@ model:
         num_agents: 100
         state_encoder: 'TF'
         time_aggregate: 'LSTM' #
+        categorical_belief: False
+

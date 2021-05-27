@@ -34,13 +34,14 @@ if __name__ == '__main__':
     args = get_args()
     num_proc = 10
 
-    num_tries = 1
+    num_tries = 3
+    #num_tries = 1
     args.executable_file = '../path_sim_dev/linux_exec.x86_64'
     args.max_episode_length = 150
     args.num_per_apartment = 20
     
-    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
-    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
+    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
 
     # Beliefs
     # spiked: object is in cabinet
@@ -66,7 +67,7 @@ if __name__ == '__main__':
     random_start = random.Random()
     agent_types_index = list(range(9))
     #agent_types_index =  [0, 3, 4, 10, 12, 13, 14]
-    agent_types_index =  [4, 10, 11, 12]
+    agent_types_index =  [0]
     #agent_types_index = [15]
     random_start.shuffle(agent_types_index)
     if args.agenttype != 'all':
@@ -115,8 +116,8 @@ if __name__ == '__main__':
 
         env_task_set = [env_task_set[idi] for idi in range(len(env_task_set)) if idi not in to_delete]
 
-        args.record_dir = '../data_scratch/large_data_touch/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data_scratch/large_data_touch/logging/{}_{}'.format(datafile, args.mode)
+        args.record_dir = '../data_scratch/large_data_touch_v2/{}/{}'.format(datafile, args.mode)
+        error_dir = '../data_scratch/large_data_touch_v2/logging/{}_{}'.format(datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -175,7 +176,6 @@ if __name__ == '__main__':
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
         
         # episode_ids = [20] #episode_ids
-        num_tries = 1
         episode_ids = episode_ids
 
         for iter_id in range(num_tries):

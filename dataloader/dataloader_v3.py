@@ -25,6 +25,17 @@ def set_init_belief(id2node, label_agent, room_ids, container_ids):
     init_values_room = belief.get_rooms(id2node, belief_type, room_ids)
     return init_values_container, init_values_room
 
+def set_init_belief_category(label_agent):
+    label_agent_dict = {
+            4: 'spiked',
+            10: 'spiked2',
+            11: 'spiked3',
+            12: 'spiked4'
+    }
+    belief_type = label_agent_dict[label_agent]
+    init_values_container = belief.get_container_prior_category(belief_type)
+    init_values_room = belief.get_rooms_category(belief_type)
+    return init_values_container, init_values_room
 
 class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args_config, split='train'):
@@ -74,6 +85,7 @@ class AgentTypeDataset(Dataset):
         self.max_tsteps = args_config['model']['max_tsteps']
         self.max_actions = args_config['model']['max_actions']
         self.failed_items = mp.Array('i', len(self.pkl_files))
+        self.config = args_config
         
         print("Loading data...")
         print("Filename: {}. Episodes: {}. Objects: {}".format(path_init, len(self.pkl_files), len(self.graph_helper.object_dict)))
@@ -244,44 +256,57 @@ class AgentTypeDataset(Dataset):
         # Define initial belief
         room_ids = initial_belief_room[0]
         container_ids = initial_belief[0]
-        initial_belief_values, initial_belief_room_values = set_init_belief(id2node, self.labels[index], room_ids, container_ids) 
-        initial_belief_room[1] = initial_belief_room_values
-        initial_belief[1] = initial_belief_values
-        #print(initial_belief_room_values)
+
+        # The belief is over object instances in the environment
+        if not self.config['model']['categorical_belief']:
+            initial_belief_values, initial_belief_room_values = set_init_belief(id2node, self.labels[index], room_ids, container_ids) 
+            initial_belief_room[1] = initial_belief_room_values
+            initial_belief[1] = initial_belief_values
+            #print(initial_belief_room_values)
 
 
-        sm_room = scipy.special.softmax(initial_belief_room[1])
-        sm_belief = scipy.special.softmax(initial_belief[1])
-        mask_belief_room, mask_belief_container = [0]*len(node_ids), [0]*len(node_ids)
+            sm_room = scipy.special.softmax(initial_belief_room[1])
+            sm_belief = scipy.special.softmax(initial_belief[1])
+            mask_belief_room, mask_belief_container = [0]*len(node_ids), [0]*len(node_ids)
 
-        belief_room, belief_container = [0]*len(node_ids), [0]*len(node_ids)
-        for it, ind in enumerate(initial_belief_room[0]):
-            try:
-                index_belief_ind = indexgraph2ind[ind]
-                mask_belief_room[index_belief_ind] = 1
-                belief_room[index_belief_ind] = sm_room[it]
-            except:
-                print("Error loading belief")
+            belief_room, belief_container = [0]*len(node_ids), [0]*len(node_ids)
+            for it, ind in enumerate(initial_belief_room[0]):
+                try:
+                    index_belief_ind = indexgraph2ind[ind]
+                    mask_belief_room[index_belief_ind] = 1
+                    belief_room[index_belief_ind] = sm_room[it]
+                except:
+                    print("Error loading belief")
 
-        for it, ind in enumerate(initial_belief[0]):
-            if ind is None:
-                ind = -1
-            try:
-                index_belief_ind = indexgraph2ind[ind]
-                mask_belief_container[index_belief_ind] = 1
-                belief_container[index_belief_ind] = sm_belief[it]
-            except:
-                print("Error Loading belief")
+            for it, ind in enumerate(initial_belief[0]):
+                if ind is None:
+                    ind = -1
+                try:
+                    index_belief_ind = indexgraph2ind[ind]
+                    mask_belief_container[index_belief_ind] = 1
+                    belief_container[index_belief_ind] = sm_belief[it]
+                except:
+                    print("Error Loading belief")
+            ####
+            belief_info = {
+                'mask_belief_container': mask_belief_container,
+                'mask_belief_room': mask_belief_room,
+                'belief_room': belief_room,
+                'belief_container': belief_container,
+                'index': index
+            }
+        else:
+            initial_belief_values_names, initial_belief_room_values_names = set_init_belief_category(self.labels[index])
+            belief_room_names, belief_room_values = initial_belief_room_values_names
+            belief_container_names, belief_container_values = initial_belief_values_names
+            belief_info = {
+                'belief_room_names': [self.graph_helper.object_dict.get_id(rn) for rn in belief_room_names],
+                'belief_container_names': [self.graph_helper.object_dict.get_id(rn) for rn in belief_container_names],   
+                'belief_room': scipy.special.softmax(belief_room_values),
+                'belief_container': scipy.special.softmax(belief_container_values),
+                'index': index
+            }
 
-
-        ####
-        belief_info = {
-            'mask_belief_container': mask_belief_container,
-            'mask_belief_room': mask_belief_room,
-            'belief_room': belief_room,
-            'belief_container': belief_container,
-            'index': index
-        }
 
         # We start at 1 to skip the first instruction
         for it, instr in enumerate(program):

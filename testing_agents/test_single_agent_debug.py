@@ -40,7 +40,8 @@ if __name__ == '__main__':
     args.num_per_apartment = 20
     
     #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
 
     # Beliefs
     # spiked: object is in cabinet
@@ -69,7 +70,7 @@ if __name__ == '__main__':
     if args.agenttype != 'all':
         agent_types_index = [int(x) for x in args.agenttype.split(',')]
     
-    agent_types_index = [0]
+    agent_types_index = [10]
     for agent_id in agent_types_index: #len(agent_types)):
         if agent_id in [4]:
             continue
@@ -101,7 +102,7 @@ if __name__ == '__main__':
                 goal_pred_new = 'touch_' + goal_pred.split('_')[1]
                 new_dict_goal[goal_pred_new] = numpred
             env['task_goal'][0] = new_dict_goal
-            ipdb.set_trace()
+            #ipdb.set_trace()
             init_gr = env['init_graph']
             gbg_can = [node['id'] for node in init_gr['nodes'] if node['class_name'] in ['garbagecan', 'clothespile']]
             init_gr['nodes'] = [node for node in init_gr['nodes'] if node['id'] not in gbg_can]
@@ -120,8 +121,8 @@ if __name__ == '__main__':
 
         executable_args = {
                         'file_name': args.executable_file,
-                        'x_display': args.display,
-                        'no_graphics': not args.saveimg
+                        'x_display': None,
+                        'no_graphics': True
         }
 
         id_run = 0
@@ -137,7 +138,7 @@ if __name__ == '__main__':
         test_results = {}
         #episode_ids = [episode_ids[0]]
         #episode_ids = [185]
-        episode_ids = [331]
+        episode_ids = [9]
 
         
         file_failures = 'failures_{}.txt'.format(args.base_port)

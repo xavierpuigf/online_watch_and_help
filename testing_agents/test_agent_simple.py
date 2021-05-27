@@ -105,7 +105,7 @@ def simulate_agent(agent_args, episode_id, executable_file='../path_sim_dev/linu
     obs = arena.env.get_observations()
     actions = []
     while not done:
-        
+        # print([node['id'] for node in obs[0]['nodes']])
         action_space = arena.env.get_action_space()
         dict_actions, dict_info = arena.get_actions(obs, action_space)
         plan = dict_info[0]['plan']
@@ -130,7 +130,8 @@ if __name__ == '__main__':
     args.num_per_apartment = 20
     
     #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks_single.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    #args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
 
     # Change a bit the environment, moving a fork to a good position
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -170,11 +171,17 @@ if __name__ == '__main__':
             ['partial', -500, 0.01, False, 0.01, "spiked"], # 6
             ['partial', -500, 0.05, False, 0.2, "uniform"], # 7
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
-            ['cone', 0, 0.05, False, 0, "uniform"], # 0
+            ['cone', 0, 0.05, False, 0, "uniform"], # 9
+            ['partial', 0, 0.05, False, 0, "spiked2"], # 10 High prior for not inside
+            ['partial', 0, 0.05, False, 0, "spiked3"], # 11 For sure not in bathroom
+            ['partial', 0, 0.05, False, 0, "spiked4"], # 12 All things kithcen
+            ['partial', 0, 0.05, False, 0.1, "spiked"], # 13
+            ['partial', 0, 0.05, False, 0.1, "spiked2"], # 14
+            ['partial', 0, 0.00, False, 0.1, "spiked2"] # 15
     ]
     names = ['obs_type', 'open_cost', 'walk_cost', 'should_close', 'forget_rate', 'belief_type']
     agent_args = {}
-    type_id = 0
+    type_id = 10
     for idi, name in enumerate(names):
         agent_args[name] = agent_types[type_id][idi]
 
@@ -187,7 +194,7 @@ if __name__ == '__main__':
             executable_file=args.executable_file, 
             max_episode_length=args.max_episode_length, 
             base_port=args.base_port)
-    sim_agent(agent_args=agent_args, episode_id=425)
+    sim_agent(agent_args=agent_args, episode_id=9)
 
     #pdb.set_trace()
 

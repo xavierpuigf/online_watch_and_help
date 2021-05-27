@@ -92,6 +92,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                 'belief_info': belief_info
 
             }
+
             # ipdb.set_trace()
             with torch.no_grad():
                 output = model(inputs)
@@ -119,10 +120,12 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                 graph_info['mask_goal'] = graph_info['mask_goal'].cuda()
                 graph_info['mask_close'] = graph_info['mask_close'].cuda()
                 graph_info['mask_object'] = graph_info['mask_object'].cuda()
-                belief_info['mask_belief_room'] = belief_info['mask_belief_room'].cuda()
-                belief_info['mask_belief_container'] = belief_info['mask_belief_container'].cuda()
-                belief_info['belief_room'] = belief_info['belief_room'].cuda()
-                belief_info['belief_container'] = belief_info['belief_container'].cuda()
+                for bi in belief_info.keys():
+                    belief_info[bi] = belief_info[bi].cuda()
+                # belief_info['mask_belief_room'] = belief_info['mask_belief_room'].cuda()
+                # belief_info['mask_belief_container'] = belief_info['mask_belief_container'].cuda()
+                # belief_info['belief_room'] = belief_info['belief_room'].cuda()
+                # belief_info['belief_container'] = belief_info['belief_container'].cuda()
 
             ### Compute Losses ###
             # Loss belief #
@@ -288,20 +291,31 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
     pred_belief_room_all, pred_belief_container_all = [], []
     gt_belief_room_all, gt_belief_container_all = [], []
     for itbs in range(bs):
-        names_nodes = graph_info['class_objects'][itbs, 0, :]
-        mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
-        mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
-        names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
-        names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
-        names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
-        names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
-        names_belief_container_all.append(names_belief_container)
-        names_belief_room_all.append(names_belief_room)
-        gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
-        gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
+        if 'mask_belief_room' in belief_info:
+            names_nodes = graph_info['class_objects'][itbs, 0, :]
+            mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+            mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
+            names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
+            names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
+            names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
+            names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
+            names_belief_container_all.append(names_belief_container)
+            names_belief_room_all.append(names_belief_room)
+            gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
+            gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
 
-        pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
-        pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+            pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
+            pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+        else:
+            names_belief_room = list(belief_info['belief_container_names'][itbs, :].cpu().int().numpy())
+            names_belief_container = list(belief_info['belief_room_names'][itbs, :].cpu().int().numpy())
+            names_belief_container_all.append([data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container])
+            names_belief_room_all.append([data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room])
+            pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :].detach().cpu().numpy()))
+            pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :].detach().cpu().numpy()))
+            gt_belief_room_all.append(scipy.special.softmax(gt_belief_room[itbs, :].detach().cpu().numpy()))
+            gt_belief_container_all.append(scipy.special.softmax(gt_belief[itbs, :].detach().cpu().numpy()))
+
         #ipdb.set_trace()
 
     info_log = {
@@ -424,10 +438,12 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             graph_info['mask_goal'] = graph_info['mask_goal'].cuda()
             graph_info['mask_close'] = graph_info['mask_close'].cuda()
             graph_info['mask_object'] = graph_info['mask_object'].cuda()
-            belief_info['mask_belief_room'] = belief_info['mask_belief_room'].cuda()
-            belief_info['mask_belief_container'] = belief_info['mask_belief_container'].cuda()
-            belief_info['belief_room'] = belief_info['belief_room'].cuda()
-            belief_info['belief_container'] = belief_info['belief_container'].cuda()
+            for bi in belief_info.keys():
+                belief_info[bi] = belief_info[bi].cuda()
+            # belief_info['mask_belief_room'] = belief_info['mask_belief_room'].cuda()
+            # belief_info['mask_belief_container'] = belief_info['mask_belief_container'].cuda()
+            # belief_info['belief_room'] = belief_info['belief_room'].cuda()
+            # belief_info['belief_container'] = belief_info['belief_container'].cuda()
 
         ### Compute Losses ###
         # Loss belief #
@@ -436,7 +452,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         gt_belief = belief_info['belief_container']
         loss_belief_room = kl_div(F.log_softmax(pred_belief_room, 1), gt_belief_room)
         loss_belief_container = kl_div(F.log_softmax(pred_belief_container, 1), gt_belief)
-
+        # ipdb.set_trace()
         ###############
 
         # ipdb.set_trace()
@@ -551,20 +567,30 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             pred_belief_room_all, pred_belief_container_all = [], []
             gt_belief_room_all, gt_belief_container_all = [], []
             for itbs in range(bs):
-                names_nodes = graph_info['class_objects'][itbs, 0, :]
-                mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
-                mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
-                names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
-                names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
-                names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
-                names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
-                names_belief_container_all.append(names_belief_container)
-                names_belief_room_all.append(names_belief_room)
-                gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
-                gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
+                if 'mask_belief_room' in belief_info:
+                    names_nodes = graph_info['class_objects'][itbs, 0, :]
+                    mask_belief_room_it = belief_info['mask_belief_room'][itbs, :].bool()
+                    mask_belief_it = belief_info['mask_belief_container'][itbs, :].bool() 
+                    names_belief_room = list(names_nodes[mask_belief_room_it].cpu().int().numpy())
+                    names_belief_room = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room]
+                    names_belief_container = list(names_nodes[mask_belief_it].cpu().int().numpy())
+                    names_belief_container = [data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container]
+                    names_belief_container_all.append(names_belief_container)
+                    names_belief_room_all.append(names_belief_room)
+                    gt_belief_room_all.append(gt_belief_room[itbs, :][mask_belief_room_it].cpu().numpy())
+                    gt_belief_container_all.append(gt_belief[itbs, :][mask_belief_it].cpu().numpy())
 
-                pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
-                pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+                    pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :][mask_belief_room_it].detach().cpu().numpy()))
+                    pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :][mask_belief_it].detach().cpu().numpy()))
+                else:
+                    names_belief_room = list(belief_info['belief_container_names'][itbs, :].cpu().int().numpy())
+                    names_belief_container = list(belief_info['belief_room_names'][itbs, :].cpu().int().numpy())
+                    names_belief_container_all.append([data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_container])
+                    names_belief_room_all.append([data_loader.dataset.graph_helper.object_dict.get_el(ite) for ite in names_belief_room])
+                    pred_belief_room_all.append(scipy.special.softmax(pred_belief_room[itbs, :].detach().cpu().numpy()))
+                    pred_belief_container_all.append(scipy.special.softmax(pred_belief_container[itbs, :].detach().cpu().numpy()))
+                    gt_belief_room_all.append(scipy.special.softmax(gt_belief_room[itbs, :].detach().cpu().numpy()))
+                    gt_belief_container_all.append(scipy.special.softmax(gt_belief[itbs, :].detach().cpu().numpy()))
                 #ipdb.set_trace()
 
 

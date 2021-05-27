@@ -59,6 +59,7 @@ class ActionGatedPredNetwork(nn.Module):
         self.max_num_classes = args['max_class_objects']
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
+        self.categorical_belief = args['categorical_belief']
         args_tf = {
                 'hidden_size': self.hidden_size,
                 'max_nodes': self.max_nodes,
@@ -106,9 +107,15 @@ class ActionGatedPredNetwork(nn.Module):
         self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
         self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
         self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-        self.belief_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-        self.belief_pred_rooms = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
 
+        if not self.categorical_belief:
+            self.belief_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+            self.belief_pred_rooms = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+        else:
+            self.num_containers =  args['ncontbelief']
+            self.num_rooms = args['nroomsbelief']
+            self.belief_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.num_containers))
+            self.belief_pred_rooms = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.num_rooms))
 
         self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
                                    nn.ReLU(),
@@ -232,10 +239,7 @@ class ActionGatedPredNetwork(nn.Module):
         # Only interested in the last step belief
         laststep = mask_len.sum(dim=-1).long() - 1
         laststep = laststep[:, None, None]
-        # outputs_eps = torch.gather(outputs_eps, 1, laststep[:, None, None].repeat(1, 1, outputs_eps.shape[-1]))
-        
-        belief_logit = torch.gather(self.belief_pred(output_and_lstm2).squeeze(-1), 1, laststep)[:, 0, :]
-        belief_logit_room = torch.gather(self.belief_pred_rooms(output_and_lstm2).squeeze(-1), 1, laststep)[:, 0, :]
+
 
 
         pred_close = self.pred_close_net(graphs_at_output).squeeze(-1)
@@ -250,13 +254,29 @@ class ActionGatedPredNetwork(nn.Module):
 
 
         # Mask out belief logit
-        mask_b = inputs['belief_info']['mask_belief_container']
-        mask_b_room =  inputs['belief_info']['mask_belief_room']
-        belief_logit = belief_logit * mask_b + (1 - mask_b) * -1e9
-        belief_logit_room = belief_logit_room * mask_b_room + (1 - mask_b_room) * -1e9
-
-        return {'action_logits': action_logits, 'o1_logits': obj1_logit, 'o2_logits': obj2_logit, 'pred_goal': pred_goal, 'pred_close': pred_close,
-                'belief_logit': belief_logit, 'belief_logit_room': belief_logit_room}
+        if not self.categorical_belief:
+            belief_logit = torch.gather(self.belief_pred(output_and_lstm2).squeeze(-1), 1, laststep)[:, 0, :]
+            belief_logit_room = torch.gather(self.belief_pred_rooms(output_and_lstm2).squeeze(-1), 1, laststep)[:, 0, :]
+            mask_b = inputs['belief_info']['mask_belief_container']
+            mask_b_room =  inputs['belief_info']['mask_belief_room']
+            belief_logit = belief_logit * mask_b + (1 - mask_b) * -1e9
+            belief_logit_room = belief_logit_room * mask_b_room + (1 - mask_b_room) * -1e9
+        else:
+            graph_output_laststep = torch.gather(graph_output, 1, laststep.repeat(1, 1, self.hidden_size))
+            belief_logit = self.belief_pred(graph_output_laststep).squeeze(1)
+            belief_logit_room = self.belief_pred_rooms(graph_output_laststep).squeeze(1)
+            # ipdb.set_trace()
+        res = {
+            'action_logits': action_logits, 
+            'o1_logits': obj1_logit, 
+            'o2_logits': obj2_logit, 
+            'pred_goal': pred_goal, 
+            'pred_close': pred_close,
+            'belief_logit': belief_logit, 
+            'belief_logit_room': belief_logit_room
+        }
+            
+        return res
         
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)  
         # loss_o1 = None

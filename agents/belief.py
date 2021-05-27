@@ -11,6 +11,26 @@ import json
 import copy
 from termcolor import colored
 
+def get_rooms_category(belief_type):
+    room_names = ['kitchen', 'bedroom', 'bathroom', 'livingroom']
+    if belief_type == 'uniform':
+        room_array = np.ones(len(room_names))
+    elif belief_type == 'spiked':
+
+        room_array = np.log([0.8, 0.1, 0.1, 0.1])
+    elif belief_type == 'spiked2':
+        room_array = np.ones(len(room_names))
+    elif belief_type == 'spiked3':
+        raise Exception
+    elif belief_type == 'spiked4':
+
+        room_array = np.log([0.8, 0.1, 0.1, 0.1])
+
+    else:
+        raise Exception
+
+    return room_names, room_array
+
 def get_rooms(id2node, belief_type, room_ids):
 
     if belief_type == 'uniform':
@@ -46,6 +66,35 @@ def get_rooms(id2node, belief_type, room_ids):
         raise Exception
 
     return room_array
+
+
+def get_container_prior_category(belief_type):
+    container_names = [
+        'none',
+        'bathroomcabinet',
+        'kitchencabinet',
+        'cabinet',
+        'fridge',
+        'stove',
+        'dishwasher',
+        'microwave']
+    
+    if belief_type == 'uniform':
+        init_values = np.ones(len(container_names))/len(container_names)
+    elif belief_type == 'spiked':
+        # This belief is that the object is either in the cabinet or in the bathroom
+        init_values = np.log([0.025, 0.025, 0.025, 0.8, 0.025, 0.025, 0.025, 0.025])
+    elif belief_type == 'spiked2':
+        init_values = np.log([0.99, 0.00125, 0.00125, 0.00125, 0.00125, 0.00125, 0.00125, 0.00125])
+    elif belief_type == 'spiked3':
+        raise Exception
+    elif belief_type == 'spiked4':
+        init_values = np.log([0.02, 0.02, 0.3, 0.02, 0.3, 0.3, 0.02, 0.02])
+        
+    else:
+        raise Exception
+    return  container_names, init_values
+
 
 def get_container_prior(id2node, belief_type, container_ids):
     if belief_type == 'uniform':
