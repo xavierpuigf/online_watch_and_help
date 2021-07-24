@@ -277,7 +277,7 @@ class MCTS_particles_v2:
         # If the goal is to put something inside something
 
         if len(plan) == 0 and sum([x for x in curr_state[-1].values()]) > 0:
-            # ipdb.set_trace()
+            ipdb.set_trace()
             raise Exception
         # print(plan)
         # if len([x for x in plan if 'grab' in x]) > 1:
@@ -783,7 +783,6 @@ class MCTS_particles_v2:
         subgoals = self.get_subgoal_space(curr_state, satisfied, unsatisfied_aux, self.opponent_subgoal)
         subgoals += subgoals_hand
 
-
         if len(subgoals) == 0:
             return None, []
 
@@ -932,6 +931,7 @@ class MCTS_particles_v2:
                 opponent_predicate_2 = '{}_{}_{}'.format('on' if elements[0] == 'put' else 'inside', elements[1], elements[2])
 
         subgoal_space, obsed_subgoal_space, overlapped_subgoal_space = [], [], []
+        # ipdb.set_trace()
         for predicate, count in unsatisfied.items():
             obj_grabbed = False
             if count > 1 or count > 0 and predicate not in [opponent_predicate_1, opponent_predicate_2]:

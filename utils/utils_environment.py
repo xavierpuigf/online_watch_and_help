@@ -204,4 +204,5 @@ def check_progress(state, goal_spec):
                     predicate = '{}_{}_{}'.format(elements[0], id_touch, 1)
                     satisfied[key].append(predicate)
                     unsatisfied[key] -= 1
+    # ipdb.set_trace()
     return satisfied, unsatisfied

@@ -208,7 +208,6 @@ class UnityEnvironment(BaseUnityEnvironment):
             if self.recording_options['recording']:
                 success, message = self.comm.render_script(script_list,
                                                            recording=True,
-                                                           gen_vid=False,
                                                            skip_animation=False,
                                                            camera_mode=self.recording_options['cameras'],
                                                            file_name_prefix='task_{}'.format(self.task_id),
@@ -223,7 +222,6 @@ class UnityEnvironment(BaseUnityEnvironment):
                     success, message = self.comm.render_script(script_list,
                                                                recording=False,
                                                                image_synthesis=[],
-                                                               gen_vid=False,
                                                                skip_animation=True)
             if not success:
                 print("NO SUCCESS")

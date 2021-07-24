@@ -1,4 +1,15 @@
 {
+
+    "setup_table_toy_2": 
+    {   
+        "plate": {"min_num":1, "max_num":2, "env_max_num": 3},
+        "waterglass": {"min_num":1, "max_num":2, "env_max_num": 3}
+    },
+    "setup_table_toy_1": 
+    {   
+        "cupcake": {"min_num":1, "max_num":2, "env_max_num": 3},
+        "apple": {"min_num":1, "max_num":2, "env_max_num": 3}
+    },
     "setup_table": 
     {   
         "plate": {"min_num":0, "max_num":2, "env_max_num": 2},

@@ -73,7 +73,7 @@ class ArenaMP(object):
 
             else:
                 goal_spec = self.env.get_goal(self.task_goal[it], self.env.agent_goals[it])
-            
+            # ipdb.set_trace()
             if agent.agent_type in ['MCTS', 'Random']:
                 opponent_subgoal = None
                 if agent.recursive:

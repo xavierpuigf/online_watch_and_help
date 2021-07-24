@@ -10,10 +10,7 @@ import copy
 import argparse
 
 
-home_path = '../../'
-sys.path.append(home_path + '/virtualhome')
-
-from simulation.unity_simulator import comm_unity
+curr_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 class SetInitialGoal:
@@ -45,8 +42,8 @@ class SetInitialGoal:
 
     def set_goal(self):
 
-        if self.task_name in ['setup_table', 'clean_table', 'put_dishwasher', 'unload_dishwasher', 'put_fridge',
-                              'read_book', 'prepare_food', 'watch_tv']:
+        if self.task_name in ['setup_table_toy', 'setup_table', 'clean_table', 'put_dishwasher', 'unload_dishwasher', 'put_fridge',
+                              'read_book', 'prepare_food', 'watch_tv', 'setup_table_toy_2', 'setup_table_toy_1']:
             self.init_pool = self.init_pool_tasks[self.task_name]
 
         elif self.task_name == 'setup_table_prepare_food':

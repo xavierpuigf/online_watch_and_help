@@ -31,9 +31,9 @@ if __name__ == '__main__':
     now = datetime.now() # current date and time
     dir_script = pathlib.Path(__file__).parent.absolute()
 
-    dataset_name = 'dataset_agent_belief_v2'
-    train_path = f'{dir_script}/../../data_scratch/large_data_touch_v2/train_env_task_set_20_full_reduced_tasks1to3/*v2_modeinfo'
-    test_path = f'{dir_script}/../../data_scratch/large_data_touch_v2/test_env_task_set_10_full_reduced_tasks1to3/*v2_modeinfo'
+    dataset_name = 'dataset_graph_pred_overfit'
+    train_path = f'{dir_script}/../dataset_episodes/small_data_toy/train_env_task_set_1_full/*'
+    test_path =  f'{dir_script}/../dataset_episodes/small_data_toy/train_env_task_set_1_full/*'
 
     dict_train = build_dataset(train_path)
     print("Building...")
@@ -42,10 +42,10 @@ if __name__ == '__main__':
     dataset_dict['train'] = dict_train
     dataset_dict['test'] = dict_test
     dataset_dict['generated'] = date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
-    #with open(f'{dir_script}/../../dataset/{dataset_name}_train.pkl', 'wb+') as f:
-    #    pkl.dump(dict_train, f)
+    with open(f'{dir_script}/../dataset/{dataset_name}_train.pkl', 'wb+') as f:
+       pkl.dump(dict_train, f)
 
-    #with open(f'{dir_script}/../../dataset/{dataset_name}_test.pkl', 'wb+') as f:
-    #    pkl.dump(dict_test, f)
+    with open(f'{dir_script}/../dataset/{dataset_name}_test.pkl', 'wb+') as f:
+       pkl.dump(dict_test, f)
 
     ipdb.set_trace()

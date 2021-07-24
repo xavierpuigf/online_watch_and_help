@@ -103,7 +103,7 @@ class GraphHelper():
         self.obj1_affordance = None
         self.get_action_affordance_map(current_task=current_task)
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        with open(f'{dir_path}/../dataset/object_info_small.json', 'r') as f:
+        with open(f'{dir_path}/../../dataset/object_info_small.json', 'r') as f:
             content = json.load(f)
         self.object_dict_types = content
 
