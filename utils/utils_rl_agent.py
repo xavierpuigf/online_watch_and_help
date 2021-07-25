@@ -103,7 +103,7 @@ class GraphHelper():
         self.obj1_affordance = None
         self.get_action_affordance_map(current_task=current_task)
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        with open(f'{dir_path}/../../dataset/object_info_small.json', 'r') as f:
+        with open(f'{dir_path}/../dataset/object_info_small.json', 'r') as f:
             content = json.load(f)
         self.object_dict_types = content
 
@@ -210,14 +210,16 @@ class GraphHelper():
 
     
     def one_hot(self, states):
+        # if len(states)  > 0:
+        #    pdb.set_trace()
         one_hot = np.zeros(len(self.state_dict) - 1)
         for state in states:
-            if self.state_dict.valid_el(state):
+            if self.state_dict.valid_el(state.lower()):
                 one_hot[self.state_dict.get_id(state) - 1] = 1
         return one_hot
 
     def build_graph(self, graph, character_id, ids=None,
-                          include_edges=False, plot_graph=False, action_space_ids=None, obs_ids=None, level=1):
+                          include_edges=False, plot_graph=False, action_space_ids=None, obs_ids=None, level=1, relative_coords=True):
         if ids is None:
             ids = [node['id'] for node in graph['nodes'] if self.object_dict.valid_el(node['class_name'])]
 
@@ -248,7 +250,12 @@ class GraphHelper():
         bbox_available = 'bounding_box' in nodes[0].keys() and nodes[0]['bounding_box'] is not None
         if bbox_available:
             char_coord = np.array(nodes[0]['bounding_box']['center'])
-            rel_coords = [np.array([0,0,0])[None, :] if 'bounding_box' not in node.keys() else (np.array(node['bounding_box']['center']) - char_coord)[None, :] for node in nodes]
+            if relative_coords:
+                rel_coords = [np.array([0,0,0])[None, :] if 'bounding_box' not in node.keys() else (np.array(node['bounding_box']['center']) - char_coord)[None, :] for node in nodes]
+            else:
+                rel_coords = [np.array([0,0,0])[None, :] if 'bounding_box' not in node.keys() else (np.array(node['bounding_box']['center']))[None, :] for node in nodes]
+            
+            # pdb.set_trace()
             # for node in nodes:
             #     if 'bounding_box' not in node:
             #         print(node['class_name'])
@@ -337,7 +344,7 @@ class GraphHelper():
             labeldict = None
             graph_viz = None
 
-
+        # pdb.set_trace()
         output = {
             'class_objects': all_class_names,
             'states_objects': all_node_states,

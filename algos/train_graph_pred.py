@@ -1,6 +1,6 @@
 import torch
 import time
-
+import os
 import glob
 import yaml
 import pickle as pkl
@@ -12,6 +12,8 @@ from arguments import *
 from torch import nn
 import torch.optim as optim
 from models import agent_pref_policy
+from hydra.utils import get_original_cwd, to_absolute_path
+
 import utils.utils_models as utils_models
 from utils.utils_models import AverageMeter, ProgressMeter, LoggerSteps
 
@@ -291,7 +293,9 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         data_time.update(time.time() - end)
 
         graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
-        #ipdb.set_trace()
+        utils_models.print_graph(data_loader.dataset.graph_helper, graph_info, 0, 0)
+
+        ipdb.set_trace()
         inputs = {
             'program': program,
             'graph': graph_info,
@@ -466,10 +470,16 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
 
 def get_loaders(args):
-    dataset = AgentTypeDataset(path_init='../dataset/{}'.format(args['data']['train_data']), args_config=args)
-    dataset_test = AgentTypeDataset(path_init='../dataset/{}'.format(args['data']['test_data']), args_config=args)
+    print("Loading dataset...")
+    print("Train: {}".format(args['data']['train_data']))
+    print("Test: {}".format(args['data']['test_data']))
+    curr_file = os.path.dirname(get_original_cwd())
+    dataset = AgentTypeDataset(path_init='{}/agent_preferences/dataset/{}'.format(curr_file, args['data']['train_data']), args_config=args)
+    dataset_test = AgentTypeDataset(path_init='{}/agent_preferences/dataset/{}'.format(curr_file, args['data']['test_data']), args_config=args)
     if args['model']['state_encoder'] == 'GNN':
         collate_fn = dataloader_v2.collate_fn
+    else:
+        collate_fn = None
     train_loader = torch.utils.data.DataLoader(
             dataset, batch_size=args['train']['batch_size'], 
             shuffle=True, num_workers=args['train']['num_workers'], pin_memory=True, collate_fn=collate_fn)
@@ -481,7 +491,7 @@ def get_loaders(args):
 
 
 
-@hydra.main(config_path="../config/agent_pred_graph/config_default.yaml")
+@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")

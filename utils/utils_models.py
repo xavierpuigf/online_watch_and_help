@@ -19,6 +19,74 @@ import matplotlib.pyplot as plt
 from .utils_plot import Plotter
 plt.switch_backend('agg')
 
+def print_graph(graph_helper, graph, batch_item, step):
+    mask_object = int(graph['mask_object'][batch_item, step].sum())
+    object_names = graph['class_objects'][batch_item, step]
+    object_states = graph['states_objects'][batch_item, step]
+    object_coords = graph['object_coords'][batch_item, step]
+    # ipdb.set_trace()
+    node_ids = graph['node_ids'][batch_item, step]
+    # ipdb.set_trace()
+    print("Graph")
+    print("==========")
+    print("Nodes:")
+    obj_names = []
+    for nid in range(mask_object):
+
+        state_names = [graph_helper.states[it] for it in range(4) if int(object_states[nid][it]) == 1]
+        state_names = ' '.join(state_names)
+        class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
+        idi = int(node_ids[nid])
+        coords = list(object_coords[nid][:3])      
+        coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
+        obj_name_complete = f"{class_name}.{idi}"
+        obj_name_complete += ' '*(20 - len(obj_name_complete))
+        obj_names.append(obj_name_complete)
+
+
+        print(f"{obj_name_complete} ({coords_str}). {state_names}")
+    print('\nEdges')
+    # Only store on and inside edges
+    inside_of = {}
+    id_inside = graph_helper.relation_dict.get_id('inside')
+    id_on = graph_helper.relation_dict.get_id('on')
+    inside = graph['edge_tuples'][batch_item, step][graph['edge_classes'][batch_item, step] == id_inside]
+    inside_from, inside_to = inside[:, 0], inside[:, 1]
+    on = graph['edge_tuples'][batch_item, step][graph['edge_classes'][batch_item, step] == id_on]
+    on_from, on_to = on[:, 0], on[:, 1]
+
+    on = {}
+    inside_of = {}
+    for elem_from, elem_to in zip(inside_from.tolist(), inside_to.tolist()):
+        if int(elem_to) not in inside_of:
+            inside_of[int(elem_to)] = []
+        inside_of[int(elem_to)].append(int(elem_from))
+
+
+    for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
+        if int(elem_to) not in on:
+            on[int(elem_to)] = []
+        on[int(elem_to)].append(int(elem_from))
+    
+    all_elems = sorted(list(set(list(on.keys()) + list(inside_of.keys()))))
+    for elem in all_elems:
+        inside_curr, on_curr = [], []
+        if elem in inside_of:
+            inside_curr = inside_of[elem]
+        if elem in on:
+            on_curr = on[elem]
+        # ipdb.set_trace()
+        on_str = ' '.join([obj_names[itt].strip() for itt in on_curr])
+        inside_str = ' '.join([obj_names[itt].strip() for itt in inside_curr])
+        elem2 = obj_names[elem]
+        print(f'{elem2}: ON: [{on_str}]   INSIDE: [{inside_str}]')
+    print("==========")
+    ipdb.set_trace()
+        
+def print_script(graph_helper, program):
+    program_str = decode_program(graph_helper, program)
+    ipdb.set_trace()
+
 
 # Get a render function
 def get_render_func(venv):
@@ -294,18 +362,18 @@ class LoggerSteps():
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = 'predict_action/data.{}/time_model.{}-stateenc.{}/agents{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predbcat.{}'.format(
+        experiment_name = ('predict_graph/train_data.{}-agents{}/'
+                          'time_model.{}-stateenc.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}').format(
             args['data']['train_data'],
+            args['train']['agents'],
             args['model']['time_aggregate'],
             args['model']['state_encoder'],
-            args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
             args['model']['goal_inp'],
             args['train']['loss_close'],
             args['train']['loss_goal'],
-            args['model']['agent_embed'],
-            args['model']['categorical_belief']
+            args['model']['agent_embed']
             )
         if args['model']['gated']:
             experiment_name += '_gated'

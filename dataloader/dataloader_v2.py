@@ -19,7 +19,7 @@ class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False):
         self.path_init = path_init
         self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'])
-        self.get_edges = args_config['model']['state_encoder'] == 'GNN'
+        self.get_edges = True # args_config['model']['state_encoder'] == 'GNN'
         # Build the agent types
 
         with open(self.path_init, 'rb+') as f:
@@ -162,7 +162,7 @@ class AgentTypeDataset(Dataset):
 
             if it >= self.max_tsteps:
                 break
-            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it])
+            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'])
 
             # class names
             for attribute_name in attributes_include:
