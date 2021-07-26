@@ -51,7 +51,7 @@ class GraphHelper():
     def __init__(self, max_num_objects=100, max_num_edges=200, current_task=None, simulator_type='unity',
                  include_touch=False):
         self.states = ['on', 'open', 'off', 'closed']
-        self.relations = ['inside', 'close', 'facing', 'on']
+        self.relations = ['inside', 'close', 'on']
         self.simulaor_type = simulator_type
         self.objects = self.get_objects()
         self.rooms = ['bathroom', 'bedroom', 'kitchen', 'livingroom']
@@ -243,7 +243,11 @@ class GraphHelper():
         ids = [character_id] + ids
         max_nodes = self.num_objects
         max_edges = self.num_edges
-        edges = [edge for edge in graph['edges'] if edge['from_id'] in ids and edge['to_id'] in ids]
+        
+
+        edges = [edge for edge in graph['edges'] if edge['from_id'] in ids and edge['to_id'] in ids and edge['relation_type'].lower() in self.relations]
+
+        
         nodes = [id2node[idi] for idi in ids]
         nodes.append({'id': -1, 'class_name': 'no_obj', 'states': []})
 

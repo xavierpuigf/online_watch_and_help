@@ -18,14 +18,16 @@ train:
 test:
         num_iters: 20
 model:
-        max_nodes: 150
+        edge_pred: 'dot'
+        edge_types: 3
+        max_nodes: 100
         max_class_objects: 37
         max_actions: 10
         num_states: 4
         num_attributes: 6
-        hidden_size: 200
+        hidden_size: 100
         max_tsteps: 50
-        goal_inp: True
+        goal_inp: False
         gated: False
         agent_embed: False
         num_agents: 100

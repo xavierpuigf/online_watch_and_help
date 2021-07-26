@@ -81,7 +81,6 @@ def print_graph(graph_helper, graph, batch_item, step):
         elem2 = obj_names[elem]
         print(f'{elem2}: ON: [{on_str}]   INSIDE: [{inside_str}]')
     print("==========")
-    ipdb.set_trace()
         
 def print_script(graph_helper, program):
     program_str = decode_program(graph_helper, program)
@@ -363,11 +362,12 @@ class LoggerSteps():
     def get_experiment_name(self):
         args = self.args
         experiment_name = ('predict_graph/train_data.{}-agents{}/'
-                          'time_model.{}-stateenc.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}').format(
+                          'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}').format(
             args['data']['train_data'],
             args['train']['agents'],
             args['model']['time_aggregate'],
             args['model']['state_encoder'],
+            args['model']['edge_pred'],
             args['train']['lr'],
             args['train']['batch_size'],
             args['model']['goal_inp'],
