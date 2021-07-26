@@ -289,7 +289,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
         # loss states
         criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
-        loss_state = criterion_state(output['states'][:, 1:, ...], graph_info['states_objects'][:, :-1, ...].cuda()) 
+        loss_state = criterion_state(output['states'][:, :-1, ...], graph_info['states_objects'][:, 1:, ...].cuda()) 
         loss_state = loss_state *  graph_info['mask_object'][:, 1:, :, None].cuda()
         loss_state = loss_state.mean()
 
