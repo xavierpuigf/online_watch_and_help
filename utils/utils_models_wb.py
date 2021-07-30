@@ -12,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
 import torch
+import wandb
 import json
 import ipdb
 import pdb
@@ -315,7 +316,7 @@ class LoggerSteps():
     def __init__(self, args):
         self.args = args
         self.experiment_name = self.get_experiment_name()
-        self.tensorboard_writer = None
+        self.wandb = None
         self.save_dir = '.'
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
@@ -347,19 +348,9 @@ class LoggerSteps():
         except:
             pass
         now = datetime.datetime.now()
-        self.tensorboard_writer = SummaryWriter(log_dir=self.tensorboard_logdir)
-        if self.args['log']['delete_prior_logs']:
-            files_rm = glob.glob('{}/*'.format(self.tensorboard_logdir))
-            print("Deleting logs")
-            for fr in files_rm:
-                os.remove(fr)
-        print("Logging in: {}".format(self.tensorboard_logdir))
         
-        dict_args = self.args
-        text_tboard = "\n**experiment_name:** {}  <br />".format(self.experiment_name)
-        text_tboard += ""+dict2md(dict_args)+""
-        self.tensorboard_writer.add_text("experiment_params", json.dumps(text_tboard, indent=4))
-
+        self.wandb = wandb.init(project="graph-prediction", config=self.args)
+        
     def get_experiment_name(self):
         args = self.args
         experiment_name = ('predict_graph/train_data.{}-agents{}/'
@@ -395,7 +386,7 @@ class LoggerSteps():
             seedn = i % 5
             embedding_labels.append("agent.{}_seed.{}".format(agentn, seedn))
 
-        self.tensorboard_writer.add_embedding(embeddings, metadata=embedding_labels)
+        self.wandb.add_embedding(embeddings, metadata=embedding_labels)
 
 
     def log_data2(self, total_num_steps, info):
@@ -404,10 +395,10 @@ class LoggerSteps():
             if self.tensorboard_logdir is not None:
                 self.set_tensorboard()
 
-        if self.tensorboard_writer is not None:
+        if self.wandb is not None:
             for agent_id in info.keys():
                 for acc_name, acc_item in info[agent_id]['accuracy'].items():
-                    self.tensorboard_writer.add_scalar("agents/accuracy/agent_{}/{}".format(agent_id, acc_name), acc_item, total_num_steps)
+                    self.wandb.log("agents/accuracy/agent_{}/{}".format(agent_id, acc_name), acc_item, total_num_steps)
             
 
     def log_data(self, total_num_steps, info):
@@ -416,40 +407,46 @@ class LoggerSteps():
             if self.tensorboard_logdir is not None:
                 self.set_tensorboard()
 
-        if self.tensorboard_writer is not None:
+        res_dict = {}
+        res_dict['total_num_steps'] = total_num_steps
+        res_dict['epoch'] = info['misc']['epoch']
+
+        if self.wandb is not None:
             for loss_name, loss_item in info['losses'].items():
-                self.tensorboard_writer.add_scalar("losses/{}".format(loss_name), loss_item, total_num_steps)
+                res_dict.update({"losses/{}".format(loss_name): loss_item})
             
             for acc_name, acc_item in info['accuracy'].items():
 
-                self.tensorboard_writer.add_scalar("accuracy/{}".format(acc_name), acc_item, total_num_steps)
+                res_dict.update({"accuracy/{}".format(acc_name): acc_item})
             
             if 'misc' in info.keys():
                 for acc_name, acc_item in info['misc'].items():
-                    self.tensorboard_writer.add_scalar("misc/{}".format(acc_name), acc_item, total_num_steps)
+                    res_dict.update({"misc/{}".format(acc_name): acc_item})
+            # ipdb.set_trace()
+            self.wandb.log(res_dict)
 
-            if 'plots' in info.keys():
-                info_plot = info['plots']
-                fig, ax = plt.subplots(4,2)
-                bs = len(info_plot['gt_belief_room'])
-                for i in range(min(4, bs)):
-                    it = 0
-                    for curr_str in ['gt_belief_room', 'gt_belief_container']:
-                        try:
-                            names = info_plot[curr_str.replace('gt', 'names')][i]
-                        except:
-                            ipdb.set_trace()
-                        x = np.arange(len(info_plot[curr_str][i]))
-                        ax[i,it].bar(x-0.15, info_plot[curr_str][i], width=0.3)
-                        ax[i,it].bar(x+0.15, info_plot[curr_str.replace('gt', 'pred')][i], width=0.3)
-                        ax[i, it].set_xticks(range(len(names)))
-                        ax[i, it].set_xticklabels(names)
-                        ax[i, it].set_ylim((0,1))
-                        ax[i, it].tick_params(axis='both', which='major', labelsize=8)
-                        ax[i, it].tick_params(axis='both', which='minor', labelsize=8)
-                        ax[i, it].grid(axis='y')
-                        it += 1
-                self.tensorboard_writer.add_figure(info['plots']['name'], fig, total_num_steps)
+            # if 'plots' in info.keys():
+            #     info_plot = info['plots']
+            #     fig, ax = plt.subplots(4,2)
+            #     bs = len(info_plot['gt_belief_room'])
+            #     for i in range(min(4, bs)):
+            #         it = 0
+            #         for curr_str in ['gt_belief_room', 'gt_belief_container']:
+            #             try:
+            #                 names = info_plot[curr_str.replace('gt', 'names')][i]
+            #             except:
+            #                 ipdb.set_trace()
+            #             x = np.arange(len(info_plot[curr_str][i]))
+            #             ax[i,it].bar(x-0.15, info_plot[curr_str][i], width=0.3)
+            #             ax[i,it].bar(x+0.15, info_plot[curr_str.replace('gt', 'pred')][i], width=0.3)
+            #             ax[i, it].set_xticks(range(len(names)))
+            #             ax[i, it].set_xticklabels(names)
+            #             ax[i, it].set_ylim((0,1))
+            #             ax[i, it].tick_params(axis='both', which='major', labelsize=8)
+            #             ax[i, it].tick_params(axis='both', which='minor', labelsize=8)
+            #             ax[i, it].grid(axis='y')
+            #             it += 1
+            #     self.wandb.add_figure(info['plots']['name'], fig, total_num_steps)
 
 
 
@@ -479,121 +476,3 @@ class LoggerSteps():
             }, os.path.join(save_path, "{}.pt".format(j)))
 
 
-
-
-class Logger():
-    def __init__(self, args):
-        self.args = args
-        self.experiment_name = self.get_experiment_name()
-        self.tensorboard_writer = None
-        self.save_dir = args.save_dir
-
-        now = datetime.datetime.now()
-        self.tstmp = now.strftime('%Y-%m-%d_%H-%M-%S')
-        self.set_tensorboard()
-        self.first_log = False
-        self.stats = AggregatedStats()
-
-        save_path = os.path.join(self.save_dir, self.experiment_name)
-        root_dir = None
-        if args.use_editor:
-            root_dir = '/Users/xavierpuig/Desktop/experiment_viz/'
-        self.plot = Plotter(self.experiment_name, root_dir=root_dir)
-        self.info_episodes = []
-        try:
-            os.makedirs(save_path)
-        except OSError:
-            pass
-
-        self.file_name_log = '{}/{}/log.json'.format(self.save_dir, self.experiment_name)
-        with open('{}/{}/args.txt'.format(self.save_dir, self.experiment_name), 'w+') as f:
-            dict_args = vars(args)
-            f.writelines(json.dumps(dict_args, indent=4))
-
-
-    def set_tensorboard(self):
-        now = datetime.datetime.now()
-        self.tensorboard_writer = SummaryWriter(log_dir=os.path.join(self.args.tensorboard_logdir,
-                                                                     self.tstmp))
-        dict_args = vars(self.args)
-        self.tensorboard_writer.add_text("experiment_name", json.dumps(dict_args, indent=4))
-
-    def get_experiment_name(self):
-        args = self.args
-        info_mcts = 'stepmcts.{}-lep.{}-teleport.{}-beliefgraph-forcepred'.format(args.num_steps_mcts, args.max_episode_length, args.teleport)
-        experiment_name = 'env.{}/task.{}-numproc.{}-obstype.{}-sim.{}/taskset.{}/agent.{}_alice.{}/'\
-                          'mode.{}-algo.{}-base.{}-gamma.{}-cclose.{}-cgoal.{}-lr{}-bs.{}{}_goodTF/{}'.format(
-            args.env_name,
-            args.task_type,
-            args.num_processes,
-            args.obs_type,
-            args.simulator_type,
-            args.task_set,
-            args.agent_type,
-            args.use_alice,
-            args.train_mode,
-            args.algo,
-            args.base_net,
-            args.gamma,
-            args.c_loss_close,
-            args.c_loss_goal,
-            args.lr,
-            args.batch_size,
-            '' if len(args.load_model) == 0 else '_finetuned',
-            info_mcts)
-
-        if args.debug:
-            experiment_name += 'debug'
-        return experiment_name
-
-    def log_data(self, j, total_num_steps, fps, episode_rewards, dist_entropy, epsilon, successes, num_steps, info_aux):
-        if self.first_log:
-            self.first_log = False
-            if self.args.tensorboard_logdir is not None:
-                self.set_tensorboard()
-
-        if self.tensorboard_writer is not None:
-            if 'accuracy_goal' in info_aux.keys():
-                self.tensorboard_writer.add_scalar("aux_info/accuracy_goal", np.max(info_aux['accuracy_goal']), total_num_steps)
-                self.tensorboard_writer.add_scalar("aux_info/precision_close", np.mean(info_aux['precision_close']), total_num_steps)
-                self.tensorboard_writer.add_scalar("aux_info/recall_close", np.mean(info_aux['recall_close']), total_num_steps)
-
-                self.tensorboard_writer.add_scalar("losses/loss_close", np.mean(info_aux['loss_close']), total_num_steps)
-                self.tensorboard_writer.add_scalar("losses/loss_goal", np.mean(info_aux['loss_goal']), total_num_steps)
-            #
-            # self.tensorboard_writer.add_scalar("losses/loss_close", np.mean(info_aux['loss_close']), total_num_steps)
-            # self.tensorboard_writer.add_scalar("losses/loss_goal", np.mean(info_aux['loss_goal']), total_num_steps)
-
-
-
-            self.tensorboard_writer.add_scalar("info/max_reward", np.max(episode_rewards), total_num_steps)
-            self.tensorboard_writer.add_scalar("info/mean_reward", np.mean(episode_rewards), total_num_steps)
-
-            # tensorboard_writer.add_scalar("median_reward", np.median(episode_rewards), total_num_steps)
-            # tensorboard_writer.add_scalar("min_reward", np.min(episode_rewards), total_num_steps)
-            # tensorboard_writer.add_scalar("max_reward", np.max(episode_rewards), total_num_steps)
-            self.tensorboard_writer.add_scalar("action_entropy/action", dist_entropy[0], total_num_steps)
-            self.tensorboard_writer.add_scalar("action_entropy/object", dist_entropy[1], total_num_steps)
-            # self.tensorboard_writer.add_scalar("losses/value_loss", value_loss, total_num_steps)
-            # self.tensorboard_writer.add_scalar("losses/action_loss", action_loss, total_num_steps)
-            self.tensorboard_writer.add_scalar("info/epsilon", epsilon, total_num_steps)
-            self.tensorboard_writer.add_scalar("info/episode", j, total_num_steps)
-            self.tensorboard_writer.add_scalar("info/success", np.mean(successes), total_num_steps)
-            self.tensorboard_writer.add_scalar("info/numsteps", np.mean(num_steps), total_num_steps)
-            self.tensorboard_writer.add_scalar("info/fps", fps, total_num_steps)
-
-    def log_info(self, info_ep):
-        info_ep = {key: val for key, val in info_ep.items() if key not in ['pred_close']}
-        self.info_episodes.append(info_ep)
-        self.plot.add_episode(info_ep)
-        with open(self.file_name_log, 'w+') as f:
-            f.write(json.dumps(info_ep, indent=4))
-        print("Dumped in {}".format(self.file_name_log))
-        self.plot.render()
-
-    def save_model(self, j, actor_critic):
-        save_path = os.path.join(self.save_dir, self.experiment_name)
-
-        torch.save([
-            actor_critic,
-        ], os.path.join(save_path, "{}.pt".format(j)))

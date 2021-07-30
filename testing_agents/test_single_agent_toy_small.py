@@ -33,14 +33,14 @@ if __name__ == '__main__':
     args = get_args()
     num_proc = 10
 
-    num_tries = 10
+    num_tries = 1
     args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
-    args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
+    args.dataset_path = f'{rootdir}/dataset/train_env_task_set_1_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
     cachedir = f'{rootdir}/dataset_episodes/small_data_toy'
 
@@ -56,7 +56,7 @@ if __name__ == '__main__':
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
     ]
     random_start = random.Random()
-    agent_types_index = [0,3]
+    agent_types_index = [0]
 
     #random.shuffle(agent_types_index)
     # if args.agenttype != 'all':

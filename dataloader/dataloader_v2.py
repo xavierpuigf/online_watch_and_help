@@ -57,6 +57,10 @@ class AgentTypeDataset(Dataset):
         self.max_labels = agent_type_max+1 
         self.labels = labels
         self.pkl_files = pkl_files
+
+        if args_config['train']['overfit']:
+            self.pkl_files = pkl_files[:1]
+
         self.overfit = args_config['train']['overfit']
         self.max_tsteps = args_config['model']['max_tsteps']
         self.max_actions = args_config['model']['max_actions']

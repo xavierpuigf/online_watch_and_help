@@ -14,8 +14,8 @@ import torch.optim as optim
 from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 
-import utils.utils_models as utils_models
-from utils.utils_models import AverageMeter, ProgressMeter, LoggerSteps
+import utils.utils_models_wb as utils_models
+from utils.utils_models_wb import AverageMeter, ProgressMeter, LoggerSteps
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -121,8 +121,11 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
 
 
             # How many GT positives
-            state_avg = gt_state / ((gt_state).sum(-1).sum(-1)[:, :, None, None] + 1e-9)
-            edge_avg = gt_edge / (gt_edge.sum(-1).sum(-1)[:, :, None, None] + 1e-9)
+            pos_state = gt_state.sum(-1).sum(-1) + 1e-9
+            pos_edge = gt_state.sum(-1).sum(-1) + 1e-9
+
+            state_avg = gt_state / (pos_state[:, :, None, None])
+            edge_avg = gt_edge / (pos_edge[:, :, None, None])
             # How many predicted positives
             # ipdb.set_trace()
             edge_avg_pos = ((pred_edge > 0.5) * mask_edges).sum(-1).sum(-1) + 1e-9
@@ -131,12 +134,13 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             tp_edge = (gt_edge * (pred_edge > 0.5)).sum(-1).sum(-1)
             tp_state = (gt_state * (pred_state > 0.5)).sum(-1).sum(-1)
 
-            edge_recall = tp_edge * edge_avg.sum(-1).sum(-1)
-            state_recall = tp_state * state_avg.sum(-1).sum(-1)
-            # ipdb.set_trace()
-            edge_prec = (tp_edge / edge_avg_pos).sum(-1).sum(-1)
-            state_prec = (tp_state / state_avg_pos).sum(-1).sum(-1)
-
+            # Recall
+            edge_recall = tp_edge / pos_edge
+            state_recall = tp_state / pos_state
+            
+            # Precision
+            edge_prec = (tp_edge / edge_avg_pos)
+            state_prec = (tp_state / state_avg_pos)
 
 
             # Average over timesteps and batch
@@ -214,7 +218,10 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         data_time.update(time.time() - end)
 
         graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
+        
+
         # utils_models.print_graph(data_loader.dataset.graph_helper, graph_info, 0, 0)
+        # ipdb.set_trace()
 
         inputs = {
             'program': program,
@@ -276,28 +283,33 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
 
         # How many GT positives
-        state_avg = gt_state / ((gt_state).sum(-1).sum(-1)[:, :, None, None] + 1e-9)
-        edge_avg = gt_edge / (gt_edge.sum(-1).sum(-1)[:, :, None, None] + 1e-9)
+        pos_state = gt_state.sum(-1).sum(-1) + 1e-9
+        pos_edge = gt_state.sum(-1).sum(-1) + 1e-9
+
+        state_avg = gt_state / (pos_state[:, :, None, None])
+        edge_avg = gt_edge / (pos_edge[:, :, None, None])
         # How many predicted positives
+        # ipdb.set_trace()
         edge_avg_pos = ((pred_edge > 0.5) * mask_edges).sum(-1).sum(-1) + 1e-9
         state_avg_pos = ((pred_state > 0.5) * mask_state).sum(-1).sum(-1) + 1e-9
 
         tp_edge = (gt_edge * (pred_edge > 0.5)).sum(-1).sum(-1)
         tp_state = (gt_state * (pred_state > 0.5)).sum(-1).sum(-1)
 
-        edge_recall = tp_edge * edge_avg.sum(-1).sum(-1)
-        state_recall = tp_state * state_avg.sum(-1).sum(-1)
-        edge_prec = (tp_edge / edge_avg_pos).sum(-1).sum(-1)
-        state_prec = (tp_state / state_avg_pos).sum(-1).sum(-1)
-
+        # Recall
+        edge_recall = tp_edge / pos_edge
+        state_recall = tp_state / pos_state
+        
+        # Precision
+        edge_prec = (tp_edge / edge_avg_pos)
+        state_prec = (tp_state / state_avg_pos)
+        
         # Average over timesteps and batch
         mask_timesteps = mask_length / mask_length.sum(-1)[:, None]
         edge_recall = (edge_recall * mask_timesteps).sum()
         state_recall = (state_recall * mask_timesteps).sum()
         edge_prec = (edge_prec * mask_timesteps).sum()
         state_prec = (state_prec * mask_timesteps).sum()
-        
-
 
         # ipdb.set_trace()
         prec_state.update(state_prec.item())
@@ -317,7 +329,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         if it % args['log']['print_every'] == 0:
             progress.display(it)
         if it % args['log']['print_long_every'] == 0:
-        
+            # ipdb.set_trace()
             info_log = {
                 'losses': {'total': losses.val, 'state': losses_state.val, 'edge': losses_edge.val},
                 'accuracy': {'state_prec': prec_state.val, 'edge_rec': prec_edge.val, 'state_recall': recall_state.val, 'edge_recall': recall_edge.val},
