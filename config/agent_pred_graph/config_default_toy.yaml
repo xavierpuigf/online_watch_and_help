@@ -18,10 +18,10 @@ train:
 test:
         num_iters: 20
 model:
-        reduced_graph: False
+        reduced_graph: True
         edge_pred: 'dot'
         edge_types: 3
-        max_nodes: 100
+        max_nodes: 70
         max_class_objects: 37
         max_actions: 10
         num_states: 4

@@ -49,7 +49,8 @@ class DictObjId:
 
 class GraphHelper():
     def __init__(self, max_num_objects=100, max_num_edges=200, current_task=None, simulator_type='unity',
-                 include_touch=False):
+                 include_touch=False, toy_dataset=False):
+        self.toy_dataset = toy_dataset
         self.states = ['on', 'open', 'off', 'closed']
         self.relations = ['inside', 'close', 'on']
         self.simulaor_type = simulator_type
@@ -199,8 +200,11 @@ class GraphHelper():
 
     def get_objects(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-
-        with open(f'{dir_path}/../dataset/object_info_small.json', 'r') as f:
+        if self.toy_dataset:
+            object_info_fname = f'{dir_path}/../dataset/object_info_toy.json'
+        else:
+            object_info_fname = f'{dir_path}/../dataset/object_info_small.json' 
+        with open(object_info_fname, 'r') as f:
             content = json.load(f)
         objects = []
         for obj in content.values():
@@ -219,7 +223,8 @@ class GraphHelper():
         return one_hot
 
     def build_graph(self, graph, character_id, ids=None,
-                          include_edges=False, plot_graph=False, action_space_ids=None, obs_ids=None, level=1, relative_coords=True):
+                    include_edges=False, plot_graph=False, action_space_ids=None, obs_ids=None, 
+                    level=1, relative_coords=True):
         if ids is None:
             ids = [node['id'] for node in graph['nodes'] if self.object_dict.valid_el(node['class_name'])]
 

@@ -362,10 +362,11 @@ class LoggerSteps():
 
     def get_experiment_name(self):
         args = self.args
-        experiment_name = ('predict_graph/train_data.{}-agents{}/'
+        experiment_name = ('predict_graph/train_data.{}-agents{}/reducedgraph.{}-'
                           'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}').format(
             args['data']['train_data'],
             args['train']['agents'],
+            args['model']['reduced_graph'],
             args['model']['time_aggregate'],
             args['model']['state_encoder'],
             args['model']['edge_pred'],

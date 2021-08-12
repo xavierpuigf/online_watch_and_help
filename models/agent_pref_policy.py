@@ -98,7 +98,7 @@ class GraphPredNetwork(nn.Module):
 
     def pred_obj_states(self, inputs):
         # inputs: Batch x T x num_nodes x embed
-        nnodes = inputs.shape[-1]
+        nnodes = inputs.shape[-2]
         states = self.state_pred(inputs)
         edges1 = inputs.repeat([1, 1, nnodes, 1])
         edges2 = inputs.repeat_interleave(nnodes, dim=2)
@@ -113,7 +113,6 @@ class GraphPredNetwork(nn.Module):
             raise Exception
         
         edges = self.edge_pred(edge_embeds)
-        
         return states, edges
 
     def forward(self, inputs, cond=None):

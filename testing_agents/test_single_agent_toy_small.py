@@ -31,18 +31,18 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 10
+    num_proc = 5
 
-    num_tries = 1
+    num_tries = 10
     args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
-    args.dataset_path = f'{rootdir}/dataset/train_env_task_set_1_full.pik'
+    args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
-    cachedir = f'{rootdir}/dataset_episodes/small_data_toy'
+    cachedir = f'{rootdir}/dataset_episodes/large_data_toy'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0

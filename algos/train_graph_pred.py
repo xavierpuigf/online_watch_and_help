@@ -13,7 +13,7 @@ from torch import nn
 import torch.optim as optim
 from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
-
+from termcolor import colored
 import utils.utils_models_wb as utils_models
 from utils.utils_models_wb import AverageMeter, ProgressMeter, LoggerSteps
 
@@ -218,9 +218,20 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         data_time.update(time.time() - end)
 
         graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
+
+        label_action = program['action'][:, 1:]
+        index_label_obj1 = program['indobj1'][:, 1:]
+        index_label_obj2 = program['indobj2'][:, 1:]
         
+        prog_gt = {'action': label_action, 'o1': index_label_obj1, 'o2': index_label_obj2, 'graph': graph_info, 'mask_len': len_mask}
+        program_gt = utils_models.decode_program(data_loader.dataset.graph_helper, prog_gt)
+        # print(colored("graph", "yellow"))
 
         # utils_models.print_graph(data_loader.dataset.graph_helper, graph_info, 0, 0)
+
+        # utils_models.print_graph(data_loader.dataset.graph_helper, graph_info, 0, 1)
+
+        # utils_models.print_graph(data_loader.dataset.graph_helper, graph_info, 0, 2)
         # ipdb.set_trace()
 
         inputs = {
@@ -267,7 +278,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         medges2 = mask_obs_node.repeat_interleave(num_nodes, dim=2).cuda()
         mask_edges = medges1 * medges2
         mask_edges = mask_edges[:, 1:, ..., None]
-        loss_edges = criterion_state(pred_edge, gt_edge) 
+        loss_edges = criterion_state(pred_edge, gt_edge)
+
         loss_edges = loss_edges * mask_edges
         loss_edges = loss_edges.mean()
 
@@ -366,7 +378,7 @@ def get_loaders(args):
 
 
 
-@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default")
+@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_toy")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")

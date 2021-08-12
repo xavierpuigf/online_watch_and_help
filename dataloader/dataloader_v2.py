@@ -18,7 +18,7 @@ import numpy as np
 class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False):
         self.path_init = path_init
-        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'])
+        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], toy_dataset=args_config['model']['reduced_graph'])
         self.get_edges = True # args_config['model']['state_encoder'] == 'GNN'
         # Build the agent types
 
@@ -43,6 +43,8 @@ class AgentTypeDataset(Dataset):
             [0, 0, 1, 0, 1, 0],
             [0, 0, 1, 1, 0, 0],
         ]
+
+        # Unused, this was when we had multiple agents
         if args_config['train']['agents'] == 'all':
             agents_use = list(range(agent_type_max+1))
         else:
