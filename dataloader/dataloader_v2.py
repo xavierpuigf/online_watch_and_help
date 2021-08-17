@@ -77,6 +77,8 @@ class AgentTypeDataset(Dataset):
         return len(self.pkl_files)
 
     def failure(self, index):
+        print(f"Failure {index}")
+        file_name = self.pkl_files[index]
         if index not in self.failed_items:
             self.failed_items[index] = 1
         return self.__getitem__(0)
@@ -235,7 +237,7 @@ class AgentTypeDataset(Dataset):
                 program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
             except:
                 #print("Index", index, program, it)
-                #ipdb.set_trace()
+                ipdb.set_trace()
                 return self.failure(index)
 
         program_batch['action'].append(self.max_actions - 1)

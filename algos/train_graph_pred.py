@@ -198,6 +198,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
 
 
 def train_epoch(data_loader, model, epoch, args, optimizer, logger):
+    print(colored(f"Training epoch {epoch}", "yellow"))
 
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')

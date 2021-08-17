@@ -254,14 +254,18 @@ class GraphHelper():
 
         # Add a holding edge
         holding_object = []
+        inside_object = []
         for edge in edges:
             if 'hold' in edge['relation_type'].lower():
                 edge['relation_type'] = 'hold'
                 holding_object.append(edge['to_id'])
+            if 'inside' in edge['relation_type'].lower():
+                inside_object.append((edge['from_id'], edge['to_id']))
 
         # If holding an object, remove close edge
-        edges = [edge for edge in edges if (edge['relation_type'].lower() != 'close' or edge['to_id'] not in holding_object) and not (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on')]
         edges = [edge for edge in edges if edge['from_id'] in ids and edge['to_id'] in ids and edge['relation_type'].lower() in self.relations]
+        edges = [edge for edge in edges if (edge['relation_type'].lower() != 'close' or edge['to_id'] not in holding_object) and not (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on')]
+        edges = [edge for edge in edges if not (edge['relation_type'].lower() == 'on' and (edge['from_id'], edge['to_id']) in inside_object)]
 
         # Check if there is more than one edge between two nodes
         edge_tup = [(edge['from_id'], edge['to_id']) for edge in edges]
