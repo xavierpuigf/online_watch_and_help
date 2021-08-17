@@ -1,7 +1,7 @@
 cuda: True
 data:
-        train_data: 'dataset_graph_pred_overfit_train.pkl'
-        test_data: 'dataset_graph_pred_overfit_train.pkl'
+        train_data: 'dataset_graph_pred_train.pkl'
+        test_data: 'dataset_graph_pred_test.pkl'
 log:
         print_every: 20
         print_long_every: 50
@@ -9,7 +9,7 @@ log:
 train:
         epochs: 500
         batch_size: 32
-        num_workers: 32
+        num_workers: 8
         lr: 0.0001
         overfit: False
         agents: 'all'
@@ -19,8 +19,8 @@ test:
         num_iters: 20
 model:
         reduced_graph: True
-        edge_pred: 'dot'
-        edge_types: 3
+        edge_pred: 'concat'
+        edge_types: 4
         max_nodes: 70
         max_class_objects: 37
         max_actions: 10

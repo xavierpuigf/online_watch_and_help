@@ -16,7 +16,7 @@ from hydra.utils import get_original_cwd, to_absolute_path
 from termcolor import colored
 import utils.utils_models_wb as utils_models
 from utils.utils_models_wb import AverageMeter, ProgressMeter, LoggerSteps
-
+import math
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import pathlib
@@ -30,7 +30,37 @@ def unmerge(tensor, firstdim):
     dim = list(tensor.shape)
     return tensor.reshape([firstdim, -1] + dim[1:])
 
-def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logger):
+
+# Convert adjacency list to adjacency matrix
+def build_gt_edge(graph_info):
+    batch, time, num_nodes = graph_info['mask_object'].shape
+    gt_edges = torch.zeros([batch, time, num_nodes**2])
+    # num_nodes = graph_info['mask_object'].shape[-1]
+
+    # num_edges = gt_edges.shape[-1]
+    edge_tuples = graph_info['edge_tuples']
+    index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
+    edge_types = graph_info['edge_classes'] # - 1
+    # ipdb.set_trace()
+    # gt_edges[..., index_edges.long()] = edge_types
+    gt_edges = gt_edges.scatter(2, index_edges.long(), edge_types)
+    gt_edges = gt_edges.long()
+    # for it_edge in range(num_edges):
+    #     index_edge = edge_types == it_edge
+    #     index_edge_curr = index_edges[index_edge]
+    #     gt_edges[..., index_edge_curr.long(), it_edge] = 1
+
+    return gt_edges
+
+
+# # Convert adjacency matrix to adjacency list
+# def edge_matrix_to_edge_list(edge_matrix):
+#     num_nodes_sq = edge_matrix.shape[-1]    
+#     num_nodes = int(math.sqrt(num_nodes_sq))
+#     assert (num_nodes ** 2) == num_nodes_sq
+#     edges_something = edges
+
+def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
     model.eval()
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -41,14 +71,14 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
     
 
     prec_state = AverageMeter('Prec State', ':6.2f')
-    prec_edge = AverageMeter('Prec Edge', ':6.2f')
     
     recall_state = AverageMeter('Rec State', ':6.2f')
-    recall_edge = AverageMeter('Rec Edge', ':6.2f')
+    accuracy_edge = AverageMeter('Accuracy Edge', ':6.2f')
+    accuracy_edge_pos = AverageMeter('Accuracy Edge Pos', ':6.2f')
 
     progress = ProgressMeter(
             len(data_loader),
-            [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, prec_edge, recall_edge],
+            [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, accuracy_edge, accuracy_edge_pos],
         prefix="Epoch: [{}]".format(epoch))
 
 
@@ -74,6 +104,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
                 output = model(inputs)
 
 
+
             pred_edge = output['edges'][:, :-1, ...]
             pred_state = output['states'][:, :-1, ...]
             gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
@@ -83,6 +114,8 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
 
             # loss states
             criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
+            criterion_edge = torch.nn.CrossEntropyLoss(reduction='none')
+    
             loss_state = criterion_state(output['states'][:, :-1, ...], graph_info['states_objects'][:, 1:, ...].cuda()) 
             loss_state = loss_state *  graph_info['mask_object'][:, 1:, :, None].cuda()
             loss_state = loss_state.mean()
@@ -90,16 +123,9 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             # loss edges edges in prediction are stored as a B x Time x N x N x num_edge_class tensor
             # GT is stored as B x Time x Num_edges, we need to convert
             num_nodes = output['states'].shape[-2]
-            gt_edges = torch.zeros_like(output['edges'])
-            num_edges = gt_edges.shape[-1]
-            edge_tuples = graph_info['edge_tuples']
-            index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
-            edge_types = graph_info['edge_classes'] - 1
-            for it_edge in range(num_edges):
-                index_edge = edge_types == it_edge
-                index_edge_curr = index_edges[index_edge]
-                gt_edges[..., index_edge_curr.long(), it_edge] = 1
-
+            
+            pred_edge = output['edges'][:, :-1, ...]
+            gt_edges = build_gt_edge(graph_info)
 
             gt_edge = gt_edges[:, 1:, ...].cuda()
 
@@ -108,8 +134,13 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             medges1 = mask_obs_node.repeat([1, 1, num_nodes]).cuda()
             medges2 = mask_obs_node.repeat_interleave(num_nodes, dim=2).cuda()
             mask_edges = medges1 * medges2
-            mask_edges = mask_edges[:, 1:, ..., None]
-            loss_edges = criterion_state(output['edges'][:, :-1, ...], gt_edges[:, 1:, ...].cuda()) 
+            mask_edges = mask_edges[:, 1:, ...]
+
+
+            utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, gt_edges.cpu(), mask_edges.cpu(), gt_state.cpu(), 0, 0)            
+            utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, pred_edge.argmax(-1).cpu(), mask_edges.cpu(), (pred_state > 0.5).cpu(), 0, 0)
+
+            loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
             loss_edges = loss_edges * mask_edges
             loss_edges = loss_edges.mean()
 
@@ -119,40 +150,18 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
             losses_state.update(loss_state.item())
             losses_edge.update(loss_edges.item())
 
-
-            # How many GT positives
-            pos_state = gt_state.sum(-1).sum(-1) + 1e-9
-            pos_edge = gt_state.sum(-1).sum(-1) + 1e-9
-
-            state_avg = gt_state / (pos_state[:, :, None, None])
-            edge_avg = gt_edge / (pos_edge[:, :, None, None])
-            # How many predicted positives
-            # ipdb.set_trace()
-            edge_avg_pos = ((pred_edge > 0.5) * mask_edges).sum(-1).sum(-1) + 1e-9
-            state_avg_pos = ((pred_state > 0.5) * mask_state).sum(-1).sum(-1) + 1e-9
-
-            tp_edge = (gt_edge * (pred_edge > 0.5)).sum(-1).sum(-1)
-            tp_state = (gt_state * (pred_state > 0.5)).sum(-1).sum(-1)
-
-            # Recall
-            edge_recall = tp_edge / pos_edge
-            state_recall = tp_state / pos_state
-            
-            # Precision
-            edge_prec = (tp_edge / edge_avg_pos)
-            state_prec = (tp_state / state_avg_pos)
+            # Update accuracy
+            state_prec, state_recall, edge_accuracy, edge_accuracy_pos = compute_metrics(
+                gt_state, gt_edge, pred_state, mask_state, 
+                pred_edge, mask_length, mask_edges)
 
 
-            # Average over timesteps and batch
-            mask_timesteps = mask_length / mask_length.sum(-1)[:, None]
-            edge_recall = (edge_recall * mask_timesteps).sum()
-            state_recall = (state_recall * mask_timesteps).sum()
-            edge_prec = (edge_prec * mask_timesteps).sum()
-            state_prec = (state_prec * mask_timesteps).sum()
+
+
             prec_state.update(state_prec.item())
             recall_state.update(state_recall.item())
-            prec_edge.update(edge_prec.item())
-            recall_edge.update(edge_recall.item())
+            accuracy_edge.update(edge_accuracy.item())
+            accuracy_edge_pos.update(edge_accuracy_pos.item())
                 
             # ipdb.set_trace()
             batch_time.update(time.time() - end)
@@ -181,14 +190,14 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, criterion, logg
 
     info_log = {
                 'losses': {'total_val': losses.avg, 'state_val': losses_state.avg, 'edge_val': losses_edge.avg},
-                'accuracy': {'state_prec_val': prec_state.val, 'edge_prec_val': prec_edge.avg, 'state_recall_val': recall_state.avg, 'edge_recall_val': recall_edge.avg},
+                'accuracy': {'state_prec_val': prec_state.val, 'state_recall_val': recall_state.avg, 'edge_accuracy_val': accuracy_edge.avg,  'edge_accuracy_pos': accuracy_edge_pos.avg},
                 'misc': {'epoch': epoch}
             }
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
 
 
-def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
+def train_epoch(data_loader, model, epoch, args, optimizer, logger):
 
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -199,14 +208,14 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
     
 
     prec_state = AverageMeter('Prec State', ':6.2f')
-    prec_edge = AverageMeter('Prec Edge', ':6.2f')
     
     recall_state = AverageMeter('RecallState', ':6.2f')
-    recall_edge = AverageMeter('RecallEdge', ':6.2f')
+    accuracy_edge = AverageMeter('AccuracyEdge', ':6.2f')
+    accuracy_edge_pos = AverageMeter('AccuracyEdgePos', ':6.2f')
 
     progress = ProgressMeter(
             len(data_loader),
-            [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, prec_edge, recall_edge],
+            [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, accuracy_edge, accuracy_edge_pos],
         prefix="Epoch: [{}]".format(epoch))
 
     model.train()
@@ -252,6 +261,8 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
         # loss states
         criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
+        criterion_edge = torch.nn.CrossEntropyLoss(reduction='none')
+
         loss_state = criterion_state(pred_state, gt_state) 
         loss_state = loss_state *  mask_state
         loss_state = loss_state.mean()
@@ -259,17 +270,9 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         # loss edges edges in prediction are stored as a B x Time x N x N x num_edge_class tensor
         # GT is stored as B x Time x Num_edges, we need to convert
         num_nodes = output['states'].shape[-2]
-        gt_edges = torch.zeros_like(output['edges'])
-        num_edges = gt_edges.shape[-1]
-        edge_tuples = graph_info['edge_tuples']
-        index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
-        edge_types = graph_info['edge_classes'] - 1
-        for it_edge in range(num_edges):
-            index_edge = edge_types == it_edge
-            index_edge_curr = index_edges[index_edge]
-            gt_edges[..., index_edge_curr.long(), it_edge] = 1
 
 
+        gt_edges = build_gt_edge(graph_info)
         gt_edge = gt_edges[:, 1:, ...].cuda()
 
         mask_obs_node = graph_info['mask_obs_node']
@@ -277,9 +280,9 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
         medges1 = mask_obs_node.repeat([1, 1, num_nodes]).cuda()
         medges2 = mask_obs_node.repeat_interleave(num_nodes, dim=2).cuda()
         mask_edges = medges1 * medges2
-        mask_edges = mask_edges[:, 1:, ..., None]
-        loss_edges = criterion_state(pred_edge, gt_edge)
+        mask_edges = mask_edges[:, 1:, ...]
 
+        loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
         loss_edges = loss_edges * mask_edges
         loss_edges = loss_edges.mean()
 
@@ -291,46 +294,16 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
 
         # Update accuracy
-        # TODO: add accuracy metrics
+        state_prec, state_recall, edge_accuracy, edge_accuracy_pos = compute_metrics(
+            gt_state, gt_edge, pred_state, mask_state, pred_edge, mask_length, mask_edges)
 
-
-        # How many GT positives
-        pos_state = gt_state.sum(-1).sum(-1) + 1e-9
-        pos_edge = gt_state.sum(-1).sum(-1) + 1e-9
-
-        state_avg = gt_state / (pos_state[:, :, None, None])
-        edge_avg = gt_edge / (pos_edge[:, :, None, None])
-        # How many predicted positives
-        # ipdb.set_trace()
-        edge_avg_pos = ((pred_edge > 0.5) * mask_edges).sum(-1).sum(-1) + 1e-9
-        state_avg_pos = ((pred_state > 0.5) * mask_state).sum(-1).sum(-1) + 1e-9
-
-        tp_edge = (gt_edge * (pred_edge > 0.5)).sum(-1).sum(-1)
-        tp_state = (gt_state * (pred_state > 0.5)).sum(-1).sum(-1)
-
-        # Recall
-        edge_recall = tp_edge / pos_edge
-        state_recall = tp_state / pos_state
-        
-        # Precision
-        edge_prec = (tp_edge / edge_avg_pos)
-        state_prec = (tp_state / state_avg_pos)
-        
-        # Average over timesteps and batch
-        mask_timesteps = mask_length / mask_length.sum(-1)[:, None]
-        edge_recall = (edge_recall * mask_timesteps).sum()
-        state_recall = (state_recall * mask_timesteps).sum()
-        edge_prec = (edge_prec * mask_timesteps).sum()
-        state_prec = (state_prec * mask_timesteps).sum()
-
-        # ipdb.set_trace()
         prec_state.update(state_prec.item())
         recall_state.update(state_recall.item())
-        prec_edge.update(edge_prec.item())
-        recall_edge.update(edge_recall.item())
+
+        accuracy_edge.update(edge_accuracy.item())
+        accuracy_edge_pos.update(edge_accuracy_pos.item())
+
         # ipdb.set_trace()
-
-
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -344,7 +317,7 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
             # ipdb.set_trace()
             info_log = {
                 'losses': {'total': losses.val, 'state': losses_state.val, 'edge': losses_edge.val},
-                'accuracy': {'state_prec': prec_state.val, 'edge_rec': prec_edge.val, 'state_recall': recall_state.val, 'edge_recall': recall_edge.val},
+                'accuracy': {'state_prec': prec_state.val, 'state_recall': recall_state.val, 'edge_accuracy': accuracy_edge.val, 'edge_accuracy_pos': accuracy_edge_pos.val},
                 'misc': {'epoch': epoch}
             }
             logger.log_data(it + len(data_loader) * epoch, info_log)
@@ -354,6 +327,51 @@ def train_epoch(data_loader, model, epoch, args, criterion, optimizer, logger):
 
     #logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
     print("Failed Elements...", data_loader.dataset.get_failures())
+
+def compute_metrics(gt_state, gt_edges, pred_state, mask_state, pred_edges, mask_length, mask_edges):
+    
+    # How many GT positives
+    pos_state = gt_state.sum(-1).sum(-1) + 1e-9
+    # pos_edge = gt_edge.sum(-1).sum(-1) + 1e-9
+
+    state_avg = gt_state / (pos_state[:, :, None, None])
+    # edge_avg = gt_edge / (pos_edge[:, :, None, None])
+    # How many predicted positives
+    # ipdb.set_trace()
+
+
+    # edge_avg_pos = ((pred_edge > 0.5) * mask_edges).sum(-1).sum(-1) + 1e-9
+    state_avg_pos = ((pred_state > 0.5) * mask_state).sum(-1).sum(-1) + 1e-9
+
+    # tp_edge = (gt_edge * (pred_edge > 0.5)).sum(-1).sum(-1)
+    tp_state = (gt_state * (pred_state > 0.5)).sum(-1).sum(-1)
+
+    # Recall
+    state_recall = tp_state / pos_state
+    # Precision
+    state_prec = (tp_state / state_avg_pos)
+
+    # Accuracy
+    edge_pred = pred_edges.argmax(-1)
+    edge_accuracy = (edge_pred == gt_edges)
+
+    # Average over timesteps and batch
+    mask_timesteps = mask_length / mask_length.sum(-1)[:, None]
+    state_recall = (state_recall * mask_timesteps).sum(-1).mean()
+    state_prec = (state_prec * mask_timesteps).sum(-1).mean()
+
+    mask_edge_norm = mask_edges / (mask_edges.sum(-1)[..., None] + 1e-9)
+    edge_accuracy = (edge_accuracy * mask_edge_norm).sum(-1)
+    edge_accuracy = (edge_accuracy * mask_timesteps).sum(-1).mean()
+
+    mask_edges_pos = mask_edges.clone()
+    mask_edges_pos[gt_edges == 0] = 0
+
+    edge_acc = (edge_pred == gt_edges)
+    mask_edge_norm_pos = mask_edges_pos / (mask_edges_pos.sum(-1)[..., None] + 1e-9)
+    edge_accuracy_pos = (edge_acc * mask_edge_norm_pos).sum(-1)
+    edge_accuracy_pos = (edge_accuracy_pos * mask_timesteps).sum(-1).mean()
+    return state_prec, state_recall, edge_accuracy, edge_accuracy_pos
 
 
 def get_loaders(args):
@@ -395,7 +413,6 @@ def main(cfg: DictConfig):
     if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
-    criterion = nn.CrossEntropyLoss(reduction='none')
     optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
     print("Failures: ", train_loader.dataset.get_failures())
 
@@ -404,8 +421,8 @@ def main(cfg: DictConfig):
     logger.save_model(0, model, optimizer)
 
     for epoch in range(config['train']['epochs']):
-        train_epoch(train_loader, model, epoch, config, criterion, optimizer, logger)
-        evaluate(test_loader, train_loader, model, epoch, config, criterion, logger)
+        train_epoch(train_loader, model, epoch, config, optimizer, logger)
+        evaluate(test_loader, train_loader, model, epoch, config, logger)
         if epoch % 10 == 0:
             logger.save_model(epoch, model, optimizer)
 

@@ -2,6 +2,7 @@ import torch
 from dgl import DGLGraph
 import numpy as np
 import os
+import ipdb
 import json
 import pdb
 
@@ -52,7 +53,7 @@ class GraphHelper():
                  include_touch=False, toy_dataset=False):
         self.toy_dataset = toy_dataset
         self.states = ['on', 'open', 'off', 'closed']
-        self.relations = ['inside', 'close', 'on']
+        self.relations = ['inside', 'close', 'on', 'hold']
         self.simulaor_type = simulator_type
         self.objects = self.get_objects()
         self.rooms = ['bathroom', 'bedroom', 'kitchen', 'livingroom']
@@ -249,10 +250,28 @@ class GraphHelper():
         max_nodes = self.num_objects
         max_edges = self.num_edges
         
+        edges = [edge.copy() for edge in graph['edges']]
 
-        edges = [edge for edge in graph['edges'] if edge['from_id'] in ids and edge['to_id'] in ids and edge['relation_type'].lower() in self.relations]
+        # Add a holding edge
+        holding_object = []
+        for edge in edges:
+            if 'hold' in edge['relation_type'].lower():
+                edge['relation_type'] = 'hold'
+                holding_object.append(edge['to_id'])
 
-        
+        # If holding an object, remove close edge
+        edges = [edge for edge in edges if (edge['relation_type'].lower() != 'close' or edge['to_id'] not in holding_object) and not (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on')]
+        edges = [edge for edge in edges if edge['from_id'] in ids and edge['to_id'] in ids and edge['relation_type'].lower() in self.relations]
+
+        # Check if there is more than one edge between two nodes
+        edge_tup = [(edge['from_id'], edge['to_id']) for edge in edges]
+        try:
+            assert(len(set(edge_tup)) == len(edge_tup))
+        except:
+            print(sorted(edge_tup))
+            print('\n')
+            print(sorted(set(edge_tup)))
+            raise Exception("duplicated edges")
         nodes = [id2node[idi] for idi in ids]
         nodes.append({'id': -1, 'class_name': 'no_obj', 'states': []})
 

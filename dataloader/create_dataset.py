@@ -31,9 +31,10 @@ if __name__ == '__main__':
     now = datetime.now() # current date and time
     dir_script = pathlib.Path(__file__).parent.absolute()
 
-    dataset_name = 'dataset_graph_pred_overfit'
-    train_path = f'{dir_script}/../dataset_episodes/small_data_toy/train_env_task_set_1_full/*'
-    test_path =  f'{dir_script}/../dataset_episodes/small_data_toy/train_env_task_set_1_full/*'
+    dataset_name = 'dataset_graph_pred'
+    
+    train_path = f'{dir_script}/../dataset_episodes/large_data_toy/train_env_task_set_100_full/*'
+    test_path =  f'{dir_script}/../dataset_episodes/large_data_toy/test_env_task_set_10_full/*'
 
     dict_train = build_dataset(train_path)
     print("Building...")

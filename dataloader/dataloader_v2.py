@@ -24,7 +24,6 @@ class AgentTypeDataset(Dataset):
 
         with open(self.path_init, 'rb+') as f:
             agent_files = pkl.load(f)
-            agent_files = agent_files
 
         agent_type_max = max(agent_files.values())
         
@@ -168,7 +167,13 @@ class AgentTypeDataset(Dataset):
 
             if it >= self.max_tsteps:
                 break
-            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'])
+            try:
+                graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'])
+            except:
+                print("Failure", file_name, it)
+
+                return self.failure(index)
+                #raise Exception("Error building graph")
 
             # class names
             for attribute_name in attributes_include:
@@ -188,7 +193,8 @@ class AgentTypeDataset(Dataset):
             # fill up the closeness mask
             if len(close_nodes) > 0:
                 indexe = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
-                mask_close[np.array(indexe)] = 1.0
+                if len(indexe) > 0:
+                    mask_close[np.array(indexe)] = 1.0
 
             # Fill up goal object mask
             goal_loc = [target_loc for it_pred, target_loc in enumerate(target_loc_class) if mask_goal_pred[it_pred] == 1]

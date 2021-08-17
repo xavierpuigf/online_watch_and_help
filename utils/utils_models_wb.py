@@ -21,6 +21,91 @@ import matplotlib.pyplot as plt
 from .utils_plot import Plotter
 plt.switch_backend('agg')
 
+def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_item, step):
+    # We are predicting the next graph, so we sum 1
+    offset = 1
+    mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
+    object_names = graph['class_objects'][batch_item, step+offset]
+    object_states = state_info[batch_item, step]
+    num_nodes = graph['mask_object'].shape[-1]
+    
+
+    # object_coords = graph['object_coords'][batch_item, step+offset]
+    
+    # ipdb.set_trace()
+    node_ids = graph['node_ids'][batch_item, step+offset]
+
+
+    # ipdb.set_trace()
+    print("Graph")
+    print("==========")
+    print("Nodes:")
+    obj_names = []
+    for nid in range(mask_object):
+
+        state_names = [graph_helper.states[it] for it in range(4) if int(object_states[nid][it]) == 1]
+        state_names = ' '.join(state_names)
+        class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
+        idi = int(node_ids[nid])
+        # coords = list(object_coords[nid][:3])      
+        # coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
+        obj_name_complete = f"{class_name}.{idi}"
+        obj_name_complete += ' '*(20 - len(obj_name_complete))
+        obj_names.append(obj_name_complete)
+
+        print(f"{obj_name_complete}. {state_names}")
+
+
+
+    print('\nEdges')
+    current_mask_edge = mask_edge[batch_item, step]
+    current_edge = edge_info[batch_item, step]
+    # Only store on and inside edges, and hold
+    inside_of = {}
+    id_inside = graph_helper.relation_dict.get_id('inside')
+    id_on = graph_helper.relation_dict.get_id('on')
+    id_hold = graph_helper.relation_dict.get_id('hold')
+
+
+    inside = np.where(np.logical_and(current_edge == id_inside, current_mask_edge == 1))[0]
+    on = np.where(np.logical_and(current_edge == id_on, current_mask_edge == 1))[0]
+    hold = np.where(np.logical_and(current_edge == id_hold, current_mask_edge == 1))[0]
+
+
+    inside_from, inside_to = (inside // num_nodes), inside % num_nodes 
+    on_from, on_to = (on // num_nodes), on % num_nodes 
+    hold_from, hold_to = (hold // num_nodes), hold % num_nodes 
+
+    on = {}
+    inside_of = {}
+    for elem_from, elem_to in zip(inside_from.tolist(), inside_to.tolist()):
+        if int(elem_to) not in inside_of:
+            inside_of[int(elem_to)] = []
+        inside_of[int(elem_to)].append(int(elem_from))
+
+
+    for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
+        if int(elem_to) not in on:
+            on[int(elem_to)] = []
+        on[int(elem_to)].append(int(elem_from))
+    
+    all_elems = sorted(list(set(list(on.keys()) + list(inside_of.keys()))))
+
+    print("HOLDING:", list(zip(hold_from, hold_to)))
+    for elem in all_elems:
+        inside_curr, on_curr = [], []
+        if elem in inside_of:
+            inside_curr = inside_of[elem]
+        if elem in on:
+            on_curr = on[elem]
+        # ipdb.set_trace()
+        on_str = ' '.join([obj_names[itt].strip() for itt in on_curr])
+        inside_str = ' '.join([obj_names[itt].strip() for itt in inside_curr])
+        elem2 = obj_names[elem]
+        print(f'{elem2}: ON: [{on_str}]   INSIDE: [{inside_str}]')
+    print("==========")
+
+
 def print_graph(graph_helper, graph, batch_item, step):
     mask_object = int(graph['mask_object'][batch_item, step].sum())
     object_names = graph['class_objects'][batch_item, step]
