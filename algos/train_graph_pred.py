@@ -60,7 +60,7 @@ def build_gt_edge(graph_info):
 #     assert (num_nodes ** 2) == num_nodes_sq
 #     edges_something = edges
 
-def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
+def inference(data_loader, model, args, criterion_state, criterion_edge):
     model.eval()
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -90,7 +90,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
             data_time.update(time.time() - end)
 
 
-            graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
+            graph_info, program, label, len_mask, goal, label_agent, real_label_agent, ind = data_item
             # ipdb.set_trace()
             inputs = {
                 'program': program,
@@ -112,9 +112,127 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
             mask_length = len_mask[:, 1:].cuda()
 
 
-            # loss states
-            criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
-            criterion_edge = torch.nn.CrossEntropyLoss(reduction='none')
+            loss_state = criterion_state(output['states'][:, :-1, ...], graph_info['states_objects'][:, 1:, ...].cuda()) 
+            loss_state = loss_state *  graph_info['mask_object'][:, 1:, :, None].cuda()
+            loss_state = loss_state.mean()
+
+            # loss edges edges in prediction are stored as a B x Time x N x N x num_edge_class tensor
+            # GT is stored as B x Time x Num_edges, we need to convert
+            num_nodes = output['states'].shape[-2]
+            
+            pred_edge = output['edges'][:, :-1, ...]
+            gt_edges = build_gt_edge(graph_info)
+            
+            if args.model.predict_last:
+                nt = gt_edges.shape[1]
+                numnode = gt_edges.shape[-1]
+                tsteps = len_mask.sum(-1)[:,None,None].repeat(1,1,numnode).long() - 1
+                gt_edge = torch.gather(gt_edges, 1, tsteps).repeat(1, nt-1, 1).cuda()
+
+            else:
+                gt_edge = gt_edges[:, 1:, ...].cuda()
+
+            mask_obs_node = graph_info['mask_obs_node']
+            
+            medges1 = mask_obs_node.repeat([1, 1, num_nodes]).cuda()
+            medges2 = mask_obs_node.repeat_interleave(num_nodes, dim=2).cuda()
+            mask_edges = medges1 * medges2
+            mask_edges = mask_edges[:, 1:, ...]
+
+            predicted_edge = pred_edge.argmax(-1).cpu()
+            predicted_state = (pred_state > 0.5).cpu()
+
+            pred_graph = obtain_graphs(p_loader.dataset.graph_helper, graph, predicted_edge, predicted_state, mask_edges.cpu(), pred_edge.cpu(), pred_state.cpu())
+            gt_gtaph = obtain_graphs(p_loader.dataset.graph_helper, graph, gt_edge.cpu(), gt_state.cpu(), mask_edges.cpu(), None, None)
+
+
+            loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
+            loss_edges = loss_edges * mask_edges
+            loss_edges = loss_edges.mean()
+
+
+            loss = loss_edges + loss_state
+            losses.update(loss.item())
+            losses_state.update(loss_state.item())
+            losses_edge.update(loss_edges.item())
+
+            # Update accuracy
+            state_prec, state_recall, edge_accuracy, edge_accuracy_pos = compute_metrics(
+                gt_state, gt_edge, pred_state, mask_state, 
+                pred_edge, mask_length, mask_edges)
+
+
+
+
+            prec_state.update(state_prec.item())
+            recall_state.update(state_recall.item())
+            accuracy_edge.update(edge_accuracy.item())
+            accuracy_edge_pos.update(edge_accuracy_pos.item())
+                
+            # ipdb.set_trace()
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+
+        else:
+            continue
+
+        progress.display(it)
+
+
+
+def evaluate(data_loader, data_loader_train, model, epoch, args, logger, criterion_state, criterion_edge):
+    model.eval()
+    batch_time = AverageMeter('Time', ':6.3f')
+    data_time = AverageMeter('Data', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    losses_state = AverageMeter('LossState', ':.4e')
+    losses_edge = AverageMeter('LossState', ':.4e')
+
+    
+
+    prec_state = AverageMeter('Prec State', ':6.2f')
+    
+    recall_state = AverageMeter('Rec State', ':6.2f')
+    accuracy_edge = AverageMeter('Accuracy Edge', ':6.2f')
+    accuracy_edge_pos = AverageMeter('Accuracy Edge Pos', ':6.2f')
+
+    progress = ProgressMeter(
+            len(data_loader),
+            [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, accuracy_edge, accuracy_edge_pos],
+        prefix="Epoch: [{}]".format(epoch))
+
+
+
+
+    end = time.time()
+    for it, data_item in enumerate(data_loader):
+        if it < args['test']['num_iters']:
+            data_time.update(time.time() - end)
+
+
+            graph_info, program, label, len_mask, goal, label_agent, real_label_agent, ind = data_item
+            # ipdb.set_trace()
+            inputs = {
+                'program': program,
+                'graph': graph_info,
+                'mask_len': len_mask,
+                'goal': goal,
+                'label_agent': label_agent
+
+            }
+            with torch.no_grad():
+                output = model(inputs)
+
+
+
+            pred_edge = output['edges'][:, :-1, ...]
+            pred_state = output['states'][:, :-1, ...]
+            gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
+            mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
+            mask_length = len_mask[:, 1:].cuda()
+
+
     
             loss_state = criterion_state(output['states'][:, :-1, ...], graph_info['states_objects'][:, 1:, ...].cuda()) 
             loss_state = loss_state *  graph_info['mask_object'][:, 1:, :, None].cuda()
@@ -126,8 +244,15 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
             
             pred_edge = output['edges'][:, :-1, ...]
             gt_edges = build_gt_edge(graph_info)
+            if args.model.predict_last:
+                nt = gt_edges.shape[1]
+                numnode = gt_edges.shape[-1]
+                tsteps = len_mask.sum(-1)[:,None,None].repeat(1,1,numnode).long() - 1
+                gt_edge = torch.gather(gt_edges, 1, tsteps).repeat(1, nt-1, 1).cuda()
 
-            gt_edge = gt_edges[:, 1:, ...].cuda()
+            else:
+                gt_edge = gt_edges[:, 1:, ...].cuda()
+
 
             mask_obs_node = graph_info['mask_obs_node']
             
@@ -136,10 +261,20 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
             mask_edges = medges1 * medges2
             mask_edges = mask_edges[:, 1:, ...]
 
+            for index in range(1):
+                current_index = ind[index]
+                fname = data_loader.dataset.pkl_files[current_index]
 
-            utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, gt_edges.cpu(), mask_edges.cpu(), gt_state.cpu(), 0, 0)            
-            utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, pred_edge.argmax(-1).cpu(), mask_edges.cpu(), (pred_state > 0.5).cpu(), 0, 0)
+                if True:
+                    print("************************")
+                    print(f"File: {current_index}:{fname}")
+                    print("\nGroundTrurth")
+                    utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, gt_edge.cpu(), mask_edges.cpu(), gt_state.cpu(), index, 0)            
+                    print("\nPrediction")
+                    utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, pred_edge.argmax(-1).cpu(), mask_edges.cpu(), (pred_state > 0.5).cpu(), index, 0)
 
+                    print("************************")
+                    #ipdb.set_trace()
             loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
             loss_edges = loss_edges * mask_edges
             loss_edges = loss_edges.mean()
@@ -190,14 +325,14 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger):
 
     info_log = {
                 'losses': {'total_val': losses.avg, 'state_val': losses_state.avg, 'edge_val': losses_edge.avg},
-                'accuracy': {'state_prec_val': prec_state.val, 'state_recall_val': recall_state.avg, 'edge_accuracy_val': accuracy_edge.avg,  'edge_accuracy_pos': accuracy_edge_pos.avg},
+                'accuracy': {'state_prec_val': prec_state.val, 'state_recall_val': recall_state.avg, 'edge_accuracy_val': accuracy_edge.avg,  'edge_accuracy_pos_val': accuracy_edge_pos.avg},
                 'misc': {'epoch': epoch}
             }
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
 
 
-def train_epoch(data_loader, model, epoch, args, optimizer, logger):
+def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_state, criterion_edge):
     print(colored(f"Training epoch {epoch}", "yellow"))
 
     batch_time = AverageMeter('Time', ':6.3f')
@@ -227,7 +362,7 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger):
     for it, data_item in enumerate(data_loader):
         data_time.update(time.time() - end)
 
-        graph_info, program, label, len_mask, goal, label_agent, real_label_agent = data_item
+        graph_info, program, label, len_mask, goal, label_agent, real_label_agent, ind = data_item
 
         label_action = program['action'][:, 1:]
         index_label_obj1 = program['indobj1'][:, 1:]
@@ -260,9 +395,6 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger):
         mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
         mask_length = len_mask[:, 1:].cuda()
 
-        # loss states
-        criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
-        criterion_edge = torch.nn.CrossEntropyLoss(reduction='none')
 
         loss_state = criterion_state(pred_state, gt_state) 
         loss_state = loss_state *  mask_state
@@ -274,7 +406,15 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger):
 
 
         gt_edges = build_gt_edge(graph_info)
-        gt_edge = gt_edges[:, 1:, ...].cuda()
+
+        if args.model.predict_last:
+            nt = gt_edges.shape[1]
+            numnode = gt_edges.shape[-1]
+            tsteps = len_mask.sum(-1)[:,None,None].repeat(1,1,numnode).long() - 1
+            gt_edge = torch.gather(gt_edges, 1, tsteps).repeat(1, nt-1, 1).cuda()
+
+        else:
+            gt_edge = gt_edges[:, 1:, ...].cuda()
 
         mask_obs_node = graph_info['mask_obs_node']
         
@@ -414,18 +554,35 @@ def main(cfg: DictConfig):
     if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
-    optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
-    print("Failures: ", train_loader.dataset.get_failures())
 
-    logger = LoggerSteps(config)
 
-    logger.save_model(0, model, optimizer)
+    # loss states
+    weight = None
+    if config['train']['loss_weighted_edge']:
+        weight = torch.Tensor([0.05, 1, 1, 1])
+        if cfg.cuda:
+            weight = weight.cuda()
+    criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
+    criterion_edge = torch.nn.CrossEntropyLoss(weight=weight, reduction='none')
 
-    for epoch in range(config['train']['epochs']):
-        train_epoch(train_loader, model, epoch, config, optimizer, logger)
-        evaluate(test_loader, train_loader, model, epoch, config, logger)
-        if epoch % 10 == 0:
-            logger.save_model(epoch, model, optimizer)
+    if config.inference:
+        inference(test_loader, model, config, criterion_state, criterion_edge)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
+        print("Failures: ", train_loader.dataset.get_failures())
+
+        logger = LoggerSteps(config)
+
+        logger.save_model(0, model, optimizer)
+        
+        #evaluate(test_loader, train_loader, model, 0, config, logger, criterion_state, criterion_edge)
+        #ipdb.set_trace()
+
+        for epoch in range(config['train']['epochs']):
+            train_epoch(train_loader, model, epoch, config, optimizer, logger, criterion_state, criterion_edge)
+            evaluate(test_loader, train_loader, model, epoch, config, logger, criterion_state, criterion_edge)
+            if epoch % 10 == 0:
+                logger.save_model(epoch, model, optimizer)
 
 
 if __name__ == '__main__':

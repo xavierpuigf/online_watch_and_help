@@ -6,6 +6,7 @@ import os
 import wandb
 import tensorflow as tf
 import tensorflow as tf
+from hydra.utils import get_original_cwd, to_absolute_path
 import tensorboard as tb
 tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 from torch.utils.tensorboard import SummaryWriter
@@ -20,6 +21,82 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from .utils_plot import Plotter
 plt.switch_backend('agg')
+
+
+def obtain_graphs(graph_helper, graph, edge_info, mask_edge, state_info, edge_prob, state_prob):
+    # We are predicting the next graph, so we sum 
+    mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
+    object_names = graph['class_objects'][batch_item, step+offset]
+    object_states = state_info[batch_item, step]
+    num_nodes = graph['mask_object'].shape[-1]
+    
+
+    # object_coords = graph['object_coords'][batch_item, step+offset]
+    
+    # ipdb.set_trace()
+    node_ids = graph['node_ids'][batch_item, step+offset]
+
+
+    # ipdb.set_trace()
+    print_node = False
+    obj_names = []
+    for nid in range(mask_object):
+
+        state_names = [graph_helper.states[it] for it in range(4) if int(object_states[nid][it]) == 1]
+        state_names = ' '.join(state_names)
+        class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
+        idi = int(node_ids[nid])
+        # coords = list(object_coords[nid][:3])      
+        # coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
+        obj_name_complete = f"{class_name}.{idi}"
+        obj_name_complete += ' '*(20 - len(obj_name_complete))
+        obj_names.append(obj_name_complete)
+    current_mask_edge = mask_edge[batch_item, step]
+    current_edge = edge_info[batch_item, step]
+    # Only store on and inside edges, and hold
+    inside_of = {}
+    id_inside = graph_helper.relation_dict.get_id('inside')
+    id_on = graph_helper.relation_dict.get_id('on')
+    id_hold = graph_helper.relation_dict.get_id('hold')
+
+
+    inside = np.where(np.logical_and(current_edge == id_inside, current_mask_edge == 1))[0]
+    on = np.where(np.logical_and(current_edge == id_on, current_mask_edge == 1))[0]
+    hold = np.where(np.logical_and(current_edge == id_hold, current_mask_edge == 1))[0]
+
+
+    inside_from, inside_to = (inside // num_nodes), inside % num_nodes 
+    on_from, on_to = (on // num_nodes), on % num_nodes 
+    hold_from, hold_to = (hold // num_nodes), hold % num_nodes 
+
+    on = {}
+    inside_of = {}
+    for elem_from, elem_to in zip(inside_from.tolist(), inside_to.tolist()):
+        if int(elem_to) not in inside_of:
+            inside_of[int(elem_to)] = []
+        inside_of[int(elem_to)].append(int(elem_from))
+
+
+    for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
+        if int(elem_to) not in on:
+            on[int(elem_to)] = []
+        on[int(elem_to)].append(int(elem_from))
+    
+    all_elems = sorted(list(set(list(on.keys()) + list(inside_of.keys()))))
+
+    print("HOLDING:", list(zip(hold_from, hold_to)))
+    for elem in all_elems:
+        inside_curr, on_curr = [], []
+        if elem in inside_of:
+            inside_curr = inside_of[elem]
+        if elem in on:
+            on_curr = on[elem]
+        # ipdb.set_trace()
+        on_str = ' '.join([obj_names[itt].strip() for itt in on_curr])
+        inside_str = ' '.join([obj_names[itt].strip() for itt in inside_curr])
+        elem2 = obj_names[elem]
+        print(f'{elem2}: ON: [{on_str}]   INSIDE: [{inside_str}]')
+    print("==========")
 
 def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_item, step):
     # We are predicting the next graph, so we sum 1
@@ -37,9 +114,11 @@ def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_i
 
 
     # ipdb.set_trace()
+    print_node = False
     print("Graph")
     print("==========")
-    print("Nodes:")
+    if print_node:
+        print("Nodes:")
     obj_names = []
     for nid in range(mask_object):
 
@@ -52,12 +131,14 @@ def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_i
         obj_name_complete = f"{class_name}.{idi}"
         obj_name_complete += ' '*(20 - len(obj_name_complete))
         obj_names.append(obj_name_complete)
+        if print_node:
+            print(f"{obj_name_complete}. {state_names}")
 
-        print(f"{obj_name_complete}. {state_names}")
+    if print_node:
+        print('\n')
 
 
-
-    print('\nEdges')
+    print('Edges')
     current_mask_edge = mask_edge[batch_item, step]
     current_edge = edge_info[batch_item, step]
     # Only store on and inside edges, and hold
@@ -402,10 +483,9 @@ class LoggerSteps():
         self.args = args
         self.experiment_name = self.get_experiment_name()
         self.wandb = None
-        self.save_dir = '.'
+        self.save_dir = os.path.dirname(get_original_cwd())
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
-        self.tensorboard_logdir = os.path.join(self.save_dir, 'tensorboard', self.experiment_name)
         self.logs_logdir = os.path.join(self.save_dir, 'logs_model', self.experiment_name)
 
 
@@ -428,13 +508,8 @@ class LoggerSteps():
 
 
     def set_tensorboard(self):
-        try:
-            os.makedirs(self.tensorboard_logdir)
-        except:
-            pass
-        now = datetime.datetime.now()
         
-        self.wandb = wandb.init(project="graph-prediction", config=self.args)
+        self.wandb = wandb.init(project="graph-prediction", config=OmegaConf.to_container(self.args))
         
     def get_experiment_name(self):
         args = self.args
@@ -551,10 +626,11 @@ class LoggerSteps():
     def save_model(self, j, model, optimizer):
 
         save_path = os.path.join(self.ckpt_save_dir)
-        if not os.path.isdir(save_path):
+        if not os.path.exists(save_path):
             os.makedirs(save_path)
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
                 f.write(OmegaConf.to_yaml(self.args))
+        #ipdb.set_trace()
         torch.save({
             'model': model.state_dict(),
             'optimizer': optimizer.state_dict(),

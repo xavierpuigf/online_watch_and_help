@@ -284,7 +284,7 @@ class AgentTypeDataset(Dataset):
 
         if self.args_config['model']['state_encoder'] == 'GNN' and build_graphs_in_loader:
             time_graph['graph'] = build_graph(time_graph)
-        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label
+        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, index
 
 def build_graph(time_graph):
     graphs = []
