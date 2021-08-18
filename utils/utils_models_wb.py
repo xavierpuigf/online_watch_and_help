@@ -23,7 +23,7 @@ from .utils_plot import Plotter
 plt.switch_backend('agg')
 
 
-def obtain_graph(graph_helper, graph, edge_info, mask_edge, state_info, edge_prob, state_prob, batch_item, len_mask):
+def obtain_graph(graph_helper, graph,  edge_prob, state_prob, mask_edge, batch_item, len_mask):
     # We are predicting the next graph, so we sum 
     num_tsteps = int(len_mask[batch_item].sum()) - 1
     offset = 0
@@ -32,10 +32,11 @@ def obtain_graph(graph_helper, graph, edge_info, mask_edge, state_info, edge_pro
     edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
     info = {
             'results': [],
-            'states': state_names,
-            'edges': edge_names
+            'state_names': state_names,
+            'edge_names': edge_names
     }
     all_edges, all_from, all_to = [], [], []
+    object_states = state_prob[batch_item, :num_tsteps].numpy()
     for step in range(num_tsteps):
         result = {}
         mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
@@ -48,7 +49,6 @@ def obtain_graph(graph_helper, graph, edge_info, mask_edge, state_info, edge_pro
 
         print_node = False
         obj_names = []
-        object_states = state_info[batch_item, :mask_object].numpy()
         for nid in range(mask_object):
 
             class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
@@ -58,7 +58,7 @@ def obtain_graph(graph_helper, graph, edge_info, mask_edge, state_info, edge_pro
 
 
         current_mask_edge = mask_edge[batch_item, step]
-        current_edge = edge_info[batch_item, step]
+        # current_edge = edge_info[batch_item, step]
         indices_valid = np.where(current_mask_edge == 1)[0]
         edge_probs = edge_prob[batch_item, step+offset, indices_valid]
         from_id = indices_valid // num_nodes 
@@ -66,8 +66,8 @@ def obtain_graph(graph_helper, graph, edge_info, mask_edge, state_info, edge_pro
         
         curr_res = {}
         all_edges.append(edge_probs[None, :].numpy())
-        all_from.append(from_id[None, :].numpy())
-        all_to.append(to_id[None, :].numpy())
+        all_from.append(from_id[None, :])
+        all_to.append(to_id[None, :])
     
     all_edges = np.concatenate(all_edges, 0)
     all_from = np.concatenate(all_from, 0)
@@ -614,7 +614,7 @@ class LoggerSteps():
             os.makedirs(save_path)
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
                 f.write(OmegaConf.to_yaml(self.args))
-        #ipdb.set_trace()
+        ipdb.set_trace()
         torch.save({
             'model': model.state_dict(),
             'optimizer': optimizer.state_dict(),

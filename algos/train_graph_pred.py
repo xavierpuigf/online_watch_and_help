@@ -60,7 +60,7 @@ def build_gt_edge(graph_info):
 #     assert (num_nodes ** 2) == num_nodes_sq
 #     edges_something = edges
 
-def inference(data_loader, model, args, criterion_state, criterion_edge):
+def inference(data_loader, model, args, logger, criterion_state, criterion_edge):
     model.eval()
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -149,8 +149,8 @@ def inference(data_loader, model, args, criterion_state, criterion_edge):
             for index in range(ind.shape[0]):
                 current_index = ind[index]
                 fname = data_loader.dataset.pkl_files[current_index]
-                pred_graph = utils_models.obtain_graph(data_loader.dataset.graph_helper, graph_info, predicted_edge, predicted_state, mask_edges.cpu(), pred_edge.cpu(), pred_state.cpu(), index, len_mask)
-                gt_graph = utils_models.obtain_graph(data_loader.dataset.graph_helper, graph_info, gt_edge_onehot.cpu(), gt_state.cpu(), mask_edges.cpu(), None, None, index, len_mask)
+                pred_graph = utils_models.obtain_graph(data_loader.dataset.graph_helper, graph_info, predicted_edge, predicted_state, mask_edges.cpu(), index, len_mask)
+                gt_graph = utils_models.obtain_graph(data_loader.dataset.graph_helper, graph_info, gt_edge_onehot.cpu(), gt_state.cpu(), mask_edges.cpu(), index, len_mask)
                 results = {
                         'gt_graph': gt_graph,
                         'pred_graph': pred_graph,
@@ -589,7 +589,8 @@ def main(cfg: DictConfig):
     criterion_edge = torch.nn.CrossEntropyLoss(weight=weight, reduction='none')
 
     if config.inference:
-        inference(test_loader, model, config, criterion_state, criterion_edge)
+        logger = LoggerSteps(config)
+        inference(test_loader, model, config, logger, criterion_state, criterion_edge)
     else:
         optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
         print("Failures: ", train_loader.dataset.get_failures())
