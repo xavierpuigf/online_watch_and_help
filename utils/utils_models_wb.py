@@ -23,80 +23,63 @@ from .utils_plot import Plotter
 plt.switch_backend('agg')
 
 
-def obtain_graphs(graph_helper, graph, edge_info, mask_edge, state_info, edge_prob, state_prob):
+def obtain_graph(graph_helper, graph, edge_info, mask_edge, state_info, edge_prob, state_prob, batch_item, len_mask):
     # We are predicting the next graph, so we sum 
-    mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
-    object_names = graph['class_objects'][batch_item, step+offset]
-    object_states = state_info[batch_item, step]
-    num_nodes = graph['mask_object'].shape[-1]
+    num_tsteps = int(len_mask[batch_item].sum()) - 1
+    offset = 0
+    nedges = len(graph_helper.relation_dict)
+    state_names = [(graph_helper.states[it], ) for it in range(4)]
+    edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
+    info = {
+            'results': [],
+            'states': state_names,
+            'edges': edge_names
+    }
+    all_edges, all_from, all_to = [], [], []
+    for step in range(num_tsteps):
+        result = {}
+        mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
+        object_names = graph['class_objects'][batch_item, step+offset]
+        num_nodes = graph['mask_object'].shape[-1]
     
 
-    # object_coords = graph['object_coords'][batch_item, step+offset]
+        node_ids = graph['node_ids'][batch_item, step+offset]
+
+
+        print_node = False
+        obj_names = []
+        object_states = state_info[batch_item, :mask_object].numpy()
+        for nid in range(mask_object):
+
+            class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
+            idi = int(node_ids[nid])
+            obj_name_complete = f"{class_name}.{idi}"
+            obj_names.append(obj_name_complete)
+
+
+        current_mask_edge = mask_edge[batch_item, step]
+        current_edge = edge_info[batch_item, step]
+        indices_valid = np.where(current_mask_edge == 1)[0]
+        edge_probs = edge_prob[batch_item, step+offset, indices_valid]
+        from_id = indices_valid // num_nodes 
+        to_id = indices_valid % num_nodes
+        
+        curr_res = {}
+        all_edges.append(edge_probs[None, :].numpy())
+        all_from.append(from_id[None, :].numpy())
+        all_to.append(to_id[None, :].numpy())
     
-    # ipdb.set_trace()
-    node_ids = graph['node_ids'][batch_item, step+offset]
+    all_edges = np.concatenate(all_edges, 0)
+    all_from = np.concatenate(all_from, 0)
+    all_to = np.concatenate(all_to, 0)
+    info['edge_prob'] = all_edges
+    info['from_id'] = all_from
+    info['to_id'] = all_to
+    info['states'] = object_states
 
+    info['nodes'] = obj_names
 
-    # ipdb.set_trace()
-    print_node = False
-    obj_names = []
-    for nid in range(mask_object):
-
-        state_names = [graph_helper.states[it] for it in range(4) if int(object_states[nid][it]) == 1]
-        state_names = ' '.join(state_names)
-        class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
-        idi = int(node_ids[nid])
-        # coords = list(object_coords[nid][:3])      
-        # coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
-        obj_name_complete = f"{class_name}.{idi}"
-        obj_name_complete += ' '*(20 - len(obj_name_complete))
-        obj_names.append(obj_name_complete)
-    current_mask_edge = mask_edge[batch_item, step]
-    current_edge = edge_info[batch_item, step]
-    # Only store on and inside edges, and hold
-    inside_of = {}
-    id_inside = graph_helper.relation_dict.get_id('inside')
-    id_on = graph_helper.relation_dict.get_id('on')
-    id_hold = graph_helper.relation_dict.get_id('hold')
-
-
-    inside = np.where(np.logical_and(current_edge == id_inside, current_mask_edge == 1))[0]
-    on = np.where(np.logical_and(current_edge == id_on, current_mask_edge == 1))[0]
-    hold = np.where(np.logical_and(current_edge == id_hold, current_mask_edge == 1))[0]
-
-
-    inside_from, inside_to = (inside // num_nodes), inside % num_nodes 
-    on_from, on_to = (on // num_nodes), on % num_nodes 
-    hold_from, hold_to = (hold // num_nodes), hold % num_nodes 
-
-    on = {}
-    inside_of = {}
-    for elem_from, elem_to in zip(inside_from.tolist(), inside_to.tolist()):
-        if int(elem_to) not in inside_of:
-            inside_of[int(elem_to)] = []
-        inside_of[int(elem_to)].append(int(elem_from))
-
-
-    for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
-        if int(elem_to) not in on:
-            on[int(elem_to)] = []
-        on[int(elem_to)].append(int(elem_from))
-    
-    all_elems = sorted(list(set(list(on.keys()) + list(inside_of.keys()))))
-
-    print("HOLDING:", list(zip(hold_from, hold_to)))
-    for elem in all_elems:
-        inside_curr, on_curr = [], []
-        if elem in inside_of:
-            inside_curr = inside_of[elem]
-        if elem in on:
-            on_curr = on[elem]
-        # ipdb.set_trace()
-        on_str = ' '.join([obj_names[itt].strip() for itt in on_curr])
-        inside_str = ' '.join([obj_names[itt].strip() for itt in inside_curr])
-        elem2 = obj_names[elem]
-        print(f'{elem2}: ON: [{on_str}]   INSIDE: [{inside_str}]')
-    print("==========")
+    return info
 
 def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_item, step):
     # We are predicting the next graph, so we sum 1
@@ -486,6 +469,7 @@ class LoggerSteps():
         self.save_dir = os.path.dirname(get_original_cwd())
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
+        self.results_path = os.path.join(self.save_dir, 'results', self.experiment_name)
         self.logs_logdir = os.path.join(self.save_dir, 'logs_model', self.experiment_name)
 
 

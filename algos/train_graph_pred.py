@@ -75,7 +75,7 @@ def inference(data_loader, model, args, criterion_state, criterion_edge):
     recall_state = AverageMeter('Rec State', ':6.2f')
     accuracy_edge = AverageMeter('Accuracy Edge', ':6.2f')
     accuracy_edge_pos = AverageMeter('Accuracy Edge Pos', ':6.2f')
-
+    epoch = 0
     progress = ProgressMeter(
             len(data_loader),
             [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, accuracy_edge, accuracy_edge_pos],
@@ -139,11 +139,32 @@ def inference(data_loader, model, args, criterion_state, criterion_edge):
             mask_edges = medges1 * medges2
             mask_edges = mask_edges[:, 1:, ...]
 
-            predicted_edge = pred_edge.argmax(-1).cpu()
-            predicted_state = (pred_state > 0.5).cpu()
+            predicted_edge = pred_edge.cpu()
+            predicted_state = pred_state.cpu()
+            try:  
+                gt_edge_onehot = torch.nn.functional.one_hot(gt_edge, predicted_edge.shape[-1])
+            except:
+                ipdb.set_trace()
 
-            pred_graph = obtain_graphs(p_loader.dataset.graph_helper, graph, predicted_edge, predicted_state, mask_edges.cpu(), pred_edge.cpu(), pred_state.cpu())
-            gt_gtaph = obtain_graphs(p_loader.dataset.graph_helper, graph, gt_edge.cpu(), gt_state.cpu(), mask_edges.cpu(), None, None)
+            for index in range(ind.shape[0]):
+                current_index = ind[index]
+                fname = data_loader.dataset.pkl_files[current_index]
+                pred_graph = utils_models.obtain_graph(data_loader.dataset.graph_helper, graph_info, predicted_edge, predicted_state, mask_edges.cpu(), pred_edge.cpu(), pred_state.cpu(), index, len_mask)
+                gt_graph = utils_models.obtain_graph(data_loader.dataset.graph_helper, graph_info, gt_edge_onehot.cpu(), gt_state.cpu(), mask_edges.cpu(), None, None, index, len_mask)
+                results = {
+                        'gt_graph': gt_graph,
+                        'pred_graph': pred_graph,
+                }
+                sfname = fname.split('/')[-1] + "_result"
+                expath = logger.results_path
+                cpath = '/'.join(fname.split('/')[-3:-1])
+                dir_name = f'{expath}/{cpath}/'
+                result_name = f'{dir_name}/{sfname}.pkl'
+                if not os.path.isdir(dir_name):
+                    os.makedirs(dir_name)
+
+                with open(result_name, 'wb') as f:
+                    pkl.dump(results, f)
 
 
             loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
@@ -422,7 +443,7 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
         medges2 = mask_obs_node.repeat_interleave(num_nodes, dim=2).cuda()
         mask_edges = medges1 * medges2
         mask_edges = mask_edges[:, 1:, ...]
-
+        
         loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
         loss_edges = loss_edges * mask_edges
         loss_edges = loss_edges.mean()
@@ -555,11 +576,13 @@ def main(cfg: DictConfig):
         model = model.cuda()
         model = nn.DataParallel(model)
 
+    if len(cfg.ckpt_load) > 0:
+        model.load_state_dict(torch.load(cfg.ckpt_load)['model'])
 
     # loss states
     weight = None
     if config['train']['loss_weighted_edge']:
-        weight = torch.Tensor([0.05, 1, 1, 1])
+        weight = torch.Tensor([0.05, 1, 1, 1, 1])
         if cfg.cuda:
             weight = weight.cuda()
     criterion_state = torch.nn.BCEWithLogitsLoss(reduction='none')
