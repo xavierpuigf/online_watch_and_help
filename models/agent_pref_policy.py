@@ -97,7 +97,7 @@ class GraphPredNetwork(nn.Module):
 
         self.goal_inp = args['goal_inp']
         self.edge_pred_mode = args['edge_pred']
-        self.pred_change = args['predict_change']
+        self.pred_change = args['predict_edge_change']
         if args['goal_inp']:
             self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
 

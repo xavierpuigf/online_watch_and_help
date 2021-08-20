@@ -510,7 +510,7 @@ class LoggerSteps():
             args['train']['loss_close'],
             args['train']['loss_goal'],
             args['model']['agent_embed'],
-            args['model']['predict_change']
+            args['model']['predict_edge_change']
             )
         if args['model']['gated']:
             experiment_name += '_gated'

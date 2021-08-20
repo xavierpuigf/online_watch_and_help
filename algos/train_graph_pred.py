@@ -447,9 +447,9 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
         mask_edges = mask_edges[:, 1:, ...]
         
 
-        if args.model.predict_change:
+        if args.model.predict_edge_change:
             criterion_change = torch.nn.BCEWithLogitsLoss(reduction='none')
-            changed_edges = gt_edge != gt_edges
+            changed_edges = gt_edge != gt_edges[:, :-1, :]
             pred_changes = output['edge_change']
             loss_change = criterion_change(pred_changes, changed_edges)
             losses_change.update(loss_change.item())
