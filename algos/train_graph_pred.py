@@ -292,7 +292,7 @@ def evaluate(data_loader, data_loader_train, model, epoch, args, logger, criteri
                     print("\nGroundTrurth")
                     utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, gt_edge.cpu(), mask_edges.cpu(), gt_state.cpu(), index, 0)            
                     print("\nPrediction")
-                    utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, pred_edge.argmax(-1).cpu(), mask_edges.cpu(), (pred_state > 0.5).cpu(), index, 0)
+                    utils_models.print_graph_2(data_loader.dataset.graph_helper, graph_info, pred_edge.argmax(-1).cpu(), mask_edges.cpu(), (pred_state > 0).cpu(), index, 0)
 
                     print("************************")
                     #ipdb.set_trace()
@@ -360,7 +360,8 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
     losses_state = AverageMeter('LossState', ':.4e')
-    losses_edge = AverageMeter('LossState', ':.4e')
+    losses_edge = AverageMeter('LossEdge', ':.4e')
+    losses_change = AverageMeter('LossChange', ':.4e')
 
     
 
@@ -372,7 +373,7 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
 
     progress = ProgressMeter(
             len(data_loader),
-            [batch_time, data_time, losses, losses_state, losses_edge, prec_state, recall_state, accuracy_edge, accuracy_edge_pos],
+            [batch_time, data_time, losses, losses_state, losses_edge, losses_change, prec_state, recall_state, accuracy_edge, accuracy_edge_pos],
         prefix="Epoch: [{}]".format(epoch))
 
     model.train()
@@ -436,6 +437,7 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
 
         else:
             gt_edge = gt_edges[:, 1:, ...].cuda()
+        
 
         mask_obs_node = graph_info['mask_obs_node']
         
@@ -444,20 +446,35 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
         mask_edges = medges1 * medges2
         mask_edges = mask_edges[:, 1:, ...]
         
+
+        if args.model.predict_change:
+            criterion_change = torch.nn.BCEWithLogitsLoss(reduction='none')
+            changed_edges = gt_edge != gt_edges
+            pred_changes = output['edge_change']
+            loss_change = criterion_change(pred_changes, changed_edges)
+            losses_change.update(loss_change.item())
+
+            # Only loss for changed edges
+            mask_edges *= changed_edges
+
         loss_edges = criterion_edge(pred_edge.permute(0,3,1,2), gt_edge)
         loss_edges = loss_edges * mask_edges
         loss_edges = loss_edges.mean()
+        
+        loss += (loss_edges + loss_state)
+        
+
+        loss += loss_change
 
 
-        loss = loss_edges + loss_state
         losses.update(loss.item())
         losses_state.update(loss_state.item())
         losses_edge.update(loss_edges.item())
-
+        
 
         # Update accuracy
         state_prec, state_recall, edge_accuracy, edge_accuracy_pos = compute_metrics(
-            gt_state, gt_edge, pred_state, mask_state, pred_edge, mask_length, mask_edges)
+                gt_state, gt_edge, pred_state, mask_state, pred_edge, mask_length, mask_edges, changed_edges, pred_changes)
 
         prec_state.update(state_prec.item())
         recall_state.update(state_recall.item())
@@ -490,28 +507,30 @@ def train_epoch(data_loader, model, epoch, args, optimizer, logger, criterion_st
     #logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
     print("Failed Elements...", data_loader.dataset.get_failures())
 
-def compute_metrics(gt_state, gt_edges, pred_state, mask_state, pred_edges, mask_length, mask_edges):
+def compute_metrics(gt_state, gt_edges, pred_state, mask_state, pred_edges, mask_length, mask_edges, gt_changes, pred_changes):
     
     # How many GT positives
     pos_state = gt_state.sum(-1).sum(-1) + 1e-9
-    # pos_edge = gt_edge.sum(-1).sum(-1) + 1e-9
+    pos_edge_change = gt_changes.sum(-1).sum(-1) + 1e-9
 
     state_avg = gt_state / (pos_state[:, :, None, None])
-    # edge_avg = gt_edge / (pos_edge[:, :, None, None])
+    edge_avg = gt_changes / (pos_edge[:, :, None, None])
     # How many predicted positives
     # ipdb.set_trace()
 
 
-    # edge_avg_pos = ((pred_edge > 0.5) * mask_edges).sum(-1).sum(-1) + 1e-9
-    state_avg_pos = ((pred_state > 0.5) * mask_state).sum(-1).sum(-1) + 1e-9
+    edge_avg_pos = ((pred_changes > 0) * mask_edges).sum(-1).sum(-1) + 1e-9
+    state_avg_pos = ((pred_state > 0) * mask_state).sum(-1).sum(-1) + 1e-9
 
-    # tp_edge = (gt_edge * (pred_edge > 0.5)).sum(-1).sum(-1)
-    tp_state = (gt_state * (pred_state > 0.5)).sum(-1).sum(-1)
+    tp_edge_change = (gt_changes * (pred_changes > 0)).sum(-1).sum(-1)
+    tp_state = (gt_state * (pred_state > 0)).sum(-1).sum(-1)
 
     # Recall
     state_recall = tp_state / pos_state
+    change_recall = tp_edge_change / pos_edge_change
     # Precision
     state_prec = (tp_state / state_avg_pos)
+    change_prec = (tp_state / edge_avg_pos)
 
     # Accuracy
     edge_pred = pred_edges.argmax(-1)
@@ -521,6 +540,9 @@ def compute_metrics(gt_state, gt_edges, pred_state, mask_state, pred_edges, mask
     mask_timesteps = mask_length / mask_length.sum(-1)[:, None]
     state_recall = (state_recall * mask_timesteps).sum(-1).mean()
     state_prec = (state_prec * mask_timesteps).sum(-1).mean()
+
+    change_recall = (change_recall * mask_timesteps).sum(-1).mean()
+    change_prec = (change_prec * mask_timesteps).sum(-1).mean()
 
     mask_edge_norm = mask_edges / (mask_edges.sum(-1)[..., None] + 1e-9)
     edge_accuracy = (edge_accuracy * mask_edge_norm).sum(-1)

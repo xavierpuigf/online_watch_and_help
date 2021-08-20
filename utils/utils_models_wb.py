@@ -498,7 +498,7 @@ class LoggerSteps():
     def get_experiment_name(self):
         args = self.args
         experiment_name = ('predict_graph/train_data.{}-agents{}/'
-                          'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}').format(
+                          'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}').format(
             args['data']['train_data'],
             args['train']['agents'],
             args['model']['time_aggregate'],
@@ -509,7 +509,8 @@ class LoggerSteps():
             args['model']['goal_inp'],
             args['train']['loss_close'],
             args['train']['loss_goal'],
-            args['model']['agent_embed']
+            args['model']['agent_embed'],
+            args['model']['predict_change']
             )
         if args['model']['gated']:
             experiment_name += '_gated'

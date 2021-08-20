@@ -23,6 +23,7 @@ test:
         num_iters: 20
 model:
         predict_last: True
+        predict_edge_change: True
         reduced_graph: True
         edge_pred: 'concat'
         edge_types: 5

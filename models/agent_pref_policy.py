@@ -73,7 +73,12 @@ class GraphPredNetwork(nn.Module):
             multi_edge = 2
 
         self.edge_pred =  nn.Sequential(nn.Linear(self.hidden_size*multi_edge, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.edge_types))
+
+        self.edge_pred =  nn.Sequential(nn.Linear(self.hidden_size*multi_edge, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.edge_types))
+
         self.state_pred =  nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.num_states))
+
+        self.edge_change_pred =  nn.Sequential(nn.Linear(self.hidden_size*multi_edge, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
 
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
@@ -92,6 +97,7 @@ class GraphPredNetwork(nn.Module):
 
         self.goal_inp = args['goal_inp']
         self.edge_pred_mode = args['edge_pred']
+        self.pred_change = args['predict_change']
         if args['goal_inp']:
             self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
 
@@ -113,7 +119,10 @@ class GraphPredNetwork(nn.Module):
             raise Exception
         
         edges = self.edge_pred(edge_embeds)
-        return states, edges
+        edge_change = None
+        if self.pred_change:
+            edge_change = self.edge_change_pred(edge_embeds)
+        return states, edges, edge_change
 
     def forward(self, inputs, cond=None):
         # Cond is an embedding of the past, optionally used
@@ -191,8 +200,8 @@ class GraphPredNetwork(nn.Module):
         output_and_lstm = torch.cat([graph_output_nodes, graphs_at_output], -1)
 
         output_and_lstm = self.comb_out_layer(output_and_lstm)
-        pred_states, pred_edges = self.pred_obj_states(output_and_lstm)
-        return {'states': pred_states, 'edges': pred_edges}
+        pred_states, pred_edges, pred_changes = self.pred_obj_states(output_and_lstm)
+        return {'states': pred_states, 'edges': pred_edges, 'edge_change': pred_changes}
         
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)  
         # loss_o1 = None
