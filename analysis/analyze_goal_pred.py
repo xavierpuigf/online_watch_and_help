@@ -43,7 +43,13 @@ if __name__ == "__main__":
         gt_goal = gt['gt_goals']
         actions = gt['action'][0]
 
-        goal_objects = [predicate.split('_')[1] for predicate in gt_goal]
+        # goal_objects = [predicate.split('_')[1] for predicate in gt_goal] #only check current goal objects
+        goal_objects = [
+            'cupcake',
+            'apple',
+            'plate',
+            'waterglass',
+        ]  # check all possible goal objects
 
         T = len(actions)
         for t in range(T):
