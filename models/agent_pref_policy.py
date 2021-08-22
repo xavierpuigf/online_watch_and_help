@@ -231,7 +231,7 @@ class GoalConditionedGraphPredNetwork(nn.Module):
         )
 
     def __init__(self, args):
-        super(GraphPredNetwork, self).__init__()
+        super(GoalConditionedGraphPredNetwork, self).__init__()
         args = args['model']
         self.max_actions = args['max_actions']
         self.max_nodes = args['max_nodes']
@@ -370,7 +370,6 @@ class GoalConditionedGraphPredNetwork(nn.Module):
         index_obj1 = program['indobj1']
         index_obj2 = program['indobj2']
         node_embeddings = self.graph_encoder(graph)
-        goal_node_embeddings = self.goal
         # Is this ok?
         node_embeddings[node_embeddings.isnan()] = 1
 
@@ -380,7 +379,12 @@ class GoalConditionedGraphPredNetwork(nn.Module):
         assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
         # Graph representation, sum pool
-        graph_repr = node_embeddings.sum(dim=-1)
+        # graph_repr = node_embeddings[:, :, 0]
+
+        graph_repr = (
+            node_embeddings
+            * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, node_embeddings.shape[-1])
+        ).sum(-2)
 
         # Input previous action and current graph
         if not self.goal_inp:

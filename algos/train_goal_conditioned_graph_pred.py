@@ -506,7 +506,7 @@ def evaluate(
                     pred_edge,
                     mask_length,
                     mask_edges,
-                    changes_edges,
+                    changed_edges,
                     pred_changes,
                 )
                 prec_change.update(change_prec.item())
@@ -649,8 +649,7 @@ def train_epoch(
             ind,
         ) = data_item
 
-        print(graph_info.keys())
-        print(graph_info['mask_obs_node'].shape)
+        # print(len_mask.shape)
 
         label_action = program['action'][:, 1:]
         index_label_obj1 = program['indobj1'][:, 1:]
@@ -983,9 +982,9 @@ def main(cfg: DictConfig):
 
     train_loader, test_loader = get_loaders(config)
     if config.model.gated:
-        model = agent_pref_policy.GraphPredNetwork(config)
+        model = agent_pref_policy.GoalConditionedGraphPredNetwork(config)
     else:
-        model = agent_pref_policy.GraphPredNetwork(config)
+        model = agent_pref_policy.GoalConditionedGraphPredNetwork(config)
 
     print("CUDA: {}".format(cfg.cuda))
     if cfg.cuda:

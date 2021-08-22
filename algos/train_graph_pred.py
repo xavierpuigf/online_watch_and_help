@@ -506,7 +506,7 @@ def evaluate(
                     pred_edge,
                     mask_length,
                     mask_edges,
-                    changes_edges,
+                    changed_edges,
                     pred_changes,
                 )
                 prec_change.update(change_prec.item())
