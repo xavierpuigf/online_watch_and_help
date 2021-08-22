@@ -649,6 +649,9 @@ def train_epoch(
             ind,
         ) = data_item
 
+        print(graph_info.keys())
+        print(graph_info['mask_obs_node'].shape)
+
         label_action = program['action'][:, 1:]
         index_label_obj1 = program['indobj1'][:, 1:]
         index_label_obj2 = program['indobj2'][:, 1:]
