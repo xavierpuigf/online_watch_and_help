@@ -6,9 +6,10 @@ import ipdb
 
 
 class GraphPredNetwork(nn.Module):
-
     def mlp2l(self, dim_in, dim_out):
-        return nn.Sequential(nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out))
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+        )
 
     def __init__(self, args):
         super(GraphPredNetwork, self).__init__()
@@ -21,10 +22,10 @@ class GraphPredNetwork(nn.Module):
         self.num_states = args['num_states']
         self.edge_types = args['edge_types']
         args_tf = {
-                'hidden_size': self.hidden_size,
-                'max_nodes': self.max_nodes,
-                'num_classes': self.max_num_classes,
-                'num_states': self.num_states,
+            'hidden_size': self.hidden_size,
+            'max_nodes': self.max_nodes,
+            'num_classes': self.max_num_classes,
+            'num_states': self.num_states,
         }
 
         if args['state_encoder'] == 'TF':
@@ -32,19 +33,15 @@ class GraphPredNetwork(nn.Module):
         elif args['state_encoder'] == 'GNN':
             self.graph_encoder = base_nets.GNNBase(**args_tf)
 
-
-       
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
         self.agent_embedding = nn.Embedding(args['num_agents'], self.hidden_size)
         self.use_agent_embedding = args['agent_embed']
-
 
         # Combine previous action and graph
         multi = 2
         if self.use_agent_embedding:
             raise Exception
             multi = 3
-
 
         # Used to transform the goal encoding into features that we will use for action/object prediction
         '''
@@ -53,38 +50,57 @@ class GraphPredNetwork(nn.Module):
         self.fc_att_object2 = self.mlp2l(self.hidden_size, self.hidden_size)
         '''
 
-
-        self.comb_layer = nn.Linear(self.hidden_size*multi, self.hidden_size)
-        self.comb_out_layer = nn.Linear(self.hidden_size*2, self.hidden_size)
+        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
+        self.comb_out_layer = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.num_layer_lstm = 2
         self.time_aggregate = args['time_aggregate']
-        
+
         if args['time_aggregate'] == 'LSTM':
-            self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
+            self.RNN = nn.LSTM(
+                self.hidden_size,
+                self.hidden_size,
+                self.num_layer_lstm,
+                batch_first=True,
+            )
         elif args['time_aggregate'] == 'none':
             # use the current state
-            self.COMBTime = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
-                                       nn.ReLU(),
-                                       nn.Linear(self.hidden_size, self.hidden_size))
-
+            self.COMBTime = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, self.hidden_size),
+            )
 
         multi_edge = 1
         if args['edge_pred'] == 'concat':
             multi_edge = 2
 
-        self.edge_pred =  nn.Sequential(nn.Linear(self.hidden_size*multi_edge, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.edge_types))
+        self.edge_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.edge_types),
+        )
 
-        self.edge_pred =  nn.Sequential(nn.Linear(self.hidden_size*multi_edge, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.edge_types))
+        self.edge_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.edge_types),
+        )
 
-        self.state_pred =  nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.num_states))
+        self.state_pred = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.num_states),
+        )
 
-        self.edge_change_pred =  nn.Sequential(nn.Linear(self.hidden_size*multi_edge, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-
+        self.edge_change_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 2),
+        )
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
         # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
         # self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-
 
         # self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
         #                            nn.ReLU(),
@@ -93,14 +109,15 @@ class GraphPredNetwork(nn.Module):
         #                                    nn.ReLU(),
         #                                    nn.Linear(self.hidden_size, 1))
 
-
-
         self.goal_inp = args['goal_inp']
         self.edge_pred_mode = args['edge_pred']
         self.pred_change = args['predict_edge_change']
         if args['goal_inp']:
-            self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
-
+            self.goal_encoder = base_nets.GoalEncoder(
+                self.max_num_classes,
+                self.hidden_size,
+                obj_class_encoder=self.graph_encoder.object_class_encoding,
+            )
 
     def pred_obj_states(self, inputs):
         # inputs: Batch x T x num_nodes x embed
@@ -111,13 +128,13 @@ class GraphPredNetwork(nn.Module):
 
         if self.edge_pred_mode == 'concat':
             edge_embeds = torch.cat([edges1, edges2], dim=-1)
-           
+
         elif self.edge_pred_mode == 'dot':
-            edge_embeds = edges1*edges2
+            edge_embeds = edges1 * edges2
 
         else:
             raise Exception
-        
+
         edges = self.edge_pred(edge_embeds)
         edge_change = None
         if self.pred_change:
@@ -139,9 +156,8 @@ class GraphPredNetwork(nn.Module):
 
         dims = list(node_embeddings.shape)
         action_embed = self.action_embedding(program['action'])
-        
-        assert torch.all(inputs['graph']['node_ids'][:,0,0] == 1).item()
-        
+
+        assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
         # Graph representation, it is the representation of the character
         graph_repr = node_embeddings[:, :, 0]
@@ -168,24 +184,22 @@ class GraphPredNetwork(nn.Module):
             gated_goal = graph_repr * goal_mask_action[:, None, :]
             action_graph = torch.cat([action_embed[:, :-1, :], gated_goal], -1)
 
-
         if self.use_agent_embedding:
             raise Exception
             tsteps = action_graph.shape[1]
-            
+
             agent_embeddings = self.agent_embedding(inputs['label_agent'])
             agent_embeddings = agent_embeddings[:, None, :].repeat([1, tsteps, 1])
             action_graph = torch.cat([action_graph, agent_embeddings], -1)
 
         input_embed = self.comb_layer(action_graph)
-        
+
         if cond is not None:
             cond_vec = cond
             ipdb.set_trace()
             input_embed = torch.cat([input_embed, cond_vec], -1)
 
-
-        # Input a combination of previous actions and graph 
+        # Input a combination of previous actions and graph
         if self.time_aggregate == 'LSTM':
             graph_output, (h_t, c_t) = self.RNN(input_embed)
         elif self.time_aggregate == 'none':
@@ -194,19 +208,20 @@ class GraphPredNetwork(nn.Module):
         # graph_output is Batch x T x Dim
 
         # Output of lstm, concatenate with output of graph
-        graph_output_nodes = graph_output.unsqueeze(-2).repeat([1, 1, self.max_nodes, 1]) # Recurrent part, we may want to replace that by a z later?
-        graphs_at_output = node_embeddings # Before the recurrent net
+        graph_output_nodes = graph_output.unsqueeze(-2).repeat(
+            [1, 1, self.max_nodes, 1]
+        )  # Recurrent part, we may want to replace that by a z later?
+        graphs_at_output = node_embeddings  # Before the recurrent net
 
         output_and_lstm = torch.cat([graph_output_nodes, graphs_at_output], -1)
 
         output_and_lstm = self.comb_out_layer(output_and_lstm)
         pred_states, pred_edges, pred_changes = self.pred_obj_states(output_and_lstm)
         return {'states': pred_states, 'edges': pred_edges, 'edge_change': pred_changes}
-        
-        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)  
-        # loss_o1 = None
-        # loss_o2 = None 
 
+        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
+        # loss_o1 = None
+        # loss_o2 = None
 
 
 class ActionPredNetwork(nn.Module):
@@ -220,10 +235,10 @@ class ActionPredNetwork(nn.Module):
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
         args_tf = {
-                'hidden_size': self.hidden_size,
-                'max_nodes': self.max_nodes,
-                'num_classes': self.max_num_classes,
-                'num_states': self.num_states,
+            'hidden_size': self.hidden_size,
+            'max_nodes': self.max_nodes,
+            'num_classes': self.max_num_classes,
+            'num_states': self.num_states,
         }
         self.graph_encoder = base_nets.TransformerBase(**args_tf)
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
@@ -231,29 +246,49 @@ class ActionPredNetwork(nn.Module):
         # Combine previous action and graph
         multi = 2
         if args['goal_inp']:
-            multi = 3 # input goal as well
+            multi = 3  # input goal as well
 
-        self.comb_layer = nn.Linear(self.hidden_size*multi, self.hidden_size)
+        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
         self.num_layer_lstm = 2
 
-        self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
+        self.RNN = nn.LSTM(
+            self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True
+        )
 
+        self.action_pred = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.max_actions),
+        )
+        self.object1_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * 2, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
+        self.object2_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * 2, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
 
-        self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
-        self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-        self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-
-
-        self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
-                                   nn.ReLU(),
-                                   nn.Linear(self.hidden_size, 1))
-        self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
-                                           nn.ReLU(),
-                                           nn.Linear(self.hidden_size, 1))
+        self.pred_close_net = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
+        self.pred_goal_net = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
 
         self.goal_inp = args['goal_inp']
         if args['goal_inp']:
-            self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
+            self.goal_encoder = base_nets.GoalEncoder(
+                self.max_num_classes,
+                self.hidden_size,
+                obj_class_encoder=self.graph_encoder.object_class_encoding,
+            )
 
     def forward(self, inputs, cond=None):
         # Cond is an embedding of the past, optionally used
@@ -270,9 +305,8 @@ class ActionPredNetwork(nn.Module):
 
         dims = list(node_embeddings.shape)
         action_embed = self.action_embedding(program['action'])
-        
-        assert torch.all(inputs['graph']['node_ids'][:,0,0] == 1).item()
-        
+
+        assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
         # Graph representation, it is the representation of the character
         graph_repr = node_embeddings[:, :, 0]
@@ -290,18 +324,19 @@ class ActionPredNetwork(nn.Module):
             # ipdb.set_trace()
             goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
             goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
-            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr, goal_encoding], -1)
+            action_graph = torch.cat(
+                [action_embed[:, :-1, :], graph_repr, goal_encoding], -1
+            )
 
         input_embed = self.comb_layer(action_graph)
-        
+
         if cond is not None:
             cond_vec = cond
             ipdb.set_trace()
             input_embed = torch.cat([input_embed, cond_vec], -1)
 
-
         ipdb.set_trace()
-        # Input a combination of previous actions and graph 
+        # Input a combination of previous actions and graph
         graph_output, (h_t, c_t) = self.RNN(input_embed)
 
         # skip the last graph
@@ -310,32 +345,37 @@ class ActionPredNetwork(nn.Module):
         action_logits = self.action_pred(graph_output)
 
         # Output of lstm, concatenate with output of graph
-        graph_output_nodes = graph_output.unsqueeze(-2).repeat([1, 1, self.max_nodes, 1])
+        graph_output_nodes = graph_output.unsqueeze(-2).repeat(
+            [1, 1, self.max_nodes, 1]
+        )
 
         graphs_at_output = node_embeddings
-        # ipdb.set_trace() 
+        # ipdb.set_trace()
 
         output_and_lstm = torch.cat([graph_output_nodes, graphs_at_output], -1)
 
         obj1_logit = self.object1_pred(output_and_lstm).squeeze(-1)
         obj2_logit = self.object2_pred(output_and_lstm).squeeze(-1)
 
-
         pred_close = self.pred_close_net(graphs_at_output).squeeze(-1)
         pred_goal = self.pred_goal_net(graphs_at_output).squeeze(-1)
 
-
         # Mask out logits according to the nodes that exist in the graph
-        
+
         obj1_logit = obj1_logit * mask_nodes + (1 - mask_nodes) * -1e9
         obj2_logit = obj2_logit * mask_nodes + (1 - mask_nodes) * -1e9
         # ipdb.set_trace()
-        return {'action_logits': action_logits, 'o1_logits': obj1_logit, 'o2_logits': obj2_logit, 'pred_goal': pred_goal, 'pred_close': pred_close}
-        
-        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)  
-        # loss_o1 = None
-        # loss_o2 = None 
+        return {
+            'action_logits': action_logits,
+            'o1_logits': obj1_logit,
+            'o2_logits': obj2_logit,
+            'pred_goal': pred_goal,
+            'pred_close': pred_close,
+        }
 
+        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
+        # loss_o1 = None
+        # loss_o2 = None
 
 
 class ActionCharNetwork(nn.Module):
@@ -349,10 +389,10 @@ class ActionCharNetwork(nn.Module):
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
         args_tf = {
-                'hidden_size': self.hidden_size,
-                'max_nodes': self.max_nodes,
-                'num_classes': self.max_num_classes,
-                'num_states': self.num_states,
+            'hidden_size': self.hidden_size,
+            'max_nodes': self.max_nodes,
+            'num_classes': self.max_num_classes,
+            'num_states': self.num_states,
         }
         self.graph_encoder = base_nets.TransformerBase(**args_tf)
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
@@ -360,29 +400,49 @@ class ActionCharNetwork(nn.Module):
         # Combine previous action and graph
         multi = 2
         if args['goal_inp']:
-            multi = 3 # input goal as well
+            multi = 3  # input goal as well
 
-        self.comb_layer = nn.Linear(self.hidden_size*multi, self.hidden_size)
+        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
         self.num_layer_lstm = 2
 
-        self.RNN = nn.LSTM(self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True)
+        self.RNN = nn.LSTM(
+            self.hidden_size, self.hidden_size, self.num_layer_lstm, batch_first=True
+        )
 
+        self.action_pred = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.max_actions),
+        )
+        self.object1_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * 2, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
+        self.object2_pred = nn.Sequential(
+            nn.Linear(self.hidden_size * 2, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
 
-        self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
-        self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-        self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
-
-
-        self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
-                                   nn.ReLU(),
-                                   nn.Linear(self.hidden_size, 1))
-        self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
-                                           nn.ReLU(),
-                                           nn.Linear(self.hidden_size, 1))
+        self.pred_close_net = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
+        self.pred_goal_net = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 1),
+        )
 
         self.goal_inp = args['goal_inp']
         if args['goal_inp']:
-            self.goal_encoder = base_nets.GoalEncoder(self.max_num_classes, self.hidden_size, obj_class_encoder=self.graph_encoder.object_class_encoding)
+            self.goal_encoder = base_nets.GoalEncoder(
+                self.max_num_classes,
+                self.hidden_size,
+                obj_class_encoder=self.graph_encoder.object_class_encoding,
+            )
 
     def forward(self, inputs, cond=None):
         # Cond is an embedding of the past, optionally used
@@ -399,9 +459,8 @@ class ActionCharNetwork(nn.Module):
 
         dims = list(node_embeddings.shape)
         action_embed = self.action_embedding(program['action'])
-        
-        assert torch.all(inputs['graph']['node_ids'][:,0,0] == 1).item()
-        
+
+        assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
         # Graph representation, it is the representation of the character
         graph_repr = node_embeddings[:, :, 0]
@@ -419,16 +478,18 @@ class ActionCharNetwork(nn.Module):
             # ipdb.set_trace()
             goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
             goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
-            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr, goal_encoding], -1)
+            action_graph = torch.cat(
+                [action_embed[:, :-1, :], graph_repr, goal_encoding], -1
+            )
 
         input_embed = self.comb_layer(action_graph)
-        
+
         if cond is not None:
             cond_vec = cond
             ipdb.set_trace()
             input_embed = torch.cat([input_embed, cond_vec], -1)
 
-        # Input a combination of previous actions and graph 
+        # Input a combination of previous actions and graph
         graph_output, (h_t, c_t) = self.RNN(input_embed)
 
         return graph_output

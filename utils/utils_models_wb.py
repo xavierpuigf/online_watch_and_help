@@ -8,6 +8,7 @@ import tensorflow as tf
 import tensorflow as tf
 from hydra.utils import get_original_cwd, to_absolute_path
 import tensorboard as tb
+
 tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 from torch.utils.tensorboard import SummaryWriter
 import datetime
@@ -20,32 +21,29 @@ import pdb
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from .utils_plot import Plotter
+
 plt.switch_backend('agg')
 
 
-def obtain_graph(graph_helper, graph,  edge_prob, state_prob, mask_edge, batch_item, len_mask):
-    # We are predicting the next graph, so we sum 
+def obtain_graph(
+    graph_helper, graph, edge_prob, state_prob, mask_edge, batch_item, len_mask
+):
+    # We are predicting the next graph, so we sum
     num_tsteps = int(len_mask[batch_item].sum()) - 1
     offset = 0
     nedges = len(graph_helper.relation_dict)
-    state_names = [(graph_helper.states[it], ) for it in range(4)]
+    state_names = [(graph_helper.states[it],) for it in range(4)]
     edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
-    info = {
-            'results': [],
-            'state_names': state_names,
-            'edge_names': edge_names
-    }
+    info = {'results': [], 'state_names': state_names, 'edge_names': edge_names}
     all_edges, all_from, all_to = [], [], []
     object_states = state_prob[batch_item, :num_tsteps].numpy()
     for step in range(num_tsteps):
         result = {}
-        mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
-        object_names = graph['class_objects'][batch_item, step+offset]
+        mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
+        object_names = graph['class_objects'][batch_item, step + offset]
         num_nodes = graph['mask_object'].shape[-1]
-    
 
-        node_ids = graph['node_ids'][batch_item, step+offset]
-
+        node_ids = graph['node_ids'][batch_item, step + offset]
 
         print_node = False
         obj_names = []
@@ -56,19 +54,18 @@ def obtain_graph(graph_helper, graph,  edge_prob, state_prob, mask_edge, batch_i
             obj_name_complete = f"{class_name}.{idi}"
             obj_names.append(obj_name_complete)
 
-
         current_mask_edge = mask_edge[batch_item, step]
         # current_edge = edge_info[batch_item, step]
         indices_valid = np.where(current_mask_edge == 1)[0]
-        edge_probs = edge_prob[batch_item, step+offset, indices_valid]
-        from_id = indices_valid // num_nodes 
+        edge_probs = edge_prob[batch_item, step + offset, indices_valid]
+        from_id = indices_valid // num_nodes
         to_id = indices_valid % num_nodes
-        
+
         curr_res = {}
         all_edges.append(edge_probs[None, :].numpy())
         all_from.append(from_id[None, :])
         all_to.append(to_id[None, :])
-    
+
     all_edges = np.concatenate(all_edges, 0)
     all_from = np.concatenate(all_from, 0)
     all_to = np.concatenate(all_to, 0)
@@ -81,20 +78,21 @@ def obtain_graph(graph_helper, graph,  edge_prob, state_prob, mask_edge, batch_i
 
     return info
 
-def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_item, step):
+
+def print_graph_2(
+    graph_helper, graph, edge_info, mask_edge, state_info, batch_item, step
+):
     # We are predicting the next graph, so we sum 1
     offset = 1
-    mask_object = int(graph['mask_object'][batch_item, step+offset].sum())
-    object_names = graph['class_objects'][batch_item, step+offset]
+    mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
+    object_names = graph['class_objects'][batch_item, step + offset]
     object_states = state_info[batch_item, step]
     num_nodes = graph['mask_object'].shape[-1]
-    
 
     # object_coords = graph['object_coords'][batch_item, step+offset]
-    
-    # ipdb.set_trace()
-    node_ids = graph['node_ids'][batch_item, step+offset]
 
+    # ipdb.set_trace()
+    node_ids = graph['node_ids'][batch_item, step + offset]
 
     # ipdb.set_trace()
     print_node = False
@@ -105,21 +103,24 @@ def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_i
     obj_names = []
     for nid in range(mask_object):
 
-        state_names = [graph_helper.states[it] for it in range(4) if int(object_states[nid][it]) == 1]
+        state_names = [
+            graph_helper.states[it]
+            for it in range(4)
+            if int(object_states[nid][it]) == 1
+        ]
         state_names = ' '.join(state_names)
         class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
         idi = int(node_ids[nid])
-        # coords = list(object_coords[nid][:3])      
+        # coords = list(object_coords[nid][:3])
         # coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
         obj_name_complete = f"{class_name}.{idi}"
-        obj_name_complete += ' '*(20 - len(obj_name_complete))
+        obj_name_complete += ' ' * (20 - len(obj_name_complete))
         obj_names.append(obj_name_complete)
         if print_node:
             print(f"{obj_name_complete}. {state_names}")
 
     if print_node:
         print('\n')
-
 
     print('Edges')
     current_mask_edge = mask_edge[batch_item, step]
@@ -130,15 +131,15 @@ def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_i
     id_on = graph_helper.relation_dict.get_id('on')
     id_hold = graph_helper.relation_dict.get_id('hold')
 
-
-    inside = np.where(np.logical_and(current_edge == id_inside, current_mask_edge == 1))[0]
+    inside = np.where(
+        np.logical_and(current_edge == id_inside, current_mask_edge == 1)
+    )[0]
     on = np.where(np.logical_and(current_edge == id_on, current_mask_edge == 1))[0]
     hold = np.where(np.logical_and(current_edge == id_hold, current_mask_edge == 1))[0]
 
-
-    inside_from, inside_to = (inside // num_nodes), inside % num_nodes 
-    on_from, on_to = (on // num_nodes), on % num_nodes 
-    hold_from, hold_to = (hold // num_nodes), hold % num_nodes 
+    inside_from, inside_to = (inside // num_nodes), inside % num_nodes
+    on_from, on_to = (on // num_nodes), on % num_nodes
+    hold_from, hold_to = (hold // num_nodes), hold % num_nodes
 
     on = {}
     inside_of = {}
@@ -147,12 +148,11 @@ def print_graph_2(graph_helper, graph, edge_info, mask_edge, state_info, batch_i
             inside_of[int(elem_to)] = []
         inside_of[int(elem_to)].append(int(elem_from))
 
-
     for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
         if int(elem_to) not in on:
             on[int(elem_to)] = []
         on[int(elem_to)].append(int(elem_from))
-    
+
     all_elems = sorted(list(set(list(on.keys()) + list(inside_of.keys()))))
 
     print("HOLDING:", list(zip(hold_from, hold_to)))
@@ -184,16 +184,19 @@ def print_graph(graph_helper, graph, batch_item, step):
     obj_names = []
     for nid in range(mask_object):
 
-        state_names = [graph_helper.states[it] for it in range(4) if int(object_states[nid][it]) == 1]
+        state_names = [
+            graph_helper.states[it]
+            for it in range(4)
+            if int(object_states[nid][it]) == 1
+        ]
         state_names = ' '.join(state_names)
         class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
         idi = int(node_ids[nid])
-        coords = list(object_coords[nid][:3])      
+        coords = list(object_coords[nid][:3])
         coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
         obj_name_complete = f"{class_name}.{idi}"
-        obj_name_complete += ' '*(20 - len(obj_name_complete))
+        obj_name_complete += ' ' * (20 - len(obj_name_complete))
         obj_names.append(obj_name_complete)
-
 
         print(f"{obj_name_complete} ({coords_str}). {state_names}")
     print('\nEdges')
@@ -201,9 +204,13 @@ def print_graph(graph_helper, graph, batch_item, step):
     inside_of = {}
     id_inside = graph_helper.relation_dict.get_id('inside')
     id_on = graph_helper.relation_dict.get_id('on')
-    inside = graph['edge_tuples'][batch_item, step][graph['edge_classes'][batch_item, step] == id_inside]
+    inside = graph['edge_tuples'][batch_item, step][
+        graph['edge_classes'][batch_item, step] == id_inside
+    ]
     inside_from, inside_to = inside[:, 0], inside[:, 1]
-    on = graph['edge_tuples'][batch_item, step][graph['edge_classes'][batch_item, step] == id_on]
+    on = graph['edge_tuples'][batch_item, step][
+        graph['edge_classes'][batch_item, step] == id_on
+    ]
     on_from, on_to = on[:, 0], on[:, 1]
 
     on = {}
@@ -213,12 +220,11 @@ def print_graph(graph_helper, graph, batch_item, step):
             inside_of[int(elem_to)] = []
         inside_of[int(elem_to)].append(int(elem_from))
 
-
     for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
         if int(elem_to) not in on:
             on[int(elem_to)] = []
         on[int(elem_to)].append(int(elem_from))
-    
+
     all_elems = sorted(list(set(list(on.keys()) + list(inside_of.keys()))))
     for elem in all_elems:
         inside_curr, on_curr = [], []
@@ -232,7 +238,8 @@ def print_graph(graph_helper, graph, batch_item, step):
         elem2 = obj_names[elem]
         print(f'{elem2}: ON: [{on_str}]   INSIDE: [{inside_str}]')
     print("==========")
-        
+
+
 def print_script(graph_helper, program):
     program_str = decode_program(graph_helper, program)
     ipdb.set_trace()
@@ -254,28 +261,29 @@ def get_pred_results_str(graph_helper, prog_gt, prog_pred):
     program_gt = decode_program(graph_helper, prog_gt)
     program_pred = decode_program(graph_helper, prog_pred)
     res_str = ''
-    res_str += "GT{}|Pred\n".format(' '*43)
+    res_str += "GT{}|Pred\n".format(' ' * 43)
     if len(program_pred) < len(program_gt):
-        program_pred += [' ']*(len(program_gt) - len(program_pred))
+        program_pred += [' '] * (len(program_gt) - len(program_pred))
     else:
-        program_pred[:len(program_gt)]
-    
+        program_pred[: len(program_gt)]
+
     for instr_gt, instr_pred in zip(program_gt, program_pred):
         res_str += '{: <45}| {}\n'.format(instr_gt, instr_pred)
 
-    res_str += '{}\n'.format('-'*45)
+    res_str += '{}\n'.format('-' * 45)
     return res_str
+
 
 def decode_program(graph_helper, program_info):
     # ipdb.set_trace()
     program_info_new = {}
-    
+
     program_info['class_objects'] = program_info['graph']['class_objects']
     program_info['node_ids'] = program_info['graph']['node_ids']
     for key, val in program_info.items():
         if key != 'graph':
             program_info_new[key] = val[0, :].cpu().numpy()
-    
+
     length = int(program_info_new['mask_len'].sum())
 
     action_ind = list(program_info_new['action'][:length])
@@ -295,16 +303,21 @@ def decode_program(graph_helper, program_info):
         o2_id = int(node_ids[o2_ind[it]])
         # ipdb.set_trace()
         if o1_id != -1:
-            action_str += ' <{}> ({})'.format(graph_helper.object_dict.get_el(int(class_obj[o1_ind[it]])), o1_id)
+            action_str += ' <{}> ({})'.format(
+                graph_helper.object_dict.get_el(int(class_obj[o1_ind[it]])), o1_id
+            )
         if o2_id != -1:
-            action_str += ' <{}> ({})'.format(graph_helper.object_dict.get_el(int(class_obj[o2_ind[it]])), o2_id)
-        
+            action_str += ' <{}> ({})'.format(
+                graph_helper.object_dict.get_el(int(class_obj[o2_ind[it]])), o2_id
+            )
+
         program_str.append(action_str)
     return program_str
 
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self, name, fmt=':f'):
         self.name = name
         self.fmt = fmt
@@ -336,11 +349,12 @@ class ProgressMeter(object):
     def display(self, batch, do_print=True):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        
+
         if do_print:
             print('\t'.join(entries))
         else:
             return '\t'.join(entries)
+
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
@@ -360,9 +374,6 @@ class AddBias(nn.Module):
             bias = self._bias.t().view(1, -1, 1, 1)
 
         return x + bias
-
-
-
 
 
 def update_linear_schedule(optimizer, epoch, total_num_epochs, initial_lr):
@@ -387,11 +398,13 @@ def cleanup_log_dir(log_dir):
             os.remove(f)
 
 
-
 def get_epsilon(init_eps, end_eps, num_steps, episode):
-    return (init_eps - end_eps) * (1.0 - min(1.0, float(episode) / float(num_steps))) + end_eps
+    return (init_eps - end_eps) * (
+        1.0 - min(1.0, float(episode) / float(num_steps))
+    ) + end_eps
 
-class AggregatedStats():
+
+class AggregatedStats:
     def __init__(self):
         self.success_per_apt = {}
         self.success_per_goal = {}
@@ -438,8 +451,6 @@ class AggregatedStats():
         cont = np.array([x[1] for x in values])
         return self.barplot(success, keys), self.barplot(cont, keys)
 
-
-
     def print_hist(self, tb_writer):
         img_goal, cnt_goal = self.create_histogram(self.success_per_goal)
         img_apt, cnt_apt = self.create_histogram(self.success_per_apt)
@@ -449,19 +460,21 @@ class AggregatedStats():
         tb_writer.add_figure("histogram/count_per_goal", cnt_goal)
         tb_writer.add_figure("histogram/count_per_apt", cnt_apt)
 
+
 def dict2md(content, tabs=0):
     mdown_str = ''
     for key, val in content.items():
         if type(val) == dict:
-            actual_str = '  <br />'+dict2md(val, tabs=tabs+2)
+            actual_str = '  <br />' + dict2md(val, tabs=tabs + 2)
         else:
             actual_str = str(val)
 
-        mdown_str += '{}**{}**: {}  <br />'.format('..'*tabs, key, actual_str)
+        mdown_str += '{}**{}**: {}  <br />'.format('..' * tabs, key, actual_str)
     # print(tabs, mdown_str)
     return mdown_str
 
-class LoggerSteps():
+
+class LoggerSteps:
     def __init__(self, args):
         self.args = args
         self.experiment_name = self.get_experiment_name()
@@ -470,8 +483,9 @@ class LoggerSteps():
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
         self.results_path = os.path.join(self.save_dir, 'results', self.experiment_name)
-        self.logs_logdir = os.path.join(self.save_dir, 'logs_model', self.experiment_name)
-
+        self.logs_logdir = os.path.join(
+            self.save_dir, 'logs_model', self.experiment_name
+        )
 
         now = datetime.datetime.now()
         self.tstmp = now.strftime('%Y-%m-%d_%H-%M-%S')
@@ -479,26 +493,28 @@ class LoggerSteps():
         self.first_log = False
         # self.stats = AggregatedStats()
 
-
-
         # self.plot = Plotter2(self.experiment_name, root_dir=self.logs_logdir)
         self.info_episodes = []
 
-
-        self.file_name_log = '{}/{}/log.json'.format(self.logs_logdir, self.experiment_name)
+        self.file_name_log = '{}/{}/log.json'.format(
+            self.logs_logdir, self.experiment_name
+        )
         print("Saving to: {}".format(self.experiment_name))
 
-            # f.writelines(json.dumps(dict_args, indent=4))
-
+        # f.writelines(json.dumps(dict_args, indent=4))
 
     def set_tensorboard(self):
-        
-        self.wandb = wandb.init(project="graph-prediction", config=OmegaConf.to_container(self.args))
-        
+
+        self.wandb = wandb.init(
+            project="graph-prediction", config=OmegaConf.to_container(self.args)
+        )
+
     def get_experiment_name(self):
         args = self.args
-        experiment_name = ('predict_graph/train_data.{}-agents{}/'
-                          'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}').format(
+        experiment_name = (
+            'predict_graph/train_data.{}-agents{}/'
+            'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}'
+        ).format(
             args['data']['train_data'],
             args['train']['agents'],
             args['model']['time_aggregate'],
@@ -510,8 +526,8 @@ class LoggerSteps():
             args['train']['loss_close'],
             args['train']['loss_goal'],
             args['model']['agent_embed'],
-            args['model']['predict_edge_change']
-            )
+            args['model']['predict_edge_change'],
+        )
         if args['model']['gated']:
             experiment_name += '_gated'
 
@@ -533,7 +549,6 @@ class LoggerSteps():
 
         self.wandb.add_embedding(embeddings, metadata=embedding_labels)
 
-
     def log_data2(self, total_num_steps, info):
         if self.first_log:
             self.first_log = False
@@ -543,8 +558,11 @@ class LoggerSteps():
         if self.wandb is not None:
             for agent_id in info.keys():
                 for acc_name, acc_item in info[agent_id]['accuracy'].items():
-                    self.wandb.log("agents/accuracy/agent_{}/{}".format(agent_id, acc_name), acc_item, total_num_steps)
-            
+                    self.wandb.log(
+                        "agents/accuracy/agent_{}/{}".format(agent_id, acc_name),
+                        acc_item,
+                        total_num_steps,
+                    )
 
     def log_data(self, total_num_steps, info):
         if self.first_log:
@@ -559,11 +577,11 @@ class LoggerSteps():
         if self.wandb is not None:
             for loss_name, loss_item in info['losses'].items():
                 res_dict.update({"losses/{}".format(loss_name): loss_item})
-            
+
             for acc_name, acc_item in info['accuracy'].items():
 
                 res_dict.update({"accuracy/{}".format(acc_name): acc_item})
-            
+
             if 'misc' in info.keys():
                 for acc_name, acc_item in info['misc'].items():
                     res_dict.update({"misc/{}".format(acc_name): acc_item})
@@ -593,10 +611,6 @@ class LoggerSteps():
             #             it += 1
             #     self.wandb.add_figure(info['plots']['name'], fig, total_num_steps)
 
-
-
-
-
     def log_info(self, info_ep):
         try:
             os.makedirs(self.logs_logdir)
@@ -607,7 +621,7 @@ class LoggerSteps():
         log_txt_file = '{}/logs.txt'.format(self.logs_logdir)
         with open(log_txt_file, 'a+') as f:
             f.write(info_ep['str'])
-        
+
     def save_model(self, j, model, optimizer):
 
         save_path = os.path.join(self.ckpt_save_dir)
@@ -615,10 +629,8 @@ class LoggerSteps():
             os.makedirs(save_path)
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
                 f.write(OmegaConf.to_yaml(self.args))
-        ipdb.set_trace()
-        torch.save({
-            'model': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            }, os.path.join(save_path, "{}.pt".format(j)))
-
-
+        # ipdb.set_trace()
+        torch.save(
+            {'model': model.state_dict(), 'optimizer': optimizer.state_dict()},
+            os.path.join(save_path, "{}.pt".format(j)),
+        )
