@@ -235,7 +235,7 @@ def inference(
                 changed_edges = (gt_edge != gt_edges[:, :-1, :]).long()
                 pred_changes = output['edge_change'][
                     :, :-1, ...
-                ]  # TODO: is this correct?
+                ]  # TODO: is this correct? Xavi: Correct
                 loss_change = criterion_change(
                     pred_changes.permute(0, 3, 1, 2), changed_edges
                 )
@@ -244,7 +244,7 @@ def inference(
                 losses_change.update(loss_change.item())
 
                 # Only loss for changed edges
-                # mask_edges *= changed_edges
+                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
@@ -476,7 +476,7 @@ def evaluate(
                 changed_edges = (gt_edge != gt_edges[:, :-1, :]).long()
                 pred_changes = output['edge_change'][
                     :, :-1, ...
-                ]  # TODO: is this correct?
+                ]  # TODO: is this correct? Xavi: correct
                 loss_change = criterion_change(
                     pred_changes.permute(0, 3, 1, 2), changed_edges
                 )
@@ -485,7 +485,7 @@ def evaluate(
                 losses_change.update(loss_change.item())
 
                 # Only loss for changed edges
-                # mask_edges *= changed_edges
+                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
             loss += loss_edges + loss_state
@@ -729,16 +729,18 @@ def train_epoch(
             )
             loss_change = loss_change * mask_edges
             loss_change = loss_change.mean()
+
+            
             losses_change.update(loss_change.item())
 
             # Only loss for changed edges
-            # mask_edges *= changed_edges
+            mask_edges = mask_edges * changed_edges
             loss += loss_change
 
         loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
         loss_edges = loss_edges * mask_edges
         loss_edges = loss_edges.mean()
-
+        # ipdb.set_trace()
         loss += loss_edges + loss_state
 
         losses.update(loss.item())
@@ -788,7 +790,6 @@ def train_epoch(
         accuracy_edge.update(edge_accuracy.item())
         accuracy_edge_pos.update(edge_accuracy_pos.item())
 
-        # ipdb.set_trace()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
