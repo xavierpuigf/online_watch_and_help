@@ -173,7 +173,9 @@ def inference(
                 tsteps = (
                     len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
                 )
-                gt_edge = torch.gather(gt_edges, 1, tsteps).repeat(1, nt - 1, 1).cuda()
+                gt_edge = (
+                    torch.gather(gt_edges, 1, tstep.cuda()).repeat(1, nt - 1, 1).cuda()
+                )
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
@@ -420,7 +422,9 @@ def evaluate(
                 tsteps = (
                     len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
                 )
-                gt_edge = torch.gather(gt_edges, 1, tsteps).repeat(1, nt - 1, 1).cuda()
+                gt_edge = (
+                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+                )
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
