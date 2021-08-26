@@ -269,7 +269,7 @@ class GoalConditionedGraphPredNetwork(nn.Module):
         self.fc_att_object2 = self.mlp2l(self.hidden_size, self.hidden_size)
         '''
 
-        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
+        self.comb_layer = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.comb_out_layer = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.num_layer_lstm = 2
         self.time_aggregate = args['time_aggregate']
@@ -364,59 +364,67 @@ class GoalConditionedGraphPredNetwork(nn.Module):
 
         program = inputs['program']
         graph = inputs['graph']
-        goal = inputs['goal']
+        goal = inputs['goal_graph']
+        # goal = inputs['goal']
         mask_len = inputs['mask_len']
         mask_nodes = graph['mask_object']
         index_obj1 = program['indobj1']
         index_obj2 = program['indobj2']
         node_embeddings = self.graph_encoder(graph)
+        goal_embeddings = self.graph_encoder(goal)
         # Is this ok?
         node_embeddings[node_embeddings.isnan()] = 1
+        goal_embeddings[goal_embeddings.isnan()] = 1
 
         dims = list(node_embeddings.shape)
         action_embed = self.action_embedding(program['action'])
 
         assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
-        # Graph representation, sum pool
+        # Graph representation
         # graph_repr = node_embeddings[:, :, 0]
-
         graph_repr = (
             node_embeddings
             * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, node_embeddings.shape[-1])
         ).sum(-2)
 
+        goal_repr = (
+            goal_embeddings
+            * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, goal_embeddings.shape[-1])
+        ).sum(-2)
+
         # Input previous action and current graph
-        if not self.goal_inp:
+        # if not self.goal_inp:
 
-            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
-        else:
-            raise Exception
-            # Goal encoding
-            obj_class_name = inputs['goal']['target_obj_class']  # [:, 0].long()
-            loc_class_name = inputs['goal']['target_loc_class']  # [:, 0].long()
-            mask_goal = inputs['goal']['mask_goal_pred']
-            # goal_enc = self.goal_encoder()
-            # ipdb.set_trace()
-            goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
+        #     action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
+        # else:
+        #     raise Exception
+        #     # Goal encoding
+        #     obj_class_name = inputs['goal']['target_obj_class']  # [:, 0].long()
+        #     loc_class_name = inputs['goal']['target_loc_class']  # [:, 0].long()
+        #     mask_goal = inputs['goal']['mask_goal_pred']
+        #     # goal_enc = self.goal_encoder()
+        #     # ipdb.set_trace()
+        #     goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
 
-            goal_mask_action = torch.sigmoid(self.fc_att_action(goal_encoding))
-            goal_mask_object1 = torch.sigmoid(self.fc_att_object(goal_encoding))
-            goal_mask_object2 = torch.sigmoid(self.fc_att_object2(goal_encoding))
+        #     goal_mask_action = torch.sigmoid(self.fc_att_action(goal_encoding))
+        #     goal_mask_object1 = torch.sigmoid(self.fc_att_object(goal_encoding))
+        #     goal_mask_object2 = torch.sigmoid(self.fc_att_object2(goal_encoding))
 
-            goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
-            gated_goal = graph_repr * goal_mask_action[:, None, :]
-            action_graph = torch.cat([action_embed[:, :-1, :], gated_goal], -1)
+        #     goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
+        #     gated_goal = graph_repr * goal_mask_action[:, None, :]
+        #     action_graph = torch.cat([action_embed[:, :-1, :], gated_goal], -1)
 
-        if self.use_agent_embedding:
-            raise Exception
-            tsteps = action_graph.shape[1]
+        # if self.use_agent_embedding:
+        #     raise Exception
+        #     tsteps = action_graph.shape[1]
 
-            agent_embeddings = self.agent_embedding(inputs['label_agent'])
-            agent_embeddings = agent_embeddings[:, None, :].repeat([1, tsteps, 1])
-            action_graph = torch.cat([action_graph, agent_embeddings], -1)
+        #     agent_embeddings = self.agent_embedding(inputs['label_agent'])
+        #     agent_embeddings = agent_embeddings[:, None, :].repeat([1, tsteps, 1])
+        #     action_graph = torch.cat([action_graph, agent_embeddings], -1)
 
-        input_embed = self.comb_layer(action_graph)
+        goal_graph = torch.cat([graph_repr, goal_repr], -1)
+        input_embed = self.comb_layer(goal_graph)
 
         if cond is not None:
             cond_vec = cond
