@@ -173,10 +173,13 @@ def inference(
                 tsteps = (
                     len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
                 )
-                gt_edge = torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+                gt_edge = (
+                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+                )
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
+            inputs['goal_graph'] = gt_edge
 
             mask_obs_node = graph_info['mask_obs_node']
 
@@ -242,7 +245,7 @@ def inference(
                 losses_change.update(loss_change.item())
 
                 # Only loss for changed edges
-                # mask_edges *= changed_edges
+                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
@@ -427,6 +430,8 @@ def evaluate(
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
 
+            inputs['goal_graph'] = gt_edge
+
             mask_obs_node = graph_info['mask_obs_node']
 
             medges1 = mask_obs_node.repeat([1, 1, num_nodes]).cuda()
@@ -483,7 +488,7 @@ def evaluate(
                 losses_change.update(loss_change.item())
 
                 # Only loss for changed edges
-                # mask_edges *= changed_edges
+                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
             loss += loss_edges + loss_state
@@ -712,6 +717,8 @@ def train_epoch(
         else:
             gt_edge = gt_edges[:, 1:, ...].cuda()
 
+        inputs['goal_graph'] = gt_edge
+
         mask_obs_node = graph_info['mask_obs_node']
 
         medges1 = mask_obs_node.repeat([1, 1, num_nodes]).cuda()
@@ -732,7 +739,7 @@ def train_epoch(
             losses_change.update(loss_change.item())
 
             # Only loss for changed edges
-            # mask_edges *= changed_edges
+            mask_edges = mask_edges * changed_edges
             loss += loss_change
 
         loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
