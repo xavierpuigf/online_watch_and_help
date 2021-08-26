@@ -3,8 +3,8 @@ inference: False
 samples_per_graph: 10
 ckpt_load: ''
 data:
-        train_data: 'dataset_graph_pred_train.pkl'
-        test_data: 'dataset_graph_pred_test.pkl'
+        train_data: 'dataset_graph_pred_30step_train.pkl' # 'dataset_graph_pred_train.pkl'
+        test_data: 'dataset_graph_pred_30step_test.pkl' # 'dataset_graph_pred_test.pkl'
 log:
         print_every: 20
         print_long_every: 50
@@ -34,7 +34,7 @@ model:
         num_states: 4
         num_attributes: 6
         hidden_size: 100
-        max_tsteps: 50
+        max_tsteps: 30 #50
         goal_inp: False
         gated: False
         agent_embed: False
