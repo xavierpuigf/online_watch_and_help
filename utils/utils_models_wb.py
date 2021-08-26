@@ -506,7 +506,7 @@ class LoggerSteps:
     def set_tensorboard(self):
 
         self.wandb = wandb.init(
-            project="graph-prediction", config=OmegaConf.to_container(self.args)
+            project="graph-prediction", entity='virtualhome', config=OmegaConf.to_container(self.args)
         )
 
     def get_experiment_name(self):
