@@ -9,9 +9,10 @@ log:
         print_every: 20
         print_long_every: 50
         delete_prior_logs: False
+        save_every: 10
 train:
         epochs: 500
-        batch_size: 16
+        batch_size: 8
         num_workers: 8
         lr: 0.0001
         overfit: False

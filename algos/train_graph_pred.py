@@ -196,41 +196,10 @@ def inference(
             except:
                 ipdb.set_trace()
 
-            for index in range(ind.shape[0]):
-                current_index = ind[index]
-                fname = data_loader.dataset.pkl_files[current_index]
-                pred_graph = utils_models.obtain_graph(
-                    data_loader.dataset.graph_helper,
-                    graph_info,
-                    predicted_edge,
-                    predicted_state,
-                    mask_edges.cpu(),
-                    index,
-                    len_mask,
-                )
-                gt_graph = utils_models.obtain_graph(
-                    data_loader.dataset.graph_helper,
-                    graph_info,
-                    gt_edge_onehot.cpu(),
-                    gt_state.cpu(),
-                    mask_edges.cpu(),
-                    index,
-                    len_mask,
-                )
-                results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
-                sfname = fname.split('/')[-1] + "_result"
-                expath = logger.results_path
-                cpath = '/'.join(fname.split('/')[-3:-1])
-                dir_name = f'{expath}/{cpath}/'
-                result_name = f'{dir_name}/{sfname}.pkl'
-                if not os.path.isdir(dir_name):
-                    os.makedirs(dir_name)
 
-                with open(result_name, 'wb') as f:
-                    pkl.dump(results, f)
 
             loss = 0
-
+            pred_changes_list, changed_edges_list = [], []
             if args.model.predict_edge_change:
                 changed_edges = (gt_edge != gt_edges[:, :-1, :]).long()
                 pred_changes = output['edge_change'][
@@ -247,6 +216,9 @@ def inference(
                 mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
+                pred_changes_list = [(pred_changes[..., 0] > 0.).cpu().long(), gt_edges[:, :-1, :].cpu()]
+                edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
+
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * mask_edges
             loss_edges = loss_edges.mean()
@@ -255,6 +227,42 @@ def inference(
             losses.update(loss.item())
             losses_state.update(loss_state.item())
             losses_edge.update(loss_edges.item())
+
+            for index in range(ind.shape[0]):
+                current_index = ind[index]
+                fname = data_loader.dataset.pkl_files[current_index]
+                pred_graph = utils_models.obtain_graph(
+                    data_loader.dataset.graph_helper,
+                    graph_info,
+                    predicted_edge,
+                    predicted_state,
+                    mask_edges.cpu(),
+                    pred_changes_list,
+                    index,
+                    len_mask
+
+                )
+                gt_graph = utils_models.obtain_graph(
+                    data_loader.dataset.graph_helper,
+                    graph_info,
+                    gt_edge_onehot.cpu(),
+                    gt_state.cpu(),
+                    mask_edges.cpu(),
+                    changed_edges_list,
+                    index,
+                    len_mask
+                )
+                results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
+                sfname = fname.split('/')[-1] + "_result"
+                expath = logger.results_path
+                cpath = '/'.join(fname.split('/')[-3:-1])
+                dir_name = f'{expath}/{cpath}/'
+                result_name = f'{dir_name}/{sfname}.pkl'
+                if not os.path.isdir(dir_name):
+                    os.makedirs(dir_name)
+
+                with open(result_name, 'wb') as f:
+                    pkl.dump(results, f)
 
             # Update accuracy
             if args.model.predict_edge_change:
@@ -436,42 +444,13 @@ def evaluate(
             mask_edges = medges1 * medges2
             mask_edges = mask_edges[:, 1:, ...]
 
-            for index in range(1):
-                current_index = ind[index]
-                fname = data_loader.dataset.pkl_files[current_index]
-
-                if True:
-                    print("************************")
-                    print(f"File: {current_index}:{fname}")
-                    print("\nGroundTrurth")
-                    utils_models.print_graph_2(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        gt_edge.cpu(),
-                        mask_edges.cpu(),
-                        gt_state.cpu(),
-                        index,
-                        0,
-                    )
-                    print("\nPrediction")
-                    utils_models.print_graph_2(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        pred_edge.argmax(-1).cpu(),
-                        mask_edges.cpu(),
-                        (pred_state > 0).cpu(),
-                        index,
-                        0,
-                    )
-
-                    print("************************")
-                    # ipdb.set_trace()
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * mask_edges
             loss_edges = loss_edges.mean()
 
             loss = 0
 
+            pred_changes_list, changed_edges_list = [], []
             if args.model.predict_edge_change:
                 changed_edges = (gt_edge != gt_edges[:, :-1, :]).long()
                 pred_changes = output['edge_change'][
@@ -488,10 +467,48 @@ def evaluate(
                 mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
+
+                pred_changes_list = [(pred_changes[..., 0] > 0.).cpu().long(), gt_edges[:, :-1, :].cpu()]
+                edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
+
             loss += loss_edges + loss_state
             losses.update(loss.item())
             losses_state.update(loss_state.item())
             losses_edge.update(loss_edges.item())
+
+
+            for index in range(1):
+                current_index = ind[index]
+                fname = data_loader.dataset.pkl_files[current_index]
+
+                if True:
+                    print("************************")
+                    print(f"File: {current_index}:{fname}")
+                    print("\nGroundTrurth")
+                    utils_models.print_graph_2(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        gt_edge.cpu(),
+                        mask_edges.cpu(),
+                        gt_state.cpu(),
+                        changed_edges_list,
+                        index,
+                        0,
+                    )
+                    print("\nPrediction")
+                    utils_models.print_graph_2(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        pred_edge.argmax(-1).cpu(),
+                        mask_edges.cpu(),
+                        (pred_state > 0).cpu(),
+                        pred_changes_list,
+                        index,
+                        0,
+                    )
+
+                    print("************************")
+                    # ipdb.set_trace()
 
             # Update accuracy
             if args.model.predict_edge_change:
@@ -563,13 +580,15 @@ def evaluate(
             'edge_val': losses_edge.avg,
         },
         'accuracy': {
-            'state_prec_val': prec_state.val,
+            'state_prec_val': prec_state.avg,
             'state_recall_val': recall_state.avg,
             'edge_accuracy_val': accuracy_edge.avg,
             'edge_accuracy_pos_val': accuracy_edge_pos.avg,
         },
         'misc': {'epoch': epoch},
     }
+    if args.model.predict_edge_change:
+        info_log['losses']['loss_change_val'] = losses_change.avg
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
 
@@ -721,12 +740,22 @@ def train_epoch(
 
         loss = 0
 
+        pred_changes = None
+        changed_edges = None
         if args.model.predict_edge_change:
             changed_edges = (gt_edge != gt_edges[:, :-1, :]).long().cuda()
             pred_changes = output['edge_change'][:, :-1, ...]  # TODO: is this correct?
             loss_change = criterion_change(
                 pred_changes.permute(0, 3, 1, 2), changed_edges
             )
+            if torch.any(torch.isnan(loss_change)):
+                print(loss_change)
+                ipdb.set_trace()
+
+            if torch.any(torch.isnan(mask_edges)):
+                print(mask_edges)
+                ipdb.set_trace()
+
             loss_change = loss_change * mask_edges
             loss_change = loss_change.mean()
 
@@ -815,6 +844,9 @@ def train_epoch(
                 },
                 'misc': {'epoch': epoch},
             }
+
+            if args.model.predict_edge_change:
+                info_log['losses']['loss_change'] = losses_change.val
             logger.log_data(it + len(data_loader) * epoch, info_log)
 
             # Print the prediction
@@ -946,12 +978,21 @@ def get_loaders(args):
         ),
         args_config=args,
     )
-    dataset_test = AgentTypeDataset(
-        path_init='{}/agent_preferences/dataset/{}'.format(
-            curr_file, args['data']['test_data']
-        ),
-        args_config=args,
-    )
+    if not args['train']['overfit']:
+        dataset_test = AgentTypeDataset(
+            path_init='{}/agent_preferences/dataset/{}'.format(
+                curr_file, args['data']['test_data']
+            ),
+            args_config=args,
+        )
+    else:
+        dataset_test = AgentTypeDataset(
+            path_init='{}/agent_preferences/dataset/{}'.format(
+                curr_file, args['data']['train_data']
+            ),
+            args_config=args,
+        )
+
     if args['model']['state_encoder'] == 'GNN':
         collate_fn = dataloader_v2.collate_fn
     else:
@@ -1052,7 +1093,7 @@ def main(cfg: DictConfig):
                 criterion_edge,
                 criterion_change,
             )
-            if epoch % 10 == 0:
+            if epoch % config.log.save_every == 0:
                 logger.save_model(epoch, model, optimizer)
 
 

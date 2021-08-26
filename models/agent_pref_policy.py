@@ -95,7 +95,7 @@ class GraphPredNetwork(nn.Module):
         self.edge_change_pred = nn.Sequential(
             nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
             nn.ReLU(),
-            nn.Linear(self.hidden_size, 2),
+            nn.Linear(self.hidden_size, 1),
         )
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
@@ -151,8 +151,10 @@ class GraphPredNetwork(nn.Module):
         index_obj1 = program['indobj1']
         index_obj2 = program['indobj2']
         node_embeddings = self.graph_encoder(graph)
+
+
         # Is this ok?
-        node_embeddings[node_embeddings.isnan()] = 1
+        # node_embeddings[node_embeddings.isnan()] = 1
 
         dims = list(node_embeddings.shape)
         action_embed = self.action_embedding(program['action'])
@@ -217,6 +219,7 @@ class GraphPredNetwork(nn.Module):
 
         output_and_lstm = self.comb_out_layer(output_and_lstm)
         pred_states, pred_edges, pred_changes = self.pred_obj_states(output_and_lstm)
+        # ipdb.set_trace()
         return {'states': pred_states, 'edges': pred_edges, 'edge_change': pred_changes}
 
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
