@@ -26,8 +26,20 @@ plt.switch_backend('agg')
 
 
 def obtain_graph(
-    graph_helper, graph, edge_prob, state_prob, mask_edge, changed_edges, batch_item, len_mask
+    graph_helper, graph, edge_prob, state_prob, mask_edge, changed_edges, batch_item, len_mask, changed_nodes=None
 ):
+
+    if len(changed_edges) > 0:
+        # The changed edges should be boolean at this point
+        # ipdb.set_trace()
+        assert((changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum())
+
+        # ipdb.set_trace()
+        try:
+            edge_prob = changed_edges[0] * edge_prob + (1 - changed_edges[0]) * changed_edges[1] 
+        except:
+            ipdb.set_trace()
+
     # We are predicting the next graph, so we sum
     num_tsteps = int(len_mask[batch_item].sum()) - 1
     offset = 0
@@ -76,21 +88,21 @@ def obtain_graph(
 
     info['nodes'] = obj_names
 
+    if len(changed_edges) > 0:
+        info['changed_edges'] = changed_edges[0]
     return info
 
 
 def print_graph_2(
-    graph_helper, graph, edge_info, mask_edge, state_info, changed_edges, batch_item, step
+    graph_helper, graph, edge_info, mask_edge, state_info, changed_edges, batch_item, step, changed_nodes=None,
 ):
 
     # If we are only predicitng edge change, the edge is a combination of previous edge and new, modulagted by prediction
     if len(changed_edges) > 0:
         # The changed edges should be boolean at this point
         # ipdb.set_trace()
-        try:
-            assert((changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum())
-        except:
-            ipdb.set_trace()
+        assert((changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum())
+
         # ipdb.set_trace()
         try:
             edge_info = changed_edges[0] * edge_info + (1 - changed_edges[0]) * changed_edges[1] 

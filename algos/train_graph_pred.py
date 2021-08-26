@@ -216,8 +216,12 @@ def inference(
                 mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
-                pred_changes_list = [(pred_changes[..., 0] > 0.).cpu().long(), gt_edges[:, :-1, :].cpu()]
-                edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
+                gt_edges_onehot = torch.nn.functional.one_hot(
+                    gt_edges, predicted_edge.shape[-1]
+                )
+
+                pred_changes_list = [(pred_changes[..., 0] > 0.).cpu().long(), gt_edges_onehot[:, :-1, :].cpu()]
+                edge_changes_list = [changed_edges.cpu(), gt_edges_onehot[:, :-1, :].cpu()]
 
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * mask_edges
@@ -242,6 +246,9 @@ def inference(
                     len_mask
 
                 )
+
+
+
                 gt_graph = utils_models.obtain_graph(
                     data_loader.dataset.graph_helper,
                     graph_info,
@@ -495,6 +502,8 @@ def evaluate(
                         index,
                         0,
                     )
+
+
                     print("\nPrediction")
                     utils_models.print_graph_2(
                         data_loader.dataset.graph_helper,
