@@ -21,6 +21,6 @@ CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py train.num_workers=0
 Run inference
 
 ```
-CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py inference=True
+CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py inference=True ckpt_load=
 ```
 

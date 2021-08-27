@@ -545,6 +545,7 @@ class LoggerSteps:
             args['train']['agents'],
             args['model']['time_aggregate'],
             args['model']['state_encoder'],
+            args['model']['graph_repr'],
             args['model']['edge_pred'],
             args['train']['lr'],
             args['train']['batch_size'],

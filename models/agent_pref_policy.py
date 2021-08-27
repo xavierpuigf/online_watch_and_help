@@ -21,6 +21,7 @@ class GraphPredNetwork(nn.Module):
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
         self.edge_types = args['edge_types']
+        self.global_repr = args['global_repr']
         args_tf = {
             'hidden_size': self.hidden_size,
             'max_nodes': self.max_nodes,
@@ -162,7 +163,13 @@ class GraphPredNetwork(nn.Module):
         assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
         # Graph representation, it is the representation of the character
-        graph_repr = node_embeddings[:, :, 0]
+        if self.global_repr == 'pool':
+            graph_repr = (
+                node_embeddings
+                * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, node_embeddings.shape[-1])
+            ).sum(-2)
+        else:
+            graph_repr = node_embeddings[:, :, 0]
 
         # Input previous action and current graph
         if not self.goal_inp:
@@ -243,6 +250,7 @@ class GoalConditionedGraphPredNetwork(nn.Module):
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
         self.edge_types = args['edge_types']
+        self.global_repr = args['global_repr']
         args_tf = {
             'hidden_size': self.hidden_size,
             'max_nodes': self.max_nodes,
@@ -385,11 +393,13 @@ class GoalConditionedGraphPredNetwork(nn.Module):
         assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
 
         # Graph representation
-        # graph_repr = node_embeddings[:, :, 0]
-        graph_repr = (
-            node_embeddings
-            * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, node_embeddings.shape[-1])
-        ).sum(-2)
+        if self.global_repr == 'pool':
+            graph_repr = (
+                node_embeddings
+                * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, node_embeddings.shape[-1])
+            ).sum(-2)
+        else:
+            graph_repr = node_embeddings[:, :, 0]
 
         goal_repr = (
             goal_embeddings
