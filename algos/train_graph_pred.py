@@ -144,22 +144,62 @@ def inference(
                 'goal': goal,
                 'label_agent': label_agent,
             }
+            goal_graph = {}
+            T = graph_info['mask_object'].shape[1]
+            num_nodes = graph_info['mask_object'].shape[2]
+            object_coords_dim = graph_info['object_coords'].shape[3]
+            states_objects_dim = graph_info['states_objects'].shape[3]
+            tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, num_nodes).long() - 1
+            goal_graph['mask_object'] = (
+                torch.gather(graph_info['mask_object'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1)
+                .cuda()
+            )
+            goal_graph['class_objects'] = (
+                torch.gather(graph_info['class_objects'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1)
+                .cuda()
+            )
+            tsteps = (
+                len_mask.sum(-1)[:, None, None, None]
+                .repeat(1, 1, num_nodes, object_coords_dim)
+                .long()
+                - 1
+            )
+            goal_graph['object_coords'] = (
+                torch.gather(graph_info['object_coords'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1, 1)
+                .cuda()
+            )
+            tsteps = (
+                len_mask.sum(-1)[:, None, None, None]
+                .repeat(1, 1, num_nodes, states_objects_dim)
+                .long()
+                - 1
+            )
+            goal_graph['states_objects'] = (
+                torch.gather(graph_info['states_objects'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1, 1)
+                .cuda()
+            )
+            inputs['goal_graph'] = goal_graph
+
             gt_edges = build_gt_edge(graph_info)
             if args.model.predict_last:
+
                 nt = gt_edges.shape[1]
                 numnode = gt_edges.shape[-1]
                 tsteps = (
                     len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
                 )
                 gt_edge = (
-                    torch.gather(gt_edges, 1, tstep.cuda()).repeat(1, nt - 1, 1).cuda()
+                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
                 )
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
-            inputs['goal_graph'] = gt_edge
-            with torch.no_grad():
-                output = model(inputs)
+
+            output = model(inputs)
 
             pred_edge = output['edges'][:, :-1, ...]
             pred_state = output['states'][:, :-1, ...]
@@ -410,8 +450,49 @@ def evaluate(
                 'goal': goal,
                 'label_agent': label_agent,
             }
+            goal_graph = {}
+            T = graph_info['mask_object'].shape[1]
+            num_nodes = graph_info['mask_object'].shape[2]
+            object_coords_dim = graph_info['object_coords'].shape[3]
+            states_objects_dim = graph_info['states_objects'].shape[3]
+            tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, num_nodes).long() - 1
+            goal_graph['mask_object'] = (
+                torch.gather(graph_info['mask_object'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1)
+                .cuda()
+            )
+            goal_graph['class_objects'] = (
+                torch.gather(graph_info['class_objects'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1)
+                .cuda()
+            )
+            tsteps = (
+                len_mask.sum(-1)[:, None, None, None]
+                .repeat(1, 1, num_nodes, object_coords_dim)
+                .long()
+                - 1
+            )
+            goal_graph['object_coords'] = (
+                torch.gather(graph_info['object_coords'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1, 1)
+                .cuda()
+            )
+            tsteps = (
+                len_mask.sum(-1)[:, None, None, None]
+                .repeat(1, 1, num_nodes, states_objects_dim)
+                .long()
+                - 1
+            )
+            goal_graph['states_objects'] = (
+                torch.gather(graph_info['states_objects'].cuda(), 1, tsteps.cuda())
+                .repeat(1, T, 1, 1)
+                .cuda()
+            )
+            inputs['goal_graph'] = goal_graph
+
             gt_edges = build_gt_edge(graph_info)
             if args.model.predict_last:
+
                 nt = gt_edges.shape[1]
                 numnode = gt_edges.shape[-1]
                 tsteps = (
@@ -423,11 +504,8 @@ def evaluate(
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
-            inputs['goal_graph'] = gt_edge
 
-            with torch.no_grad():
-                output = model(inputs)
-
+            output = model(inputs)
             pred_edge = output['edges'][:, :-1, ...]
             pred_state = output['states'][:, :-1, ...]
             gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
@@ -714,18 +792,68 @@ def train_epoch(
             'goal': goal,
             'label_agent': label_agent,
         }
+
+        # print(graph_info['mask_object'].shape)
+        # print(graph_info['class_objects'].shape)
+        # print(graph_info['object_coords'].shape)
+        # print(graph_info['states_objects'].shape)
+        # print(len_mask.shape)
+
         # print(inputs['graph']['graph'], inputs['graph']['mask_object'].sum())
+
+        goal_graph = {}
+        T = graph_info['mask_object'].shape[1]
+        num_nodes = graph_info['mask_object'].shape[2]
+        object_coords_dim = graph_info['object_coords'].shape[3]
+        states_objects_dim = graph_info['states_objects'].shape[3]
+        tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, num_nodes).long() - 1
+        goal_graph['mask_object'] = (
+            torch.gather(graph_info['mask_object'].cuda(), 1, tsteps.cuda())
+            .repeat(1, T, 1)
+            .cuda()
+        )
+        goal_graph['class_objects'] = (
+            torch.gather(graph_info['class_objects'].cuda(), 1, tsteps.cuda())
+            .repeat(1, T, 1)
+            .cuda()
+        )
+        tsteps = (
+            len_mask.sum(-1)[:, None, None, None]
+            .repeat(1, 1, num_nodes, object_coords_dim)
+            .long()
+            - 1
+        )
+        goal_graph['object_coords'] = (
+            torch.gather(graph_info['object_coords'].cuda(), 1, tsteps.cuda())
+            .repeat(1, T, 1, 1)
+            .cuda()
+        )
+        tsteps = (
+            len_mask.sum(-1)[:, None, None, None]
+            .repeat(1, 1, num_nodes, states_objects_dim)
+            .long()
+            - 1
+        )
+        goal_graph['states_objects'] = (
+            torch.gather(graph_info['states_objects'].cuda(), 1, tsteps.cuda())
+            .repeat(1, T, 1, 1)
+            .cuda()
+        )
+        inputs['goal_graph'] = goal_graph
+
         gt_edges = build_gt_edge(graph_info)
         if args.model.predict_last:
+
             nt = gt_edges.shape[1]
             numnode = gt_edges.shape[-1]
             tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
             gt_edge = (
                 torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
             )
+
         else:
             gt_edge = gt_edges[:, 1:, ...].cuda()
-        inputs['goal_graph'] = gt_edge
+
         output = model(inputs)
 
         pred_edge = output['edges'][:, :-1, ...]
