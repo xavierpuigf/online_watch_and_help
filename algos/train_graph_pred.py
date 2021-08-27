@@ -71,6 +71,7 @@ def inference(
     criterion_edge,
     criterion_change=None,
 ):
+    epoch = 0
     model.eval()
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
@@ -199,7 +200,8 @@ def inference(
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
 
-            output = model(inputs)
+            with torch.no_grad():
+                output = model(inputs)
 
             pred_edge = output['edges'][:, :-1, ...]
             pred_state = output['states'][:, :-1, ...]
@@ -237,7 +239,8 @@ def inference(
                 ipdb.set_trace()
 
             loss = 0
-            pred_changes_list, changed_edges_list = [], []
+            pred_changes_list, edge_changes_list = [], []
+            mask_edges_orig = mask_edges
             if args.model.predict_edge_change:
                 changed_edges = (gt_edge != gt_edges[:, :-1, :]).long().cuda()
                 pred_changes = output['edge_change'][
@@ -259,7 +262,7 @@ def inference(
                 )
 
                 pred_changes_list = [
-                    (pred_changes[..., 0].argmax(-1)).cpu().long(),
+                    (pred_changes.argmax(-1)).cpu().long(),
                     gt_edges_onehot[:, :-1, :].cpu(),
                 ]
                 edge_changes_list = [
@@ -284,7 +287,7 @@ def inference(
                     graph_info,
                     predicted_edge,
                     predicted_state,
-                    mask_edges.cpu(),
+                    mask_edges_orig.cpu(),
                     pred_changes_list,
                     index,
                     len_mask,
@@ -295,11 +298,42 @@ def inference(
                     graph_info,
                     gt_edge_onehot.cpu(),
                     gt_state.cpu(),
-                    mask_edges.cpu(),
-                    changed_edges_list,
+                    mask_edges_orig.cpu(),
+                    edge_changes_list,
                     index,
                     len_mask,
                 )
+
+
+                print("************************")
+                print(f"File: {current_index}:{fname}")
+                print("\nGroundTrurth")
+                utils_models.print_graph_2(
+                    data_loader.dataset.graph_helper,
+                    graph_info,
+                    gt_edge.cpu(),
+                    mask_edges_orig.cpu(),
+                    gt_state.cpu(),
+                    [edge_changes_list[0], edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
+                    index,
+                    0,
+                )
+                tsteps =  int(len_mask[index].sum()) - 1
+                for t in [0, tsteps//2, tsteps-1]:
+                    print("\nPrediction at {}".format(t))
+                    utils_models.print_graph_2(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        pred_edge.argmax(-1).cpu(),
+                        mask_edges_orig.cpu(),
+                        (pred_state > 0).cpu(),
+                        [pred_changes_list[0], pred_changes_list[1].argmax(-1)]  if len(pred_changes_list) > 0 else [],
+                        index,
+                        t,
+                    )
+                print("************************")
+                # ipdb.set_trace()
+
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
                 expath = logger.results_path
@@ -538,7 +572,8 @@ def evaluate(
 
             loss = 0
 
-            pred_changes_list, changed_edges_list = [], []
+            pred_changes_list, edge_changes_list = [], []
+            mask_edges_orig = mask_edges
             if args.model.predict_edge_change:
                 changed_edges = (gt_edge != gt_edges[:, :-1, :]).long().cuda()
                 pred_changes = output['edge_change'][
@@ -556,7 +591,7 @@ def evaluate(
                 loss += loss_change
 
                 pred_changes_list = [
-                    (pred_changes[..., 0] > 0.0).cpu().long(),
+                    (pred_changes[...].argmax(-1)).cpu().long(),
                     gt_edges[:, :-1, :].cpu(),
                 ]
                 edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
@@ -578,7 +613,7 @@ def evaluate(
                         data_loader.dataset.graph_helper,
                         graph_info,
                         gt_edge.cpu(),
-                        mask_edges.cpu(),
+                        mask_edges_orig.cpu(),
                         gt_state.cpu(),
                         changed_edges_list,
                         index,
@@ -590,7 +625,7 @@ def evaluate(
                         data_loader.dataset.graph_helper,
                         graph_info,
                         pred_edge.argmax(-1).cpu(),
-                        mask_edges.cpu(),
+                        mask_edges_orig.cpu(),
                         (pred_state > 0).cpu(),
                         pred_changes_list,
                         index,
@@ -1187,7 +1222,7 @@ def main(cfg: DictConfig):
     criterion_change = torch.nn.CrossEntropyLoss(reduction='none')
 
     if config.inference:
-        logger = LoggerSteps(config)
+        logger = LoggerSteps(config, log_steps=False)
         inference(
             test_loader,
             model,
@@ -1195,7 +1230,7 @@ def main(cfg: DictConfig):
             logger,
             criterion_state,
             criterion_edge,
-            criterion_change,
+            criterion_change
         )
     else:
         optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])

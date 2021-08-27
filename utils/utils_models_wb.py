@@ -34,18 +34,18 @@ def obtain_graph(
     changed_edges,
     batch_item,
     len_mask,
-    changed_nodes=None,
+    changed_nodes=None
 ):
+
 
     if len(changed_edges) > 0:
         # The changed edges should be boolean at this point
         # ipdb.set_trace()
         assert (changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum()
-
         # ipdb.set_trace()
         try:
             edge_prob = (
-                changed_edges[0] * edge_prob + (1 - changed_edges[0]) * changed_edges[1]
+                changed_edges[0][..., None] * edge_prob + (1 - changed_edges[0][..., None]) * changed_edges[1]
             )
         except:
             ipdb.set_trace()
@@ -521,8 +521,9 @@ def dict2md(content, tabs=0):
 
 
 class LoggerSteps:
-    def __init__(self, args):
+    def __init__(self, args, log_steps=True):
         self.args = args
+        self.log_steps = log_steps
         self.experiment_name = self.get_experiment_name()
         self.wandb = None
         self.save_dir = os.path.dirname(get_original_cwd())
@@ -550,18 +551,18 @@ class LoggerSteps:
         # f.writelines(json.dumps(dict_args, indent=4))
 
     def set_tensorboard(self):
-
-        self.wandb = wandb.init(
-            project="graph-prediction",
-            entity='virtualhome',
-            config=OmegaConf.to_container(self.args),
-        )
+        if self.log_steps:
+            self.wandb = wandb.init(
+                project="graph-prediction",
+                entity='virtualhome',
+                config=OmegaConf.to_container(self.args),
+            )
 
     def get_experiment_name(self):
         args = self.args
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'
-            'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}_inputgoal.{}'
+            'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}_inputgoal.{}'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],
@@ -677,9 +678,9 @@ class LoggerSteps:
         save_path = os.path.join(self.ckpt_save_dir)
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-            self.wandb.log(self.wandb.HTML(save_path))
-            with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
-                f.write(OmegaConf.to_yaml(self.args))
+        self.wandb.log({'misc/ckpt': wandb.Html('<a>{}</a>'.format(str(save_path)))})
+        with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
+            f.write(OmegaConf.to_yaml(self.args))
         # ipdb.set_trace()
         torch.save(
             {'model': model.state_dict(), 'optimizer': optimizer.state_dict()},

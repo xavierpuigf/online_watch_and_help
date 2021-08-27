@@ -1,0 +1,63 @@
+Config
+cuda: true
+inference: true
+samples_per_graph: 10
+ckpt_load: /data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-edgepred.pool-lrconcat-bs.0.0001-goalenc.8_extended._costclose.False_costgoal.1.0_agentembed.1.0_predchangeedge.False_inputgoal.False/350.pt
+data:
+  train_data: dataset_graph_pred_30step_train.pkl
+  test_data: dataset_graph_pred_30step_test.pkl
+log:
+  print_every: 20
+  print_long_every: 50
+  delete_prior_logs: false
+  save_every: 10
+train:
+  epochs: 500
+  batch_size: 8
+  num_workers: 8
+  lr: 0.0001
+  overfit: false
+  agents: all
+  loss_close: 1.0
+  loss_goal: 1.0
+  loss_weighted_edge: true
+test:
+  num_iters: 20
+model:
+  predict_last: true
+  predict_edge_change: false
+  input_goal: true
+  reduced_graph: true
+  global_repr: pool
+  edge_pred: concat
+  edge_types: 5
+  max_nodes: 70
+  max_class_objects: 37
+  max_actions: 10
+  num_states: 4
+  num_attributes: 6
+  hidden_size: 100
+  max_tsteps: 30
+  goal_inp: false
+  gated: false
+  agent_embed: false
+  num_agents: 100
+  relative_coords: false
+  time_aggregate: LSTM
+  state_encoder: TF
+
+Loading dataset...
+Train: dataset_graph_pred_30step_train.pkl
+Test: dataset_graph_pred_30step_test.pkl
+Loading data...
+Filename: /data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/dataset_graph_pred_30step_train.pkl. Episodes: 1223. Objects: 21
+---------------
+Loading data...
+Filename: /data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/dataset_graph_pred_30step_test.pkl. Episodes: 17. Objects: 21
+---------------
+CUDA: True
+Saving to: predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchangeedge.False_inputgoal.True
+************************
+File: 4:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.22_iter.0.pik
+
+GroundTrurth
