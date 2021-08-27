@@ -144,6 +144,20 @@ def inference(
                 'goal': goal,
                 'label_agent': label_agent,
             }
+            gt_edges = build_gt_edge(graph_info)
+            if args.model.predict_last:
+                nt = gt_edges.shape[1]
+                numnode = gt_edges.shape[-1]
+                tsteps = (
+                    len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
+                )
+                gt_edge = (
+                    torch.gather(gt_edges, 1, tstep.cuda()).repeat(1, nt - 1, 1).cuda()
+                )
+
+            else:
+                gt_edge = gt_edges[:, 1:, ...].cuda()
+            inputs['goal_graph'] = gt_edge
             with torch.no_grad():
                 output = model(inputs)
 
@@ -165,21 +179,6 @@ def inference(
             num_nodes = output['states'].shape[-2]
 
             pred_edge = output['edges'][:, :-1, ...]
-            gt_edges = build_gt_edge(graph_info)
-
-            if args.model.predict_last:
-                nt = gt_edges.shape[1]
-                numnode = gt_edges.shape[-1]
-                tsteps = (
-                    len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
-                )
-                gt_edge = (
-                    torch.gather(gt_edges, 1, tstep.cuda()).repeat(1, nt - 1, 1).cuda()
-                )
-
-            else:
-                gt_edge = gt_edges[:, 1:, ...].cuda()
-            inputs['goal_graph'] = gt_edge
 
             mask_obs_node = graph_info['mask_obs_node']
 
@@ -411,6 +410,21 @@ def evaluate(
                 'goal': goal,
                 'label_agent': label_agent,
             }
+            gt_edges = build_gt_edge(graph_info)
+            if args.model.predict_last:
+                nt = gt_edges.shape[1]
+                numnode = gt_edges.shape[-1]
+                tsteps = (
+                    len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
+                )
+                gt_edge = (
+                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+                )
+
+            else:
+                gt_edge = gt_edges[:, 1:, ...].cuda()
+            inputs['goal_graph'] = gt_edge
+
             with torch.no_grad():
                 output = model(inputs)
 
@@ -432,20 +446,6 @@ def evaluate(
             num_nodes = output['states'].shape[-2]
 
             pred_edge = output['edges'][:, :-1, ...]
-            gt_edges = build_gt_edge(graph_info)
-            if args.model.predict_last:
-                nt = gt_edges.shape[1]
-                numnode = gt_edges.shape[-1]
-                tsteps = (
-                    len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
-                )
-                gt_edge = (
-                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
-                )
-
-            else:
-                gt_edge = gt_edges[:, 1:, ...].cuda()
-            inputs['goal_graph'] = gt_edge
 
             mask_obs_node = graph_info['mask_obs_node']
 
@@ -715,6 +715,17 @@ def train_epoch(
             'label_agent': label_agent,
         }
         # print(inputs['graph']['graph'], inputs['graph']['mask_object'].sum())
+        gt_edges = build_gt_edge(graph_info)
+        if args.model.predict_last:
+            nt = gt_edges.shape[1]
+            numnode = gt_edges.shape[-1]
+            tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
+            gt_edge = (
+                torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+            )
+        else:
+            gt_edge = gt_edges[:, 1:, ...].cuda()
+        inputs['goal_graph'] = gt_edge
         output = model(inputs)
 
         pred_edge = output['edges'][:, :-1, ...]
@@ -730,19 +741,6 @@ def train_epoch(
         # loss edges edges in prediction are stored as a B x Time x N x N x num_edge_class tensor
         # GT is stored as B x Time x Num_edges, we need to convert
         num_nodes = output['states'].shape[-2]
-
-        gt_edges = build_gt_edge(graph_info)
-
-        if args.model.predict_last:
-            nt = gt_edges.shape[1]
-            numnode = gt_edges.shape[-1]
-            tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
-            gt_edge = (
-                torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
-            )
-        else:
-            gt_edge = gt_edges[:, 1:, ...].cuda()
-        inputs['goal_graph'] = gt_edge
 
         mask_obs_node = graph_info['mask_obs_node']
 
