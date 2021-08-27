@@ -95,7 +95,7 @@ class GraphPredNetwork(nn.Module):
         self.edge_change_pred = nn.Sequential(
             nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
             nn.ReLU(),
-            nn.Linear(self.hidden_size, 1),
+            nn.Linear(self.hidden_size, 2),
         )
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))

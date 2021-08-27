@@ -201,7 +201,7 @@ def inference(
             loss = 0
             pred_changes_list, changed_edges_list = [], []
             if args.model.predict_edge_change:
-                changed_edges = (gt_edge != gt_edges[:, :-1, :]).long()
+                changed_edges = (gt_edge != gt_edges[:, :-1, :]).long().cuda()
                 pred_changes = output['edge_change'][
                     :, :-1, ...
                 ]  # TODO: is this correct? Xavi: Correct
@@ -220,7 +220,7 @@ def inference(
                     gt_edges, predicted_edge.shape[-1]
                 )
 
-                pred_changes_list = [(pred_changes[..., 0] > 0.).cpu().long(), gt_edges_onehot[:, :-1, :].cpu()]
+                pred_changes_list = [(pred_changes[..., 0].argmax(-1)).cpu().long(), gt_edges_onehot[:, :-1, :].cpu()]
                 edge_changes_list = [changed_edges.cpu(), gt_edges_onehot[:, :-1, :].cpu()]
 
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
@@ -459,7 +459,7 @@ def evaluate(
 
             pred_changes_list, changed_edges_list = [], []
             if args.model.predict_edge_change:
-                changed_edges = (gt_edge != gt_edges[:, :-1, :]).long()
+                changed_edges = (gt_edge != gt_edges[:, :-1, :]).long().cuda()
                 pred_changes = output['edge_change'][
                     :, :-1, ...
                 ]  # TODO: is this correct? Xavi: correct

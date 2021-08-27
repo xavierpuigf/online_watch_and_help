@@ -653,6 +653,7 @@ class LoggerSteps:
         save_path = os.path.join(self.ckpt_save_dir)
         if not os.path.exists(save_path):
             os.makedirs(save_path)
+            self.wandb.log(self.wandb.HTML(save_path))
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
                 f.write(OmegaConf.to_yaml(self.args))
         # ipdb.set_trace()

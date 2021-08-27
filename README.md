@@ -13,6 +13,14 @@ Symlink the folder: `/data/vision/torralba/frames/data_acquisition/SyntheticStor
 
 
 Run training
+
 ```
 CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py train.num_workers=0
 ```
+
+Run inference
+
+```
+CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py inference=True
+```
+
