@@ -179,6 +179,7 @@ def inference(
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
+            inputs['goal_graph'] = gt_edge
 
             mask_obs_node = graph_info['mask_obs_node']
 
@@ -195,8 +196,6 @@ def inference(
                 )
             except:
                 ipdb.set_trace()
-
-
 
             loss = 0
             pred_changes_list, changed_edges_list = [], []
@@ -220,8 +219,14 @@ def inference(
                     gt_edges, predicted_edge.shape[-1]
                 )
 
-                pred_changes_list = [(pred_changes[..., 0].argmax(-1)).cpu().long(), gt_edges_onehot[:, :-1, :].cpu()]
-                edge_changes_list = [changed_edges.cpu(), gt_edges_onehot[:, :-1, :].cpu()]
+                pred_changes_list = [
+                    (pred_changes[..., 0].argmax(-1)).cpu().long(),
+                    gt_edges_onehot[:, :-1, :].cpu(),
+                ]
+                edge_changes_list = [
+                    changed_edges.cpu(),
+                    gt_edges_onehot[:, :-1, :].cpu(),
+                ]
 
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * mask_edges
@@ -243,11 +248,8 @@ def inference(
                     mask_edges.cpu(),
                     pred_changes_list,
                     index,
-                    len_mask
-
+                    len_mask,
                 )
-
-
 
                 gt_graph = utils_models.obtain_graph(
                     data_loader.dataset.graph_helper,
@@ -257,7 +259,7 @@ def inference(
                     mask_edges.cpu(),
                     changed_edges_list,
                     index,
-                    len_mask
+                    len_mask,
                 )
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
@@ -443,6 +445,7 @@ def evaluate(
 
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
+            inputs['goal_graph'] = gt_edge
 
             mask_obs_node = graph_info['mask_obs_node']
 
@@ -474,15 +477,16 @@ def evaluate(
                 mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
-
-                pred_changes_list = [(pred_changes[..., 0] > 0.).cpu().long(), gt_edges[:, :-1, :].cpu()]
+                pred_changes_list = [
+                    (pred_changes[..., 0] > 0.0).cpu().long(),
+                    gt_edges[:, :-1, :].cpu(),
+                ]
                 edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
 
             loss += loss_edges + loss_state
             losses.update(loss.item())
             losses_state.update(loss_state.item())
             losses_edge.update(loss_edges.item())
-
 
             for index in range(1):
                 current_index = ind[index]
@@ -502,7 +506,6 @@ def evaluate(
                         index,
                         0,
                     )
-
 
                     print("\nPrediction")
                     utils_models.print_graph_2(
@@ -739,6 +742,7 @@ def train_epoch(
             )
         else:
             gt_edge = gt_edges[:, 1:, ...].cuda()
+        inputs['goal_graph'] = gt_edge
 
         mask_obs_node = graph_info['mask_obs_node']
 
@@ -768,7 +772,6 @@ def train_epoch(
             loss_change = loss_change * mask_edges
             loss_change = loss_change.mean()
 
-            
             losses_change.update(loss_change.item())
 
             # Only loss for changed edges
@@ -1034,8 +1037,8 @@ def main(cfg: DictConfig):
     # ipdb.set_trace()
 
     train_loader, test_loader = get_loaders(config)
-    if config.model.gated:
-        model = agent_pref_policy.GraphPredNetwork(config)
+    if config.model.input_goal:
+        model = agent_pref_policy.GoalConditionedGraphPredNetwork(config)
     else:
         model = agent_pref_policy.GraphPredNetwork(config)
 

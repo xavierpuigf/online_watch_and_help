@@ -26,20 +26,8 @@ plt.switch_backend('agg')
 
 
 def obtain_graph(
-    graph_helper, graph, edge_prob, state_prob, mask_edge, changed_edges, batch_item, len_mask, changed_nodes=None
+    graph_helper, graph, edge_prob, state_prob, mask_edge, batch_item, len_mask
 ):
-
-    if len(changed_edges) > 0:
-        # The changed edges should be boolean at this point
-        # ipdb.set_trace()
-        assert((changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum())
-
-        # ipdb.set_trace()
-        try:
-            edge_prob = changed_edges[0] * edge_prob + (1 - changed_edges[0]) * changed_edges[1] 
-        except:
-            ipdb.set_trace()
-
     # We are predicting the next graph, so we sum
     num_tsteps = int(len_mask[batch_item].sum()) - 1
     offset = 0
@@ -88,26 +76,12 @@ def obtain_graph(
 
     info['nodes'] = obj_names
 
-    if len(changed_edges) > 0:
-        info['changed_edges'] = changed_edges[0]
     return info
 
 
 def print_graph_2(
-    graph_helper, graph, edge_info, mask_edge, state_info, changed_edges, batch_item, step, changed_nodes=None,
+    graph_helper, graph, edge_info, mask_edge, state_info, batch_item, step
 ):
-
-    # If we are only predicitng edge change, the edge is a combination of previous edge and new, modulagted by prediction
-    if len(changed_edges) > 0:
-        # The changed edges should be boolean at this point
-        # ipdb.set_trace()
-        assert((changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum())
-
-        # ipdb.set_trace()
-        try:
-            edge_info = changed_edges[0] * edge_info + (1 - changed_edges[0]) * changed_edges[1] 
-        except:
-            ipdb.set_trace()
     # We are predicting the next graph, so we sum 1
     offset = 1
     mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
@@ -532,20 +506,20 @@ class LoggerSteps:
     def set_tensorboard(self):
 
         self.wandb = wandb.init(
-            project="graph-prediction", entity='virtualhome', config=OmegaConf.to_container(self.args)
+            project="graph-prediction", config=OmegaConf.to_container(self.args)
         )
 
     def get_experiment_name(self):
         args = self.args
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'
-            'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}'
+            'time_model.{}-stateenc.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}_inputgoal.{}'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],
             args['model']['time_aggregate'],
             args['model']['state_encoder'],
-            args['model']['graph_repr'],
+            args['model']['global_repr'],
             args['model']['edge_pred'],
             args['train']['lr'],
             args['train']['batch_size'],
@@ -554,6 +528,7 @@ class LoggerSteps:
             args['train']['loss_goal'],
             args['model']['agent_embed'],
             args['model']['predict_edge_change'],
+            args['model']['input_goal'],
         )
         if args['model']['gated']:
             experiment_name += '_gated'
@@ -654,7 +629,6 @@ class LoggerSteps:
         save_path = os.path.join(self.ckpt_save_dir)
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-            self.wandb.log(self.wandb.HTML(save_path))
             with open('{}/config.yaml'.format(self.ckpt_save_dir), 'w+') as f:
                 f.write(OmegaConf.to_yaml(self.args))
         # ipdb.set_trace()

@@ -25,7 +25,9 @@ test:
 model:
         predict_last: True
         predict_edge_change: True
+        input_goal: True
         reduced_graph: True
+        global_repr: 'pool'
         edge_pred: 'concat'
         edge_types: 5
         max_nodes: 70
