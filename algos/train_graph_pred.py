@@ -186,6 +186,7 @@ def inference(
             inputs['goal_graph'] = goal_graph
 
             gt_edges = build_gt_edge(graph_info)
+            gt_states = graph_info['states_objects']
             if args.model.predict_last:
 
                 nt = gt_edges.shape[1]
@@ -196,16 +197,16 @@ def inference(
                 gt_edge = (
                     torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
                 )
-
+                gt_state = goal_graph['states_objects'][:, 1:, :, :]
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
+                gt_state = gt_states[:, 1:, ...].cuda()
 
             with torch.no_grad():
                 output = model(inputs)
 
             pred_edge = output['edges'][:, :-1, ...]
             pred_state = output['states'][:, :-1, ...]
-            gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
             mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
             mask_length = len_mask[:, 1:].cuda()
 
@@ -261,14 +262,19 @@ def inference(
                     gt_edges, predicted_edge.shape[-1]
                 )
 
+                changed_edges_onehot = torch.nn.functional.one_hot(
+                    changed_edges, 2
+                )
+
                 pred_changes_list = [
-                    (pred_changes.argmax(-1)).cpu().long(),
+                    (nn.functional.softmax(pred_changes, dim=3)).cpu(),
                     gt_edges_onehot[:, :-1, :].cpu(),
                 ]
                 edge_changes_list = [
-                    changed_edges.cpu(),
+                    changed_edges_onehot.cpu(),
                     gt_edges_onehot[:, :-1, :].cpu(),
                 ]
+
 
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * mask_edges
@@ -279,7 +285,24 @@ def inference(
             losses_state.update(loss_state.item())
             losses_edge.update(loss_edges.item())
 
+
+            label_action = program['action'][:, 1:]
+            index_label_obj1 = program['indobj1'][:, 1:]
+            index_label_obj2 = program['indobj2'][:, 1:]
+
+            prog_gt = {
+                'action': label_action,
+                'o1': index_label_obj1,
+                'o2': index_label_obj2,
+                'graph': graph_info,
+                'mask_len': len_mask,
+            }
+
             for index in range(ind.shape[0]):
+                program_gt = utils_models.decode_program(
+                    data_loader.dataset.graph_helper, prog_gt, index=index
+                )
+
                 current_index = ind[index]
                 fname = data_loader.dataset.pkl_files[current_index]
                 pred_graph = utils_models.obtain_graph(
@@ -291,6 +314,7 @@ def inference(
                     pred_changes_list,
                     index,
                     len_mask,
+                    samples=args.num_samples if args.inference_sample else None,
                 )
 
                 gt_graph = utils_models.obtain_graph(
@@ -305,33 +329,48 @@ def inference(
                 )
 
 
-                print("************************")
-                print(f"File: {current_index}:{fname}")
-                print("\nGroundTrurth")
-                utils_models.print_graph_2(
-                    data_loader.dataset.graph_helper,
-                    graph_info,
-                    gt_edge.cpu(),
-                    mask_edges_orig.cpu(),
-                    gt_state.cpu(),
-                    [edge_changes_list[0], edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
-                    index,
-                    0,
-                )
-                tsteps =  int(len_mask[index].sum()) - 1
-                for t in [0, tsteps//2, tsteps-1]:
-                    print("\nPrediction at {}".format(t))
-                    utils_models.print_graph_2(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        pred_edge.argmax(-1).cpu(),
-                        mask_edges_orig.cpu(),
-                        (pred_state > 0).cpu(),
-                        [pred_changes_list[0], pred_changes_list[1].argmax(-1)]  if len(pred_changes_list) > 0 else [],
-                        index,
-                        t,
-                    )
-                print("************************")
+                # print("************************")
+                # print(f"File: {current_index}:{fname}")
+                # print("\nGroundTrurth")
+                # utils_models.print_graph_2(
+                #     data_loader.dataset.graph_helper,
+                #     graph_info,
+                #     gt_edge.cpu(),
+                #     mask_edges_orig.cpu(),
+                #     gt_state.cpu(),
+                #     [edge_changes_list[0], edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
+                #     index,
+                #     0,
+                # )
+                # tsteps =  int(len_mask[index].sum()) - 1
+
+                # for t in [0, tsteps//2, tsteps-1]:
+                #     print("\nInput at {}".format(t))
+                #     utils_models.print_graph_2(
+                #         data_loader.dataset.graph_helper,
+                #         graph_info,
+                #         gt_edges.cpu(),
+                #         mask_edges_orig.cpu(),
+                #         gt_states.cpu(),
+                #         [],
+                #         index,
+                #         t,
+                #     )
+
+
+                #     print("\nPrediction at {}".format(t))
+                #     utils_models.print_graph_2(
+                #         data_loader.dataset.graph_helper,
+                #         graph_info,
+                #         pred_edge.argmax(-1).cpu(),
+                #         mask_edges_orig.cpu(),
+                #         (pred_state > 0).cpu(),
+                #         [pred_changes_list[0], 
+                #         (nn.functional.softmax(pred_changes, dim=3)).cpu() if len(pred_changes_list) > 0 else []],
+                #         index,
+                #         t,
+                #     )
+                # print("************************")
                 # ipdb.set_trace()
 
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
@@ -346,8 +385,10 @@ def inference(
                 with open(result_name, 'wb') as f:
                     pkl.dump(results, f)
 
+                # ipdb.set_trace()
             # Update accuracy
             if args.model.predict_edge_change:
+                # ipdb.set_trace()
                 (
                     state_prec,
                     state_recall,
@@ -525,6 +566,7 @@ def evaluate(
             inputs['goal_graph'] = goal_graph
 
             gt_edges = build_gt_edge(graph_info)
+            gt_states = graph_info['states_objects']
             if args.model.predict_last:
 
                 nt = gt_edges.shape[1]
@@ -536,13 +578,16 @@ def evaluate(
                     torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
                 )
 
+                gt_state = goal_graph['states_objects'][:, 1:, :, :]
+
             else:
                 gt_edge = gt_edges[:, 1:, ...].cuda()
+                gt_state = gt_states[:, 1:, ...].cuda()
 
-            output = model(inputs)
+            with torch.no_grad():
+                output = model(inputs)
             pred_edge = output['edges'][:, :-1, ...]
             pred_state = output['states'][:, :-1, ...]
-            gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
             mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
             mask_length = len_mask[:, 1:].cuda()
 
@@ -885,15 +930,17 @@ def train_epoch(
             gt_edge = (
                 torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
             )
+            
+            gt_state = goal_graph['states_objects']
 
         else:
             gt_edge = gt_edges[:, 1:, ...].cuda()
+            gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
 
         output = model(inputs)
 
         pred_edge = output['edges'][:, :-1, ...]
         pred_state = output['states'][:, :-1, ...]
-        gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
         mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
         mask_length = len_mask[:, 1:].cuda()
 
@@ -1182,7 +1229,7 @@ def get_loaders(args):
     test_loader = torch.utils.data.DataLoader(
         dataset_test,
         batch_size=args['train']['batch_size'],
-        shuffle=True,
+        shuffle=not args.inference,
         num_workers=args['train']['num_workers'],
         pin_memory=True,
         collate_fn=collate_fn,

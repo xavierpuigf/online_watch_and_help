@@ -24,6 +24,17 @@ from .utils_plot import Plotter
 
 plt.switch_backend('agg')
 
+# Nice vectorized sampling function 
+# https://stackoverflow.com/questions/34187130/fast-random-weighted-selection-across-all-rows-of-a-stochastic-matrix/34190035
+def vectorized(prob_matrix):
+    s = prob_matrix.cumsum(axis=-1)
+    r = np.random.rand(*prob_matrix.shape[:-1])[..., None]
+    # ipdb.set_trace()
+    k = (s < r).sum(axis=-1)
+    if k.max() >= prob_matrix.shape[-1]:
+        ipdb.set_trace()
+    return k
+
 
 def obtain_graph(
     graph_helper,
@@ -34,73 +45,104 @@ def obtain_graph(
     changed_edges,
     batch_item,
     len_mask,
-    changed_nodes=None
+    changed_nodes=None,
+    samples=None
 ):
+    
+    all_samples = []
+    changed_edges_new = [changed_edges[0], changed_edges[1]]
+    do_sample = True
+
+    if samples is None:
+        samples = 1
+        do_sample = False
+        edge_prob = edge_prob.cpu().numpy()
+    else:
+        edge_prob = nn.functional.softmax(edge_prob, dim=-1).cpu().numpy()
+    
+    for sample in range(samples):
+        # Sample edge_prob
+        if do_sample:
+            edge_pred = vectorized(edge_prob)
+        else:
+            edge_pred = edge_prob.argmax(-1)
+        if len(changed_edges) > 0:
+            # Sample changed edges
+            if do_sample:
+                changed_edges_new[0] = vectorized(changed_edges[0])
+            else:
+                changed_edges_new[0] = changed_edges[0].argmax(-1)
+            # The changed edges should be boolean at this point
+            # ipdb.set_trace()
+            try:
+                assert (changed_edges_new[0] == 1).sum() == (changed_edges_new[0] != 0).sum()
+            except:
+                ipdb.set_trace()
+            # ipdb.set_trace()
+            try:
+                edge_pred = (
+                    changed_edges_new[0][...] * edge_pred + (1 - changed_edges_new[0][...]) * changed_edges_new[1].argmax(-1).numpy()
+                )
+            except:
+                ipdb.set_trace()
 
 
-    if len(changed_edges) > 0:
-        # The changed edges should be boolean at this point
+        # We are predicting the next graph, so we sum
+        num_tsteps = int(len_mask[batch_item].sum()) - 1
+        offset = 0
+        nedges = len(graph_helper.relation_dict)
+        state_names = [(graph_helper.states[it],) for it in range(4)]
+        edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
+        info = {'results': [], 'state_names': state_names, 'edge_names': edge_names}
+        all_edges, all_from, all_to = [], [], []
+        object_states = state_prob[batch_item, :num_tsteps].numpy()
+        for step in range(num_tsteps):
+            result = {}
+            mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
+            object_names = graph['class_objects'][batch_item, step + offset]
+            num_nodes = graph['mask_object'].shape[-1]
+
+            node_ids = graph['node_ids'][batch_item, step + offset]
+
+            print_node = False
+            obj_names = []
+            for nid in range(mask_object):
+
+                class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
+                idi = int(node_ids[nid])
+                obj_name_complete = f"{class_name}.{idi}"
+                obj_names.append(obj_name_complete)
+
+            current_mask_edge = mask_edge[batch_item, step]
+            # current_edge = edge_info[batch_item, step]
+            indices_valid = np.where(current_mask_edge == 1)[0]
+
+            edge_pred_step = edge_pred[batch_item, step + offset, indices_valid]
+            # edge_probs = edge_prob[batch_item, step + offset, indices_valid]
+
+            from_id = indices_valid // num_nodes
+            to_id = indices_valid % num_nodes
+
+            curr_res = {}
+            # all_edges.append(edge_prob[None, :].numpy())
+            all_edges.append(edge_pred_step[None, :])
+            all_from.append(from_id[None, :])
+            all_to.append(to_id[None, :])
+
+        all_edges = np.concatenate(all_edges, 0)
+        all_from = np.concatenate(all_from, 0)
+        all_to = np.concatenate(all_to, 0)
+        info['edge_pred'] = all_edges
+        info['from_id'] = all_from
+        info['to_id'] = all_to
+        info['states'] = object_states
+
+        info['nodes'] = obj_names
         # ipdb.set_trace()
-        assert (changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum()
-        # ipdb.set_trace()
-        try:
-            edge_prob = (
-                changed_edges[0][..., None] * edge_prob + (1 - changed_edges[0][..., None]) * changed_edges[1]
-            )
-        except:
-            ipdb.set_trace()
-
-    # We are predicting the next graph, so we sum
-    num_tsteps = int(len_mask[batch_item].sum()) - 1
-    offset = 0
-    nedges = len(graph_helper.relation_dict)
-    state_names = [(graph_helper.states[it],) for it in range(4)]
-    edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
-    info = {'results': [], 'state_names': state_names, 'edge_names': edge_names}
-    all_edges, all_from, all_to = [], [], []
-    object_states = state_prob[batch_item, :num_tsteps].numpy()
-    for step in range(num_tsteps):
-        result = {}
-        mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
-        object_names = graph['class_objects'][batch_item, step + offset]
-        num_nodes = graph['mask_object'].shape[-1]
-
-        node_ids = graph['node_ids'][batch_item, step + offset]
-
-        print_node = False
-        obj_names = []
-        for nid in range(mask_object):
-
-            class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
-            idi = int(node_ids[nid])
-            obj_name_complete = f"{class_name}.{idi}"
-            obj_names.append(obj_name_complete)
-
-        current_mask_edge = mask_edge[batch_item, step]
-        # current_edge = edge_info[batch_item, step]
-        indices_valid = np.where(current_mask_edge == 1)[0]
-        edge_probs = edge_prob[batch_item, step + offset, indices_valid]
-        from_id = indices_valid // num_nodes
-        to_id = indices_valid % num_nodes
-
-        curr_res = {}
-        all_edges.append(edge_probs[None, :].numpy())
-        all_from.append(from_id[None, :])
-        all_to.append(to_id[None, :])
-
-    all_edges = np.concatenate(all_edges, 0)
-    all_from = np.concatenate(all_from, 0)
-    all_to = np.concatenate(all_to, 0)
-    info['edge_prob'] = all_edges
-    info['from_id'] = all_from
-    info['to_id'] = all_to
-    info['states'] = object_states
-
-    info['nodes'] = obj_names
-
-    if len(changed_edges) > 0:
-        info['changed_edges'] = changed_edges[0]
-    return info
+        if len(changed_edges) > 0:
+            info['changed_edges'] = changed_edges[0]
+        all_samples.append(info)
+    return all_samples
 
 
 def print_graph_2(
@@ -320,7 +362,7 @@ def get_pred_results_str(graph_helper, prog_gt, prog_pred):
     return res_str
 
 
-def decode_program(graph_helper, program_info):
+def decode_program(graph_helper, program_info, index=0):
     # ipdb.set_trace()
     program_info_new = {}
 
@@ -328,7 +370,7 @@ def decode_program(graph_helper, program_info):
     program_info['node_ids'] = program_info['graph']['node_ids']
     for key, val in program_info.items():
         if key != 'graph':
-            program_info_new[key] = val[0, :].cpu().numpy()
+            program_info_new[key] = val[index, :].cpu().numpy()
 
     length = int(program_info_new['mask_len'].sum())
 
@@ -336,8 +378,8 @@ def decode_program(graph_helper, program_info):
     o1_ind = list(program_info_new['o1'][:length])
     o2_ind = list(program_info_new['o2'][:length])
 
-    class_obj = list(program_info_new['class_objects'][0])
-    node_ids = list(program_info_new['node_ids'][0])
+    class_obj = list(program_info_new['class_objects'][index])
+    node_ids = list(program_info_new['node_ids'][index])
 
     program_str = []
     for it in range(length):
