@@ -230,7 +230,7 @@ def inference(
             mask_edges = medges1 * medges2
             mask_edges = mask_edges[:, 1:, ...]
 
-            predicted_edge = pred_edge.cpu()
+            predicted_edge = nn.functional.softmax(pred_edge, dim=-1).cpu().numpy()
             predicted_state = pred_state.cpu()
             try:
                 gt_edge_onehot = torch.nn.functional.one_hot(
@@ -267,12 +267,12 @@ def inference(
                 )
 
                 pred_changes_list = [
-                    (nn.functional.softmax(pred_changes, dim=3)).cpu(),
-                    gt_edges_onehot[:, :-1, :].cpu(),
+                    (nn.functional.softmax(pred_changes, dim=3)).cpu().numpy(),
+                    gt_edges_onehot[:, :-1, :].cpu().numpy(),
                 ]
                 edge_changes_list = [
-                    changed_edges_onehot.cpu(),
-                    gt_edges_onehot[:, :-1, :].cpu(),
+                    changed_edges_onehot.cpu().numpy(),
+                    gt_edges_onehot[:, :-1, :].cpu().numpy(),
                 ]
 
 
@@ -314,13 +314,13 @@ def inference(
                     pred_changes_list,
                     index,
                     len_mask,
-                    samples=args.num_samples if args.inference_sample else None,
+                    samples=args.samples_per_graph if args.inference_sample else None,
                 )
 
                 gt_graph = utils_models.obtain_graph(
                     data_loader.dataset.graph_helper,
                     graph_info,
-                    gt_edge_onehot.cpu(),
+                    gt_edge_onehot.cpu().numpy(),
                     gt_state.cpu(),
                     mask_edges_orig.cpu(),
                     edge_changes_list,

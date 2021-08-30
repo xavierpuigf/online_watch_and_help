@@ -31,8 +31,9 @@ def vectorized(prob_matrix):
     r = np.random.rand(*prob_matrix.shape[:-1])[..., None]
     # ipdb.set_trace()
     k = (s < r).sum(axis=-1)
-    if k.max() >= prob_matrix.shape[-1]:
+    if k.max() > prob_matrix.shape[-1]:
         ipdb.set_trace()
+    k[k == prob_matrix.shape[-1]] = prob_matrix.shape[-1] - 1
     return k
 
 
@@ -56,10 +57,12 @@ def obtain_graph(
     if samples is None:
         samples = 1
         do_sample = False
-        edge_prob = edge_prob.cpu().numpy()
+        # edge_prob = edge_prob.cpu().numpy(
     else:
-        edge_prob = nn.functional.softmax(edge_prob, dim=-1).cpu().numpy()
+        pass
+        # edge_prob = nn.functional.softmax(edge_prob, dim=-1).cpu().numpy()
     
+    prev_step_edges = changed_edges_new[1].argmax(-1)
     for sample in range(samples):
         # Sample edge_prob
         if do_sample:
@@ -81,7 +84,7 @@ def obtain_graph(
             # ipdb.set_trace()
             try:
                 edge_pred = (
-                    changed_edges_new[0][...] * edge_pred + (1 - changed_edges_new[0][...]) * changed_edges_new[1].argmax(-1).numpy()
+                    changed_edges_new[0][...] * edge_pred + (1 - changed_edges_new[0][...]) * prev_step_edges
                 )
             except:
                 ipdb.set_trace()
@@ -94,7 +97,7 @@ def obtain_graph(
         state_names = [(graph_helper.states[it],) for it in range(4)]
         edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
         info = {'results': [], 'state_names': state_names, 'edge_names': edge_names}
-        all_edges, all_from, all_to = [], [], []
+        all_edges, all_from, all_to, all_edges_input = [], [], [], []
         object_states = state_prob[batch_item, :num_tsteps].numpy()
         for step in range(num_tsteps):
             result = {}
@@ -118,6 +121,7 @@ def obtain_graph(
             indices_valid = np.where(current_mask_edge == 1)[0]
 
             edge_pred_step = edge_pred[batch_item, step + offset, indices_valid]
+            edge_input_step = prev_step_edges[batch_item, step + offset, indices_valid]
             # edge_probs = edge_prob[batch_item, step + offset, indices_valid]
 
             from_id = indices_valid // num_nodes
@@ -126,13 +130,16 @@ def obtain_graph(
             curr_res = {}
             # all_edges.append(edge_prob[None, :].numpy())
             all_edges.append(edge_pred_step[None, :])
+            all_edges_input.append(edge_input_step[None, :])
             all_from.append(from_id[None, :])
             all_to.append(to_id[None, :])
 
         all_edges = np.concatenate(all_edges, 0)
+        all_edges_input = np.concatenate(all_edges_input, 0)
         all_from = np.concatenate(all_from, 0)
         all_to = np.concatenate(all_to, 0)
         info['edge_pred'] = all_edges
+        info['edge_input'] = all_edges_input
         info['from_id'] = all_from
         info['to_id'] = all_to
         info['states'] = object_states
