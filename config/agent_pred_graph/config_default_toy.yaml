@@ -1,4 +1,6 @@
 cuda: True
+logging: True
+name_log: ''
 inference: False
 inference_sample: False
 samples_per_graph: 20
@@ -24,6 +26,7 @@ train:
 test:
         num_iters: 20
 model:
+        exclusive_edge: False # Whether to predict edges or container relations
         predict_last: True
         predict_edge_change: True
         input_goal: True

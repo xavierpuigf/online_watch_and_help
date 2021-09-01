@@ -3,6 +3,7 @@ import glob
 from omegaconf import DictConfig, OmegaConf
 import yaml
 import os
+import random
 import wandb
 import tensorflow as tf
 import tensorflow as tf
@@ -577,6 +578,8 @@ class LoggerSteps:
         self.wandb = None
         self.save_dir = os.path.dirname(get_original_cwd())
 
+        self.name_log = None if len(args.name_log) == 0 else args.name_log+str(random.randint(0,100))
+
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
         self.results_path = os.path.join(self.save_dir, 'results', self.experiment_name)
         self.logs_logdir = os.path.join(
@@ -591,7 +594,6 @@ class LoggerSteps:
 
         # self.plot = Plotter2(self.experiment_name, root_dir=self.logs_logdir)
         self.info_episodes = []
-
         self.file_name_log = '{}/{}/log.json'.format(
             self.logs_logdir, self.experiment_name
         )
@@ -603,6 +605,7 @@ class LoggerSteps:
         if self.log_steps:
             self.wandb = wandb.init(
                 project="graph-prediction",
+                name=self.name_log,
                 entity='virtualhome',
                 config=OmegaConf.to_container(self.args),
             )
@@ -611,7 +614,8 @@ class LoggerSteps:
         args = self.args
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'
-            'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}_inputgoal.{}'
+            'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-'
+            'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}_inputgoal.{}_excledge.{}'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],
@@ -627,6 +631,7 @@ class LoggerSteps:
             args['model']['agent_embed'],
             args['model']['predict_edge_change'],
             args['model']['input_goal'],
+            args['model']['exclusive_edge']
         )
         if args['model']['gated']:
             experiment_name += '_gated'
