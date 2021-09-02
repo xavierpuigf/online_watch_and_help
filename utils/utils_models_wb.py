@@ -167,6 +167,14 @@ def print_graph_2(
 
     # If we are only predicitng edge change, the edge is a combination of previous edge and new, modulagted by prediction
     if len(changed_edges) > 0:
+
+        if changed_edges[0].shape[-1] != changed_edges[1].shape[-1]:
+            # Changes as nodes
+            num_nodes = changed_edges[0].shape[-1]
+            changed_edges_build = changed_edges[0].repeat_interleave(num_nodes, dim=2)
+            changed_edges = [changed_edges_build, changed_edges[1]]
+
+
         # The changed edges should be boolean at this point
         # ipdb.set_trace()
         assert (changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum()
@@ -612,10 +620,16 @@ class LoggerSteps:
 
     def get_experiment_name(self):
         args = self.args
+        pred_change = 'none'
+
+        if args['model']['predict_edge_change']
+            pred_change = 'edge'
+        if args['model']['predict_node_change']
+            pred_change = 'node'
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'
             'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-'
-            'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchangeedge.{}_inputgoal.{}_excledge.{}'
+            'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchange.{}_inputgoal.{}_excledge.{}'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],
@@ -629,7 +643,7 @@ class LoggerSteps:
             args['train']['loss_close'],
             args['train']['loss_goal'],
             args['model']['agent_embed'],
-            args['model']['predict_edge_change'],
+            pred_change,
             args['model']['input_goal'],
             args['model']['exclusive_edge']
         )

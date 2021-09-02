@@ -53,7 +53,7 @@ class GraphHelper():
                  include_touch=False, toy_dataset=False):
         self.toy_dataset = toy_dataset
         self.states = ['on', 'open', 'off', 'closed']
-        self.relations = ['inside', 'close', 'on', 'hold']
+        self.relations = ['inside', 'on', 'hold']
         self.simulaor_type = simulator_type
         self.objects = self.get_objects()
         self.rooms = ['bathroom', 'bedroom', 'kitchen', 'livingroom']
@@ -264,18 +264,34 @@ class GraphHelper():
 
         # If holding an object, remove close edge
         edges = [edge for edge in edges if edge['from_id'] in ids and edge['to_id'] in ids and edge['relation_type'].lower() in self.relations]
-        edges = [edge for edge in edges if (edge['relation_type'].lower() != 'close' or edge['to_id'] not in holding_object) and not (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on')]
+        edges = [edge for edge in edges if (edge['relation_type'].lower() != 'close' or edge['to_id'] not in holding_object) and not 
+                                           (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on') and  
+                                           (edge['relation_type'].lower() != 'close' or edge['from_id'] not in holding_object)]
+        
+        # an object cannot be inside and on a given object
         edges = [edge for edge in edges if not (edge['relation_type'].lower() == 'on' and (edge['from_id'], edge['to_id']) in inside_object)]
+
+        # reverse holding directions
+        for it, edge in enumerate(edges):
+            if edge['relation_type'] == 'hold':
+                # print(edges[it])
+                edges[it] = {'from_id': edge['to_id'], 'to_id': edge['from_id'], 'relation_type': edge['relation_type']}
+                # print(edges[it])
 
         # Check if there is more than one edge between two nodes
         edge_tup = [(edge['from_id'], edge['to_id']) for edge in edges]
+
+
+
         try:
             assert(len(set(edge_tup)) == len(edge_tup))
         except:
+            print("Fail edges")
             print(sorted(edge_tup))
             print('\n')
             print(sorted(set(edge_tup)))
             raise Exception("duplicated edges")
+
         nodes = [id2node[idi] for idi in ids]
         nodes.append({'id': -1, 'class_name': 'no_obj', 'states': []})
 

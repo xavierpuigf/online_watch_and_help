@@ -28,12 +28,13 @@ test:
 model:
         exclusive_edge: False # Whether to predict edges or container relations
         predict_last: True
-        predict_edge_change: True
+        predict_edge_change: False
+        predict_node_change: False
         input_goal: True
         reduced_graph: True
         global_repr: 'pool'
         edge_pred: 'concat'
-        edge_types: 5
+        edge_types: 4
         max_nodes: 70
         max_class_objects: 37
         max_actions: 10

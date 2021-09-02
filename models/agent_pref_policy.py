@@ -93,11 +93,20 @@ class GraphPredNetwork(nn.Module):
             nn.Linear(self.hidden_size, self.num_states),
         )
 
-        self.edge_change_pred = nn.Sequential(
-            nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, 2),
-        )
+        self.pred_change = args['predict_edge_change']
+        self.node_change = args['predict_node_change']
+        if self.pred_change:
+            self.edge_change_pred = nn.Sequential(
+                nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, 2),
+            )
+        if self.node_change:
+            self.node_change_pred = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, 2),
+            )
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
         # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
@@ -112,7 +121,6 @@ class GraphPredNetwork(nn.Module):
 
         self.goal_inp = args['goal_inp']
         self.edge_pred_mode = args['edge_pred']
-        self.pred_change = args['predict_edge_change']
         if args['goal_inp']:
             self.goal_encoder = base_nets.GoalEncoder(
                 self.max_num_classes,
@@ -137,14 +145,16 @@ class GraphPredNetwork(nn.Module):
             raise Exception
 
         edges = self.edge_pred(edge_embeds)
-        edge_change = None
+        change = None
         if self.pred_change:
-            edge_change = self.edge_change_pred(edge_embeds)
-        return states, edges, edge_change
+            change = self.edge_change_pred(edge_embeds)
+        if self.node_change:
+            change = self.node_change_pred(inputs)
+        return states, edges, change
 
     def forward(self, inputs, cond=None):
         # Cond is an embedding of the past, optionally used
-
+        # ipdb.set_trace()
         program = inputs['program']
         graph = inputs['graph']
         mask_len = inputs['mask_len']
@@ -227,7 +237,10 @@ class GraphPredNetwork(nn.Module):
         output_and_lstm = self.comb_out_layer(output_and_lstm)
         pred_states, pred_edges, pred_changes = self.pred_obj_states(output_and_lstm)
         # ipdb.set_trace()
-        return {'states': pred_states, 'edges': pred_edges, 'edge_change': pred_changes}
+        name_change = 'edge_change'
+        if self.node_change:
+            name_change = 'node_change'
+        return {'states': pred_states, 'edges': pred_edges, name_change: pred_changes}
 
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
         # loss_o1 = None
