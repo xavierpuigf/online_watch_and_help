@@ -622,9 +622,9 @@ class LoggerSteps:
         args = self.args
         pred_change = 'none'
 
-        if args['model']['predict_edge_change']
+        if args['model']['predict_edge_change']:
             pred_change = 'edge'
-        if args['model']['predict_node_change']
+        if args['model']['predict_node_change']:
             pred_change = 'node'
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'

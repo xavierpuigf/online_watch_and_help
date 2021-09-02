@@ -111,7 +111,7 @@ def build_gt_edge(graph_info, graph_helper):
     edge_interest_from = mask_obj_interest.repeat_interleave(num_nodes, dim=2)
     edge_interest_to = mask_obj_interest_2.repeat(1, 1, num_nodes)
     edge_interest = edge_interest_from * edge_interest_to
-
+    # ipdb.set_trace()
     edge_dict = {}
     edge_dict['gt_edges'] = gt_edges
     edge_dict['edge_interest'] = edge_interest
@@ -414,6 +414,7 @@ def get_metrics():
     metric_dict['accuracy_edge'] = AverageMeter('Accuracy Edge', ':6.2f')
     metric_dict['accuracy_edge_pos'] = AverageMeter('Accuracy Edge Pos', ':6.2f')
     metric_dict['accuracy_edge_interest'] = AverageMeter('Accuracy Edge Interest', ':6.2f')
+    metric_dict['accuracy_edge_interest_pos'] = AverageMeter('Accuracy Edge Interest Pos', ':6.2f')
     return metric_dict
 
 def evaluate(
@@ -513,15 +514,15 @@ def evaluate(
             mask_edges = medges1 * medges2
             mask_edges = mask_edges[:, 1:, ...]
 
-            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-            loss_edges = loss_edges * mask_edges
-            loss_edges = loss_edges.mean()
-
+            
             loss = 0
 
             pred_changes_list, edge_changes_list = [], []
             mask_edges_orig = mask_edges
 
+            pred_changes = None
+            changed_edges = None
+            changed_nodes = None
 
             if args.model.predict_edge_change:
                 changed_edges = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
@@ -537,7 +538,6 @@ def evaluate(
                 metric_dict['losses_change'].update(loss_change.item())
 
                 # Only loss for changed edges
-                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
                 pred_changes_list = [
@@ -546,8 +546,10 @@ def evaluate(
                 ]
                 edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
 
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_edges
 
-            if args.model.predict_node_change:
+            elif args.model.predict_node_change:
                 
                 # A node is if the from_edge is changed
                 # An edge is changed if any of the nodes is changed
@@ -572,7 +574,6 @@ def evaluate(
                 metric_dict['losses_change'].update(loss_change.item())
 
                 # Only loss for changed edges
-                mask_edges = changed_edges
                 loss += loss_change
 
                 pred_changes_list = [
@@ -580,8 +581,14 @@ def evaluate(
                     gt_edges[:, :-1, :].cpu(),
                 ]
                 edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
-
-
+                
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_edges
+            else:
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * mask_edges   
+            
+            loss_edges = loss_edges.mean(-1).mean(-1)
             loss += loss_edges + loss_state
             metric_dict['losses'].update(loss.item())
             metric_dict['losses_state'].update(loss_state.item())
@@ -657,7 +664,8 @@ def evaluate(
             'state_recall_val': metric_dict['recall_state'].avg,
             'edge_accuracy_val': metric_dict['accuracy_edge'].avg,
             'edge_accuracy_pos_val': metric_dict['accuracy_edge_pos'].avg,
-            'edge_accuracy_interest': metric_dict['accuracy_edge_interest'].avg
+            'edge_accuracy_interest': metric_dict['accuracy_edge_interest'].avg,
+            'edge_accuracy_interest_pos': metric_dict['accuracy_edge_interest_pos'].avg
         },
         'misc': {'epoch': epoch},
     }
@@ -686,7 +694,8 @@ def update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, 
             change_recall,
             edge_accuracy,
             edge_accuracy_pos,
-            edge_accuracy_interest
+            edge_accuracy_interest,
+            edge_accuracy_interest_pos
         ) = compute_metrics_change(
             gt_state,
             gt_edge,
@@ -708,7 +717,8 @@ def update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, 
             state_recall,
             edge_accuracy,
             edge_accuracy_pos,
-            edge_accuracy_interest
+            edge_accuracy_interest,
+            edge_accuracy_interest_pos
         ) = compute_metrics(
             gt_state,
             gt_edge,
@@ -717,6 +727,7 @@ def update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, 
             pred_edge,
             mask_length,
             mask_edges,
+            edge_interest[:, 1:, :].cuda()
         )
 
     metric_dict['prec_state'].update(state_prec.item())
@@ -724,6 +735,7 @@ def update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, 
     metric_dict['accuracy_edge'].update(edge_accuracy.item())
     metric_dict['accuracy_edge_pos'].update(edge_accuracy_pos.item())
     metric_dict['accuracy_edge_interest'].update(edge_accuracy_interest.item())
+    metric_dict['accuracy_edge_interest_pos'].update(edge_accuracy_interest_pos.item())
 
 
 def train_epoch(
@@ -853,6 +865,7 @@ def train_epoch(
 
         pred_changes = None
         changed_edges = None
+        changed_nodes = None
         if args.model.predict_edge_change:
             changed_edges = (gt_edge != gt_edges[:, :-1, :].cuda()).long()
             changed_edges *= mask_edges.long()
@@ -875,10 +888,11 @@ def train_epoch(
             metric_dict['losses_change'].update(loss_change.item())
 
             # Only loss for changed edges
-            mask_edges = changed_edges
             loss += loss_change
+            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+            loss_edges = loss_edges * changed_edges
 
-        if args.model.predict_node_change:
+        elif args.model.predict_node_change:
                 
             # A node is if the from_edge is changed
             # An edge is changed if any of the nodes is changed
@@ -906,7 +920,6 @@ def train_epoch(
 
             # Only loss for changed edges
             # ipdb.set_trace()
-            mask_edges = changed_edges
             loss += loss_change
 
             pred_changes_list = [
@@ -916,9 +929,14 @@ def train_epoch(
             edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
             # ipdb.set_trace()
 
-        loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-        loss_edges = loss_edges * mask_edges
-        loss_edges = loss_edges.mean()
+            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+            loss_edges = loss_edges * changed_edges
+        else:        
+            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+            loss_edges = loss_edges * mask_edges
+        
+
+        loss_edges = loss_edges.mean().mean()
         # ipdb.set_trace()
         loss += loss_edges + loss_state
 
@@ -951,7 +969,9 @@ def train_epoch(
                     'state_recall': metric_dict['recall_state'].val,
                     'edge_accuracy': metric_dict['accuracy_edge'].val,
                     'edge_accuracy_pos': metric_dict['accuracy_edge_pos'].val,
-                    'edge_accuracy_interest': metric_dict['accuracy_edge_interest'].val
+                    'edge_accuracy_interest': metric_dict['accuracy_edge_interest'].val,
+                    'edge_accuracy_interest_pos': metric_dict['accuracy_edge_interest_pos'].val
+
                 },
                 'misc': {'epoch': epoch},
             }
@@ -1062,6 +1082,10 @@ def compute_metrics_change(
     edge_accuracy_interest = (edge_acc * mask_edge_norm_interest).sum(-1)
     edge_accuracy_interest = (edge_accuracy_interest * mask_timesteps).sum(-1).mean()
     
+    mask_edges_interest_pos = mask_edges * edge_int * (gt_edges ==  2)
+    mask_edge_norm_interest_pos = mask_edges_interest_pos / (mask_edges_interest_pos.sum(-1)[..., None] + 1e-9)
+    edge_accuracy_interest_pos = (edge_acc * mask_edge_norm_interest_pos).sum(-1)    
+    edge_accuracy_interest_pos = (edge_accuracy_interest_pos * mask_timesteps).sum(-1).mean()
 
     return (
         state_prec,
@@ -1071,11 +1095,12 @@ def compute_metrics_change(
         edge_accuracy,
         edge_accuracy_pos,
         edge_accuracy_interest,
+        edge_accuracy_interest_pos
     )
 
 
 def compute_metrics(
-    gt_state, gt_edges, pred_state, mask_state, pred_edges, mask_length, mask_edges
+    gt_state, gt_edges, pred_state, mask_state, pred_edges, mask_length, mask_edges, edge_int
 ):
 
     # How many GT positives
@@ -1114,7 +1139,20 @@ def compute_metrics(
     mask_edge_norm_pos = mask_edges_pos / (mask_edges_pos.sum(-1)[..., None] + 1e-9)
     edge_accuracy_pos = (edge_acc * mask_edge_norm_pos).sum(-1)
     edge_accuracy_pos = (edge_accuracy_pos * mask_timesteps).sum(-1).mean()
-    return state_prec, state_recall, edge_accuracy, edge_accuracy_pos
+
+
+    mask_edges_interest = mask_edges.clone()
+    mask_edges_interest = mask_edges_interest * edge_int
+    mask_edge_norm_interest = mask_edges_interest / (mask_edges_interest.sum(-1)[..., None] + 1e-9)
+    edge_accuracy_interest = (edge_acc * mask_edge_norm_interest).sum(-1)
+    edge_accuracy_interest = (edge_accuracy_interest * mask_timesteps).sum(-1).mean()
+
+    mask_edges_interest_pos = mask_edges * edge_int * (gt_edges ==  2)
+    mask_edge_norm_interest_pos = mask_edges_interest_pos / (mask_edges_interest_pos.sum(-1)[..., None] + 1e-9)
+    edge_accuracy_interest_pos = (edge_acc * mask_edge_norm_interest_pos).sum(-1)    
+    edge_accuracy_interest_pos = (edge_accuracy_interest_pos * mask_timesteps).sum(-1).mean()
+    # ipdb.set_trace()
+    return state_prec, state_recall, edge_accuracy, edge_accuracy_pos, edge_accuracy_interest, edge_accuracy_interest_pos
 
 
 def get_loaders(args):

@@ -22,7 +22,7 @@ train:
         agents: 'all'
         loss_close: 1.0
         loss_goal: 1.0
-        loss_weighted_edge: True
+        loss_weighted_edge: False
 test:
         num_iters: 20
 model:
