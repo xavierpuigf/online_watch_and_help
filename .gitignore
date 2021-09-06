@@ -1,8 +1,10 @@
 .ipynb_checkpoints
+
 tensorboard/*
 outputs/*
 .DS_Store
 port_*.txt
+*.txt
 rl/*
 logs_exec/*
 trained_models/*
