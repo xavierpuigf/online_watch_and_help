@@ -53,20 +53,22 @@ if __name__ == '__main__':
 
     dataset_name = 'dataset_graph_pred_30step'
     
-    train_path = f'{dir_script}/../dataset_episodes/large_data_toy/train_env_task_set_100_full/*'
+    #train_path = f'{dir_script}/../dataset_episodes/large_data_toy/train_env_task_set_100_full/*'
     test_path =  f'{dir_script}/../dataset_episodes/large_data_toy/test_env_task_set_10_full/*'
 
-    dict_train = build_dataset(train_path)
+    #dict_train = build_dataset(train_path)
     print("Building...")
     dict_test = build_dataset(test_path)
-    dataset_dict = {}
-    dataset_dict['train'] = dict_train
-    dataset_dict['test'] = dict_test
-    dataset_dict['generated'] = date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
-    with open(f'{dir_script}/../dataset/{dataset_name}_train.pkl', 'wb+') as f:
-       pkl.dump(dict_train, f)
 
-    with open(f'{dir_script}/../dataset/{dataset_name}_test.pkl', 'wb+') as f:
+    #dataset_dict = {}
+    #dataset_dict['train'] = dict_train
+    #dataset_dict['test'] = dict_test
+    #dataset_dict['generated'] = date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+
+    #with open(f'{dir_script}/../dataset/{dataset_name}_train.pkl', 'wb+') as f:
+    #   pkl.dump(dict_train, f)
+
+    with open(f'{dir_script}/../dataset/{dataset_name}_larger_test.pkl', 'wb+') as f:
        pkl.dump(dict_test, f)
 
     pdb.set_trace()

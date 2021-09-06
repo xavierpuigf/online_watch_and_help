@@ -33,14 +33,16 @@ if __name__ == '__main__':
     args = get_args()
     num_proc = 5
 
-    num_tries = 10
+    num_tries = 5
     args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
-    args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
+
+    #args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
+    args.dataset_path = f'{rootdir}/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
     cachedir = f'{rootdir}/dataset_episodes/large_data_toy'
 
@@ -159,7 +161,7 @@ if __name__ == '__main__':
         # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
 
-        for iter_id in range(num_tries):
+        for iter_id in range(1, num_tries):
             #if iter_id > 0:
 
             cnt = 0

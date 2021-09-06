@@ -1,0 +1,1106 @@
+Config
+cuda: true
+inference: true
+samples_per_graph: 10
+ckpt_load: /data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-edgepred.pool-lrconcat-bs.0.0001-goalenc.8_extended._costclose.False_costgoal.1.0_agentembed.1.0_predchangeedge.False_inputgoal.True/350.pt
+data:
+  train_data: dataset_graph_pred_30step_train.pkl
+  test_data: dataset_graph_pred_30step_test.pkl
+log:
+  print_every: 20
+  print_long_every: 50
+  delete_prior_logs: false
+  save_every: 10
+train:
+  epochs: 500
+  batch_size: 8
+  num_workers: 8
+  lr: 0.0001
+  overfit: false
+  agents: all
+  loss_close: 1.0
+  loss_goal: 1.0
+  loss_weighted_edge: true
+test:
+  num_iters: 20
+model:
+  predict_last: true
+  predict_edge_change: true
+  input_goal: true
+  reduced_graph: true
+  global_repr: pool
+  edge_pred: concat
+  edge_types: 5
+  max_nodes: 70
+  max_class_objects: 37
+  max_actions: 10
+  num_states: 4
+  num_attributes: 6
+  hidden_size: 100
+  max_tsteps: 30
+  goal_inp: false
+  gated: false
+  agent_embed: false
+  num_agents: 100
+  relative_coords: false
+  time_aggregate: LSTM
+  state_encoder: TF
+
+Loading dataset...
+Train: dataset_graph_pred_30step_train.pkl
+Test: dataset_graph_pred_30step_test.pkl
+Loading data...
+Filename: /data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/dataset_graph_pred_30step_train.pkl. Episodes: 1223. Objects: 21
+---------------
+Loading data...
+Filename: /data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/dataset_graph_pred_30step_test.pkl. Episodes: 17. Objects: 21
+---------------
+CUDA: True
+Saving to: predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchangeedge.True_inputgoal.True
+************************
+File: 13:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.4_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 cupcake.352 apple.354 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.353]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 apple.354 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.353]
+microwave.251       : ON: []   INSIDE: [cupcake.351 cupcake.352 plate.252]
+==========
+
+Prediction at 9
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 cupcake.352 apple.354 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.353]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 18
+Graph
+==========
+Edges
+HOLDING: [(0, 16)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 cupcake.352 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.353]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+************************
+************************
+File: 0:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.14_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [cupcake.380 apple.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+microwave.167       : ON: []   INSIDE: [plate.168]
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 apple.381 apple.382]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [cupcake.380 apple.381 apple.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+microwave.167       : ON: []   INSIDE: [plate.168]
+plate.168           : ON: [cupcake.380]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 apple.381 apple.382]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+
+Prediction at 6
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [apple.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+microwave.167       : ON: []   INSIDE: [plate.168]
+plate.168           : ON: [cupcake.380]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 apple.381 apple.382]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+
+Prediction at 11
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [cupcake.380 apple.381 apple.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+microwave.167       : ON: []   INSIDE: [plate.168]
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 apple.381 apple.382]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+************************
+************************
+File: 12:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.30_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.185 plate.380 waterglass.381]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328 cupcake.331 cupcake.332 plate.382]
+apple.177           : ON: [apple.184]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.184 apple.185 apple.186 apple.187 plate.380 waterglass.381]
+livingroom.198      : ON: []   INSIDE: [coffeetable.247 sofa.248 apple.250 apple.251]
+coffeetable.327     : ON: [cupcake.331 plate.382]   INSIDE: []
+coffeetable.247     : ON: [apple.250 apple.251]   INSIDE: []
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.185 waterglass.381]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+apple.177           : ON: [apple.184]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.184 apple.185 apple.186 apple.187 plate.380 waterglass.381]
+livingroom.198      : ON: []   INSIDE: [coffeetable.247 sofa.248 apple.250 apple.251]
+coffeetable.327     : ON: [cupcake.331 plate.382]   INSIDE: []
+coffeetable.247     : ON: [apple.250 apple.251]   INSIDE: []
+==========
+
+Prediction at 5
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.185 plate.380 waterglass.381]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328 cupcake.332 plate.382]
+apple.177           : ON: [apple.184]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.184 apple.185 apple.186 apple.187 plate.380 waterglass.381]
+livingroom.198      : ON: []   INSIDE: [coffeetable.247 sofa.248 apple.250 apple.251]
+coffeetable.327     : ON: [cupcake.331 plate.382]   INSIDE: []
+coffeetable.247     : ON: [apple.250 apple.251]   INSIDE: []
+==========
+
+Prediction at 9
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.185 plate.380 waterglass.381]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328 cupcake.332 plate.382]
+apple.177           : ON: [apple.184]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 apple.177 apple.178 apple.179 apple.180 apple.181 apple.182 apple.183 apple.184 apple.185 apple.186 apple.187 plate.380 waterglass.381]
+livingroom.198      : ON: []   INSIDE: [coffeetable.247 sofa.248 apple.250 apple.251]
+coffeetable.327     : ON: [cupcake.331 plate.382]   INSIDE: []
+coffeetable.247     : ON: [apple.250 apple.251]   INSIDE: []
+==========
+************************
+************************
+File: 14:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.3_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 apple.357 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 cupcake.353 apple.355 apple.356]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354]
+microwave.251       : ON: []   INSIDE: [cupcake.352 plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [character.1 bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 apple.357 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 cupcake.351 apple.356 apple.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354 apple.355]
+microwave.251       : ON: []   INSIDE: [cupcake.352 cupcake.353 plate.252]
+==========
+
+Prediction at 13
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 apple.357 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 apple.356 apple.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354 apple.355]
+microwave.251       : ON: []   INSIDE: [cupcake.352 cupcake.353 plate.252]
+==========
+
+Prediction at 26
+Graph
+==========
+Edges
+HOLDING: [(0, 17)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 apple.357 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 cupcake.351 cupcake.353 apple.355 apple.356 apple.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354]
+microwave.251       : ON: []   INSIDE: [cupcake.352 plate.252]
+==========
+************************
+************************
+File: 16:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.8_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 cupcake.354 apple.355 apple.356 apple.357 apple.358 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.352 apple.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [cupcake.353]
+fridge.247          : ON: []   INSIDE: [apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.351 plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 cupcake.354 apple.355 apple.356 apple.357 apple.358 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 cupcake.352 cupcake.353 cupcake.354 apple.355 apple.357 apple.358]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [cupcake.352 cupcake.353]
+fridge.247          : ON: []   INSIDE: [apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.351 plate.252]
+==========
+
+Prediction at 6
+Graph
+==========
+Edges
+HOLDING: [(0, 18)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 cupcake.354 apple.355 apple.356 apple.357 apple.358 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.352 cupcake.354 apple.355 apple.357 apple.358]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.351 plate.252]
+==========
+
+Prediction at 12
+Graph
+==========
+Edges
+HOLDING: [(0, 13)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 cupcake.354 apple.355 apple.356 apple.357 apple.358 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 cupcake.353 cupcake.354 apple.355 apple.357 apple.358]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [cupcake.353]
+fridge.247          : ON: []   INSIDE: [apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.351 plate.252]
+==========
+************************
+************************
+File: 10:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.7_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.354]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 apple.353 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.354]
+kitchentable.194    : ON: [cupcake.351 apple.353]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.354]
+bathroom.11         : ON: []   INSIDE: [character.1 bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 apple.353 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.354]
+kitchentable.194    : ON: [waterglass.57 cupcake.351 cupcake.352]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.353]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 9
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.354]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 apple.353 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.354]
+kitchentable.194    : ON: [cupcake.351 cupcake.352]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.353]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 18
+Graph
+==========
+Edges
+HOLDING: [(0, 12)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.354]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 apple.353 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.354]
+kitchentable.194    : ON: [cupcake.351 cupcake.352 apple.353]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+************************
+************************
+File: 6:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.5_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.356]
+kitchentable.194    : ON: [cupcake.352 apple.354 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.351]
+microwave.251       : ON: []   INSIDE: [cupcake.353 plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.356]
+kitchentable.194    : ON: [waterglass.57 cupcake.352 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.351 apple.354]
+microwave.251       : ON: []   INSIDE: [cupcake.353 plate.252]
+==========
+
+Prediction at 13
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.356]
+kitchentable.194    : ON: [cupcake.352 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.351 apple.354]
+microwave.251       : ON: []   INSIDE: [cupcake.353 plate.252]
+==========
+
+Prediction at 26
+Graph
+==========
+Edges
+HOLDING: [(0, 16)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.356]
+kitchentable.194    : ON: [cupcake.352 apple.354 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.351]
+microwave.251       : ON: []   INSIDE: [cupcake.353 plate.252]
+==========
+************************
+************************
+File: 4:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.22_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.351 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 waterglass.357 waterglass.358 stove.242 fridge.247 microwave.251]
+kitchentable.194    : ON: [plate.351 plate.352 waterglass.356 waterglass.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.353]
+fridge.247          : ON: []   INSIDE: [plate.354]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [kitchentable.194 plate.351 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 waterglass.357 waterglass.358 stove.242 fridge.247 microwave.251]
+kitchentable.194    : ON: [waterglass.355 waterglass.356 waterglass.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.353]
+fridge.247          : ON: []   INSIDE: [plate.354]
+microwave.251       : ON: []   INSIDE: [plate.351]
+==========
+
+Prediction at 14
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.351 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 waterglass.357 waterglass.358 stove.242 fridge.247 microwave.251]
+kitchentable.194    : ON: [plate.352]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.353]
+fridge.247          : ON: []   INSIDE: [plate.354]
+microwave.251       : ON: []   INSIDE: [plate.351]
+==========
+
+Prediction at 27
+Graph
+==========
+Edges
+HOLDING: [(0, 10)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.351 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 waterglass.357 waterglass.358 stove.242 fridge.247 microwave.251]
+kitchentable.194    : ON: [plate.352 waterglass.356 waterglass.357]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.353]
+fridge.247          : ON: []   INSIDE: [plate.354]
+==========
+************************
+Epoch: [0][0/3]	Time 16.470 (16.470)	Data  2.411 ( 2.411)	Loss 2.0027e-02 (2.0027e-02)	LossState 1.0197e-02 (1.0197e-02)	LossEdge 1.4991e-04 (1.4991e-04)	LossChange 9.6801e-03 (9.6801e-03)	Prec State   0.95 (  0.95)	Rec State   0.98 (  0.98)	Prec Change   0.94 (  0.94)	Rec Change   0.37 (  0.37)	Accuracy Edge   0.87 (  0.87)	Accuracy Edge Pos   0.97 (  0.97)
+************************
+File: 5:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.29_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+kitchentable.194    : ON: [plate.353 plate.354 waterglass.355 waterglass.356]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [waterglass.351 coffeetable.111]
+coffeetable.111     : ON: [waterglass.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+kitchentable.194    : ON: [plate.352 waterglass.355 waterglass.356]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [waterglass.351 coffeetable.111]
+coffeetable.111     : ON: [waterglass.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352 plate.353]
+==========
+
+Prediction at 10
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+kitchentable.194    : ON: [plate.354 waterglass.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [waterglass.351 coffeetable.111]
+coffeetable.111     : ON: [waterglass.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352 plate.353]
+==========
+
+Prediction at 20
+Graph
+==========
+Edges
+HOLDING: [(0, 12)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.352 plate.353 plate.354 waterglass.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+kitchentable.194    : ON: [plate.354 waterglass.355 waterglass.356]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [waterglass.351 coffeetable.111]
+coffeetable.111     : ON: [waterglass.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352]
+==========
+************************
+************************
+File: 3:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.25_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.194    : ON: [plate.352 waterglass.351]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [waterglass.353 sofa.292 waterglass.354 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.352 kitchentable.194 stove.242 fridge.247 microwave.251 waterglass.351]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+cabinet.318         : ON: []   INSIDE: [waterglass.353 waterglass.354]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.194    : ON: [plate.352]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [waterglass.353 sofa.292 waterglass.354 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [character.1 coffeetable.111 waterglass.351]
+kitchen.170         : ON: []   INSIDE: [plate.352 kitchentable.194 stove.242 fridge.247 microwave.251]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [waterglass.351]   INSIDE: []
+cabinet.318         : ON: []   INSIDE: [waterglass.353 waterglass.354]
+==========
+
+Prediction at 8
+Graph
+==========
+Edges
+HOLDING: [(0, 17)]
+kitchentable.194    : ON: [plate.352]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [waterglass.353 sofa.292 waterglass.354 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.352 kitchentable.194 stove.242 fridge.247 microwave.251 waterglass.351]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+cabinet.318         : ON: []   INSIDE: [waterglass.353 waterglass.354]
+==========
+
+Prediction at 15
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.194    : ON: [plate.352 waterglass.351]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [waterglass.353 sofa.292 waterglass.354 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.352 kitchentable.194 stove.242 fridge.247 microwave.251 waterglass.351]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+cabinet.318         : ON: []   INSIDE: [waterglass.353 waterglass.354]
+==========
+************************
+************************
+File: 9:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.27_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 waterglass.351 plate.352 plate.353 plate.354 plate.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+kitchentable.194    : ON: [waterglass.351 plate.354 plate.355 waterglass.356]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.352]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 plate.352 plate.353 plate.354 plate.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+bedroom.73          : ON: []   INSIDE: [waterglass.351 coffeetable.111]
+coffeetable.111     : ON: [waterglass.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352 plate.354]
+fridge.247          : ON: []   INSIDE: [plate.355]
+==========
+
+Prediction at 12
+Graph
+==========
+Edges
+HOLDING: [(0, 10), (0, 15)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 waterglass.351 plate.352 plate.353 plate.354 plate.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.352 plate.354]
+fridge.247          : ON: []   INSIDE: [plate.355]
+==========
+
+Prediction at 24
+Graph
+==========
+Edges
+HOLDING: [(0, 13)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 waterglass.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 waterglass.351 plate.352 plate.353 plate.354 plate.355 waterglass.356 stove.242 fridge.247 microwave.251]
+cabinet.318         : ON: []   INSIDE: [waterglass.357]
+kitchentable.194    : ON: [waterglass.351 plate.355 waterglass.356]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+stove.242           : ON: []   INSIDE: [plate.352]
+==========
+************************
+************************
+File: 1:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.2_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.357]
+kitchentable.194    : ON: [cupcake.351 cupcake.352 apple.355]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354 apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.353 plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.357]
+kitchentable.194    : ON: [waterglass.57 cupcake.351]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [character.1 coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354 apple.355 apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.352 cupcake.353 plate.252]
+==========
+
+Prediction at 11
+Graph
+==========
+Edges
+HOLDING: [(0, 12)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.357]
+kitchentable.194    : ON: [cupcake.351]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354 apple.355 apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.352 cupcake.353 plate.252]
+==========
+
+Prediction at 22
+Graph
+==========
+Edges
+HOLDING: [(0, 16)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.357]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 cupcake.353 apple.354 apple.355 apple.356 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.357]
+kitchentable.194    : ON: [cupcake.351 cupcake.352]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [apple.354 apple.356]
+microwave.251       : ON: []   INSIDE: [cupcake.353 plate.252]
+==========
+************************
+************************
+File: 2:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.9_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: [(0, 12)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.355 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 cupcake.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.355 cupcake.356]
+kitchentable.194    : ON: [cupcake.352 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.355 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.355 cupcake.356]
+kitchentable.194    : ON: [waterglass.57 cupcake.351 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [character.1 coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.352]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 14
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.355 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.355 cupcake.356]
+kitchentable.194    : ON: [cupcake.351 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+fridge.247          : ON: []   INSIDE: [cupcake.352]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 28
+Graph
+==========
+Edges
+HOLDING: [(0, 12)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318 cupcake.355 cupcake.356]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 cupcake.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+cabinet.318         : ON: []   INSIDE: [cupcake.355 cupcake.356]
+kitchentable.194    : ON: [cupcake.351 cupcake.352 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+************************
+************************
+File: 15:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.24_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.194    : ON: [plate.353 waterglass.354]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111 plate.351]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.352 plate.353 kitchentable.194 waterglass.354 stove.242 fridge.247 microwave.251]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [plate.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [character.1 sofa.292 waterglass.354 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111 plate.351]
+kitchen.170         : ON: []   INSIDE: [plate.352 plate.353 kitchentable.194 kitchen.170 stove.242 fridge.247 microwave.251]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [plate.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352 plate.353]
+cabinet.318         : ON: []   INSIDE: [waterglass.354]
+==========
+
+Prediction at 13
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [character.1 waterglass.354 coffeetable.111 plate.351]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.352 plate.353 kitchentable.194 stove.242 fridge.247 microwave.251]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [plate.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352 plate.353]
+==========
+
+Prediction at 25
+Graph
+==========
+Edges
+HOLDING: [(0, 2)]
+kitchentable.194    : ON: [waterglass.354]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111 plate.351]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.352 plate.353 kitchentable.194 waterglass.354 stove.242 fridge.247 microwave.251]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [plate.351]   INSIDE: []
+stove.242           : ON: []   INSIDE: [plate.352]
+==========
+************************
+************************
+File: 11:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.21_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.194    : ON: [plate.353 plate.354 waterglass.351]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 waterglass.355 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [waterglass.352 coffeetable.111]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.353 kitchentable.194 plate.354 stove.242 fridge.247 microwave.251 waterglass.351]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [waterglass.352]   INSIDE: []
+cabinet.318         : ON: []   INSIDE: [waterglass.355]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 waterglass.355 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [waterglass.352 coffeetable.111 waterglass.351]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.353 kitchentable.194 plate.354 stove.242 fridge.247 microwave.251]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [waterglass.352 waterglass.351]   INSIDE: []
+microwave.251       : ON: []   INSIDE: [plate.354]
+cabinet.318         : ON: []   INSIDE: [waterglass.355]
+==========
+
+Prediction at 10
+Graph
+==========
+Edges
+HOLDING: [(0, 18)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 waterglass.355 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.353 kitchentable.194 plate.354 stove.242 fridge.247 microwave.251 waterglass.351]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [waterglass.352]   INSIDE: []
+microwave.251       : ON: []   INSIDE: [plate.354]
+cabinet.318         : ON: []   INSIDE: [waterglass.355]
+==========
+
+Prediction at 20
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.194    : ON: [plate.353 plate.354 waterglass.351]   INSIDE: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 waterglass.355 cabinet.318]
+bedroom.73          : ON: []   INSIDE: [waterglass.352 coffeetable.111]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.353 kitchentable.194 plate.354 stove.242 fridge.247 microwave.251 waterglass.351]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45]
+coffeetable.111     : ON: [waterglass.352]   INSIDE: []
+cabinet.318         : ON: []   INSIDE: [waterglass.355]
+==========
+************************
+************************
+File: 7:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.0_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 kitchentable.194 cupcake.351 apple.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 apple.352 apple.353]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [character.1 bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 apple.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 cupcake.351 apple.352 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 11
+Graph
+==========
+Edges
+HOLDING: []
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 plate.55 waterglass.57 kitchentable.194 cupcake.351 apple.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [waterglass.57 cupcake.351 apple.352 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+
+Prediction at 22
+Graph
+==========
+Edges
+HOLDING: [(0, 14)]
+livingroom.259      : ON: []   INSIDE: [sofa.292 coffeetable.294 cabinet.318]
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.45 plate.55 waterglass.57]
+kitchen.170         : ON: []   INSIDE: [character.1 waterglass.57 kitchentable.194 cupcake.351 apple.352 apple.353 apple.354 stove.242 fridge.247 microwave.251 plate.252]
+kitchentable.194    : ON: [cupcake.351 apple.352 apple.353 apple.354]   INSIDE: []
+bedroom.73          : ON: []   INSIDE: [coffeetable.111]
+microwave.251       : ON: []   INSIDE: [plate.252]
+==========
+************************
+Epoch: [0][1/3]	Time 14.424 (15.447)	Data  0.000 ( 1.206)	Loss 1.7203e-02 (1.8615e-02)	LossState 6.7525e-03 (8.4746e-03)	LossEdge 4.1655e-04 (2.8323e-04)	LossChange 1.0034e-02 (9.8568e-03)	Prec State   0.95 (  0.95)	Rec State   0.98 (  0.98)	Prec Change   0.74 (  0.84)	Rec Change   0.23 (  0.30)	Accuracy Edge   0.88 (  0.88)	Accuracy Edge Pos   0.92 (  0.95)
+************************
+File: 8:/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataloader/../dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.16_iter.0.pik
+
+GroundTrurth
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [cupcake.381 cupcake.382 apple.383]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+stove.157           : ON: []   INSIDE: [cupcake.380]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+microwave.167       : ON: []   INSIDE: [plate.168]
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 cupcake.381 cupcake.382 apple.383]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+
+Prediction at 0
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [cupcake.381 cupcake.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+fridge.166          : ON: []   INSIDE: [apple.383]
+microwave.167       : ON: []   INSIDE: [plate.168]
+plate.168           : ON: [cupcake.381 cupcake.382]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 cupcake.381 cupcake.382 apple.383]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+
+Prediction at 11
+Graph
+==========
+Edges
+HOLDING: []
+kitchentable.130    : ON: [cupcake.380 cupcake.381 cupcake.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+fridge.166          : ON: []   INSIDE: [apple.383]
+plate.168           : ON: [cupcake.381 cupcake.382]   INSIDE: []
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 cupcake.381 cupcake.382 apple.383]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+
+Prediction at 21
+Graph
+==========
+Edges
+HOLDING: [(0, 36)]
+kitchentable.130    : ON: [cupcake.381 cupcake.382]   INSIDE: []
+bathroom.11         : ON: []   INSIDE: [bathroomcabinet.25 waterglass.33]
+stove.157           : ON: []   INSIDE: [cupcake.380]
+bedroom.294         : ON: []   INSIDE: [coffeetable.327 cabinet.328]
+microwave.167       : ON: []   INSIDE: [plate.168]
+kitchen.56          : ON: []   INSIDE: [character.1 kitchentable.130 kitchencabinet.133 kitchencabinet.134 kitchencabinet.135 kitchencabinet.136 kitchencabinet.137 kitchencabinet.138 kitchencabinet.139 kitchencabinet.140 stove.157 dishwasher.159 fridge.165 fridge.166 microwave.167 plate.168 plate.99 plate.100 plate.101 plate.102 plate.106 plate.107 cupcake.380 cupcake.381 cupcake.382 apple.383]
+livingroom.198      : ON: []   INSIDE: [waterglass.259 coffeetable.247 sofa.248]
+plate.100           : ON: [plate.99]   INSIDE: []
+plate.101           : ON: [plate.99 plate.100]   INSIDE: []
+plate.102           : ON: [plate.99 plate.100 plate.101]   INSIDE: []
+==========
+************************
+Epoch: [0][2/3]	Time  0.320 (10.405)	Data  0.000 ( 0.804)	Loss 4.9485e-02 (2.8905e-02)	LossState 4.3943e-02 (2.0298e-02)	LossEdge 3.6083e-05 (2.0085e-04)	LossChange 5.5058e-03 (8.4065e-03)	Prec State   0.90 (  0.93)	Rec State   0.99 (  0.98)	Prec Change   0.91 (  0.86)	Rec Change   0.44 (  0.35)	Accuracy Edge   0.95 (  0.90)	Accuracy Edge Pos   1.00 (  0.96)

@@ -77,7 +77,6 @@ class AgentTypeDataset(Dataset):
         return len(self.pkl_files)
 
     def failure(self, index):
-        print(f"Failure {index}")
         file_name = self.pkl_files[index]
         if index not in self.failed_items:
             self.failed_items[index] = 1
@@ -170,9 +169,12 @@ class AgentTypeDataset(Dataset):
             if it >= self.max_tsteps:
                 break
             try:
-                graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'])
+                graph_info, _ = self.graph_helper.build_graph(
+                    graph, character_id=1, include_edges=self.get_edges, 
+                    obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'],
+                    unique_from=self.args_config.model.exclusive_edge)
             except:
-                print("Failure", file_name, it)
+                print("Failure building grahp", file_name, it)
 
                 return self.failure(index)
                 #raise Exception("Error building graph")
@@ -180,7 +182,7 @@ class AgentTypeDataset(Dataset):
             # class names
             for attribute_name in attributes_include:
                 if attribute_name not in graph_info:
-                    print(attribute_name, index, self.pkl_files[index])
+                    print("Failure with attr name", attribute_name, index, self.pkl_files[index])
                     return self.failure(index)
                 time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
 

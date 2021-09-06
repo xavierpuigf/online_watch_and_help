@@ -77,21 +77,20 @@ def unmerge(tensor, firstdim):
 # Convert adjacency list to adjacency matrix
 def build_gt_edge(graph_info, graph_helper):
     batch, time, num_nodes = graph_info['mask_object'].shape
-    gt_edges = torch.zeros([batch, time, num_nodes ** 2])
-    # num_nodes = graph_info['mask_object'].shape[-1]
+    num_rel = graph_helper.relations
+    gt_edges = torch.zeros([batch, time, num_nodes])
+
+    # most edges have relation with nothing
+    # last_node = 
 
     # num_edges = gt_edges.shape[-1]
     edge_tuples = graph_info['edge_tuples']
-    index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
-    edge_types = graph_info['edge_classes']  # - 1
-    # ipdb.set_trace()
-    # gt_edges[..., index_edges.long()] = edge_types
-    gt_edges = gt_edges.scatter(2, index_edges.long(), edge_types)
+    edge_to = edge_tuples[..., 1]
+    edge_from = edge_tuples[..., 0]
+    
+    gt_edges = gt_edges.scatter(2, edge_from.long(), edge_to)
     gt_edges = gt_edges.long()
-    # for it_edge in range(num_edges):
-    #     index_edge = edge_types == it_edge
-    #     index_edge_curr = index_edges[index_edge]
-    #     gt_edges[..., index_edge_curr.long(), it_edge] = 1
+    ipdb.set_trace()
 
     class_names = ['cupcake', 'apple', 'plate', 'waterglass']
     ids_interest = [graph_helper.object_dict.get_id(name) for name in class_names]
@@ -112,6 +111,8 @@ def build_gt_edge(graph_info, graph_helper):
     edge_interest_to = mask_obj_interest_2.repeat(1, 1, num_nodes)
     edge_interest = edge_interest_from * edge_interest_to
     # ipdb.set_trace()
+
+
     edge_dict = {}
     edge_dict['gt_edges'] = gt_edges
     edge_dict['edge_interest'] = edge_interest
@@ -1212,7 +1213,8 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     # ipdb.set_trace()
 
-    assert not (cfg.model.predict_edge_change and cfg.model.predict_node_change)
+    assert not (cfg.model.predict_edge_change)
+    assert cfg['model']['exclusive_edge']
     cfg.model.input_goal = False
 
     train_loader, test_loader = get_loaders(config)
