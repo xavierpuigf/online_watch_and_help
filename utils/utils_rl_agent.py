@@ -225,17 +225,17 @@ class GraphHelper():
 
     def build_graph(self, graph, character_id, ids=None,
                     include_edges=False, plot_graph=False, action_space_ids=None, obs_ids=None, 
-                    level=1, relative_coords=True):
+                    level=1, relative_coords=True, unique_from=False):
         if ids is None:
             ids = [node['id'] for node in graph['nodes'] if self.object_dict.valid_el(node['class_name'])]
 
         for node in graph['nodes']:
             if node['category'] == 'Rooms':
                 assert(node['class_name'] in self.rooms)
-
+        room_ids = [node['id'] for node in graph['nodes'] if node['category'] == 'Rooms']
         if level > 0:
             # Include other rooms
-            ids = [node['id'] for node in graph['nodes'] if node['category'] == 'Rooms'] + ids
+            ids = room_ids + ids
 
         ids = [idi for idi in ids if idi != character_id]
         ids = list(set(ids))
@@ -268,6 +268,8 @@ class GraphHelper():
                                            (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on') and  
                                            (edge['relation_type'].lower() != 'close' or edge['from_id'] not in holding_object)]
         
+
+
         # an object cannot be inside and on a given object
         edges = [edge for edge in edges if not (edge['relation_type'].lower() == 'on' and (edge['from_id'], edge['to_id']) in inside_object)]
 
@@ -278,11 +280,26 @@ class GraphHelper():
                 edges[it] = {'from_id': edge['to_id'], 'to_id': edge['from_id'], 'relation_type': edge['relation_type']}
                 # print(edges[it])
 
+
+        if unique_from:
+            edges = make_edges_unique(edges, room_ids, id2node)
+        
         # Check if there is more than one edge between two nodes
         edge_tup = [(edge['from_id'], edge['to_id']) for edge in edges]
 
 
-
+        if unique_from:
+            repeated = []
+            edge_from = [edge['from_id'] for edge in edges]
+            if len(set(edge_from)) != len(edge_from):
+               
+                for el in list(set(edge_from)):
+                    if edge_from.count(el) > 1:
+                        repeated.append(el)
+                print("Repeated elems: ", repeated)
+                print([edge for edge in edges if edge['from_id'] in repeated])
+                ipdb.set_trace()
+                raise Exception
         try:
             assert(len(set(edge_tup)) == len(edge_tup))
         except:
@@ -410,6 +427,29 @@ class GraphHelper():
             output['object_coords'] = obj_coords
         #print(node_ids[:len(nodes)])
         return output, (graph_viz, labeldict, action_space_ids, visible_nodes)
+
+
+def make_edges_unique(edges, rooms, id2node):
+    edge_from_dict = {}
+    for edge in edges:
+        if edge['from_id'] not in edge_from_dict:
+            edge_from_dict[edge['from_id']] = edge
+        else:
+            if edge_from_dict[edge['from_id']]['to_id'] in rooms:
+                # If the object is in a room, forget that it is in the room
+                edge_from_dict[edge['from_id']] = edge
+            elif edge['to_id'] in rooms:
+                pass
+            else:
+                print('*****')
+                print(edge)
+                print(edge_from_dict[edge['from_id']])
+                
+                print('*****')
+                ipdb.set_trace()
+
+    edges = list(edge_from_dict.values())
+    return edges
 
 def can_perform_action(action, o1, o1_id, agent_id, graph, graph_helper=None, teleport=True):
     if action == 'no_action':

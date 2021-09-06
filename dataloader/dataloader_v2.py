@@ -169,7 +169,10 @@ class AgentTypeDataset(Dataset):
             if it >= self.max_tsteps:
                 break
             try:
-                graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'])
+                graph_info, _ = self.graph_helper.build_graph(
+                    graph, character_id=1, include_edges=self.get_edges, 
+                    obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'],
+                    unique_from=self.args_config.model.exclusive_edge)
             except:
                 print("Failure building grahp", file_name, it)
 

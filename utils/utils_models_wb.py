@@ -22,6 +22,7 @@ import pdb
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from .utils_plot import Plotter
+import utils_rl_agent
 
 plt.switch_backend('agg')
 
@@ -36,6 +37,36 @@ def vectorized(prob_matrix):
         ipdb.set_trace()
     k[k == prob_matrix.shape[-1]] = prob_matrix.shape[-1] - 1
     return k
+
+
+def obtain_graph_from_graph_dict(graph_helper, graphs):
+    state_names = [(graph_helper.states[it],) for it in range(4)]
+    edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
+    info = {'results': [], 'state_names': state_names, 'edge_names': edge_names}
+
+
+    all_from, all_to, all_edges_input, object_states = [], [], [], []
+
+
+    for graph in graphs:
+        output = utils_rl_agent.obtain_graph(graph, 1)
+        object_states.append(output['states_objects'][None, :])
+        all_edges_input.append(output['edge_classes'][None, :])
+        all_from.append(output['edge_tuples'][:, 0][None, :])
+        all_to.append(output['edge_tuples'][:, 1][None, :])
+
+    object_states = np.concatenate(object_states, 0)
+    all_edges_input = np.concatenate(all_edges_input, 0)
+    all_from = np.concatenate(all_from, 0)
+    all_to = np.concatenate(all_to, 0)
+
+
+    info['nodes'] = output['class_objects']
+    info['edge_input'] = all_edges_input
+    info['from_id'] = all_from
+    info['to_id'] = all_to
+    info['states'] = object_states
+    return [info]            
 
 
 def obtain_graph(

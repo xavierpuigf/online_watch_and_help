@@ -27,6 +27,7 @@ CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py inference=True ckpt_lo
 # Runs
 
 ```bash
-
-
+CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred.py name_log=pred_last_graph model.predict_edge_change=True
+CUDA_VISIBLE_DEVICES=3,4 python algos/train_graph_pred.py name_log=pred_last_graph model.predict_node_change=True
+CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred.py name_log=pred_last_graph
 ```
