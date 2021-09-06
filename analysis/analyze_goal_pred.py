@@ -4,9 +4,9 @@ import numpy as np
 import pdb
 
 
-def get_edge_pred_class(pred, t):
+def get_edge_class(pred, t, source='pred'):
     # pred_edge_prob = pred['edge_prob']
-    edge_pred = pred['edge_pred'][t]
+    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
     pred_edge_names = pred['edge_names']
     pred_nodes = pred['nodes']
     pred_from_ids = pred['from_id']
@@ -37,23 +37,42 @@ def get_edge_pred_class(pred, t):
     return edge_pred_class
 
 
-def aggregate_multiple_pred(preds, t):
+def aggregate_multiple_pred(preds, t, change=False):
     edge_classes = []
     edge_pred_class_all = {}
     N_preds = len(preds)
     for pred in preds:
-        edge_pred_class = get_edge_pred_class(pred, t)
+        edge_pred_class = get_edge_class(pred, t)
         edge_classes += list(edge_pred_class.keys())
         for edge_class, count in edge_pred_class.items():
             if edge_class not in edge_pred_class_all:
                 edge_pred_class_all[edge_class] = [count]
             else:
                 edge_pred_class_all[edge_class] += [count]
+    if change:
+        edge_input_class = get_edge_class(preds[0], t, 'input')
+        edge_classes += list(edge_input_class.keys())
+
     edge_classes = sorted(list(set(edge_classes)))
     edge_pred_class_estimated = {}
     for edge_class in edge_classes:
+        if edge_class not in edge_pred_class_all:
+            edge_pred_class_estimated[edge_class] = (-edge_input_class[edge_class], 0)
+            continue
+        curr_len = len(edge_pred_class_all[edge_class])
+        if curr_len < N_preds:
+            edge_pred_class_all[edge_class] += [0] * (N_preds - curr_len)
+        if change:
+            c = (
+                np.mean(edge_pred_class_all[edge_class]) - edge_input_class[edge_class]
+                if edge_class in edge_input_class
+                else np.mean(edge_pred_class_all[edge_class])
+            )
+        else:
+            c = np.mean(edge_pred_class_all[edge_class])
         edge_pred_class_estimated[edge_class] = (
-            sum(edge_pred_class_all[edge_class]) / N_preds
+            c,
+            np.std(edge_pred_class_all[edge_class]),
         )
         # print(edge_class, edge_pred_class_estimated[edge_class])
     return edge_pred_class_estimated
@@ -71,11 +90,18 @@ if __name__ == "__main__":
         if 'result' in str(gt_path):
             continue
         gt = pickle.load(open(str(gt_path), 'rb'))
+        if not Path(
+            pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl'
+        ).exists():
+            continue
         pred = pickle.load(
             open(pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl', 'rb')
         )
 
+        print(pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl')
+
         print(len(pred['pred_graph']))
+        print(pred.keys())
 
         gt_goal = gt['gt_goals']
         actions = gt['action'][0]
@@ -89,6 +115,18 @@ if __name__ == "__main__":
         ]  # check all possible goal objects
 
         T = len(actions)
+        print(T, len(pred['pred_graph'][0]['edge_pred']))
+        # if T != len(pred['pred_graph'][0]['edge_pred']):
+        #     pdb.set_trace()
+        #     continue
+
+        print('init state')
+        edge_input_class = get_edge_class(pred['pred_graph'][0], 0, 'input')
+        for goal_object in goal_objects:
+            for edge_class, count in edge_input_class.items():
+                if goal_object in edge_class:
+                    print(edge_class, edge_input_class[edge_class])
+
         for t in range(T):
             if (
                 t == 0
@@ -99,16 +137,20 @@ if __name__ == "__main__":
                 print(gt_goal)
                 if t:
                     print('prev')
+                    # edge_pred_class_gt = aggregate_multiple_pred(
+                    #     pred['gt_graph'], t - 1
+                    # )
                     edge_pred_class_estimated = aggregate_multiple_pred(
-                        pred['pred_graph'], t - 1
+                        pred['pred_graph'], t - 1, change=True
                     )
                     for goal_object in goal_objects:
                         for edge_class, count in edge_pred_class_estimated.items():
                             if goal_object in edge_class:
                                 print(edge_class, edge_pred_class_estimated[edge_class])
                 print('curr')
+                # edge_pred_class_gt = aggregate_multiple_pred(pred['gt_graph'], t)
                 edge_pred_class_estimated = aggregate_multiple_pred(
-                    pred['pred_graph'], t
+                    pred['pred_graph'], t, change=True
                 )
                 for goal_object in goal_objects:
                     for edge_class, count in edge_pred_class_estimated.items():
