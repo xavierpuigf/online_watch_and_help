@@ -139,7 +139,7 @@ def inference(
     model.eval()
 
 
-    meric_dict = get_metrics()
+    metric_dict = get_metrics()
 
     progress = ProgressMeter(
         len(data_loader),
@@ -193,7 +193,7 @@ def inference(
                     len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
                 )
                 gt_edge = (
-                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+                    torch.gather(gt_edges, 1, tsteps).repeat(1, nt - 1, 1).cuda()
                 )
                 gt_state = goal_graph['states_objects'][:, 1:, :, :]
             else:
@@ -241,6 +241,11 @@ def inference(
             pred_changes_list, edge_changes_list = [], []
             mask_edges_orig = mask_edges
 
+
+            pred_changes = None
+            changed_edges = None
+            changed_nodes = None
+
             if args.model.predict_edge_change:
                 changed_edges = (gt_edge != gt_edges[:, :-1, :].cuda()).long()
                 pred_changes = output['edge_change'][
@@ -254,7 +259,6 @@ def inference(
                 metric_dict['losses_change'].update(loss_change.item())
 
                 # Only loss for changed edges
-                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
                 gt_edges_onehot = torch.nn.functional.one_hot(
@@ -273,10 +277,65 @@ def inference(
                     changed_edges_onehot.cpu().numpy(),
                     gt_edges_onehot[:, :-1, :].cpu().numpy(),
                 ]
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_edges
 
+            elif args.model.predict_node_change:
+                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
+                changed_edges_pre *= mask_edges.long()
 
-            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-            loss_edges = loss_edges * mask_edges
+                B, T, N = output['states'].shape[:3]
+                changed_edges_from_to = changed_edges_pre.reshape([B, T-1, N, N])
+                changed_nodes = (changed_edges_from_to.sum(-1)  > 0).long()
+                changed_edges = changed_nodes.repeat_interleave(N, dim=2)
+
+                pred_changes = output['node_change'][:, :-1, ...]  
+                loss_change = criterion_change(
+                    pred_changes.permute(0, 3, 1, 2), changed_nodes
+                )
+                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
+                loss_change = loss_change.mean()
+                
+                metric_dict['losses_change'].update(loss_change.item())
+
+                # Only loss for changed edges
+                loss += loss_change
+
+                gt_edges_onehot = torch.nn.functional.one_hot(
+                    gt_edges, predicted_edge.shape[-1]
+                )
+
+                changed_edges_onehot = torch.nn.functional.one_hot(
+                    changed_edges, 2
+                )
+
+                changed_nodes_onehot = torch.nn.functional.one_hot(
+                    changed_nodes, 2
+                )
+
+                pred_changes_list = [
+                    (nn.functional.softmax(pred_changes, dim=3)).cpu().numpy(),
+                    gt_edges_onehot[:, :-1, :].cpu().numpy(),
+                ]
+
+                edge_changes_list = [
+                    changed_nodes_onehot.cpu().numpy(),
+                    gt_edges_onehot[:, :-1, :].cpu().numpy(),
+                ]
+
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_edges
+                # ipdb.set_trace()
+
+            else:
+                gt_edges_onehot = torch.nn.functional.one_hot(
+                    gt_edges, predicted_edge.shape[-1]
+                )
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * mask_edges
+                edge_changes_list = [None, gt_edges_onehot[:, :-1, :].cpu()]
+                pred_changes_list = [None, gt_edges_onehot[:, :-1, :].cpu()]
+
             loss_edges = loss_edges.mean()
 
             loss += loss_edges + loss_state
@@ -336,7 +395,7 @@ def inference(
                     gt_edge.cpu().numpy(),
                     mask_edges_orig.cpu().numpy(),
                     gt_state.cpu().numpy(),
-                    [edge_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
+                    [edge_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if edge_changes_list[0] is not None else [],
                     index,
                     0,
                 )
@@ -363,13 +422,12 @@ def inference(
                         pred_edge.argmax(-1).cpu().numpy(),
                         mask_edges_orig.cpu().numpy(),
                         (pred_state > 0).cpu().numpy(),
-                        [pred_changes_list[0].argmax(-1), 
-                            (nn.functional.softmax(pred_changes, dim=3)).cpu().argmax(-1).numpy() if len(pred_changes_list) > 0 else []],
+                        [pred_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if edge_changes_list[0] is not None else [],
                         index,
                         t,
                     )
                 print("************************")
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
@@ -380,14 +438,17 @@ def inference(
                 if not os.path.isdir(dir_name):
                     os.makedirs(dir_name)
 
-                #with open(result_name, 'wb') as f:
-                #    pkl.dump(results, f)
+                ipdb.set_trace()
+                with open(result_name, 'wb') as f:
+                   pkl.dump(results, f)
 
-                # ipdb.set_trace()
             # Update accuracy
             update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
                            mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest)
 
+            progress.display(it)
+
+            ipdb.set_trace()
 
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
@@ -586,7 +647,9 @@ def evaluate(
                 loss_edges = loss_edges * changed_edges
             else:
                 loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-                loss_edges = loss_edges * mask_edges   
+                loss_edges = loss_edges * mask_edges
+                edge_changes_list = [None, gt_edges[:, :-1, :].cpu()]
+
             
             loss_edges = loss_edges.mean()
             loss += loss_edges + loss_state

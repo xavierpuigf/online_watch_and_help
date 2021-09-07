@@ -90,7 +90,7 @@ def build_gt_edge(graph_info, graph_helper):
     
     gt_edges = gt_edges.scatter(2, edge_from.long(), edge_to)
     gt_edges = gt_edges.long()
-    ipdb.set_trace()
+    # ipdb.set_trace()
 
     class_names = ['cupcake', 'apple', 'plate', 'waterglass']
     ids_interest = [graph_helper.object_dict.get_id(name) for name in class_names]
@@ -867,7 +867,11 @@ def train_epoch(
         pred_changes = None
         changed_edges = None
         changed_nodes = None
+
         if args.model.predict_edge_change:
+            if args['model']['exclusive_edge']:
+                raise Exception
+
             changed_edges = (gt_edge != gt_edges[:, :-1, :].cuda()).long()
             changed_edges *= mask_edges.long()
 
@@ -898,40 +902,55 @@ def train_epoch(
             # A node is if the from_edge is changed
             # An edge is changed if any of the nodes is changed
 
-            changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
-            changed_edges_pre *= mask_edges.long()
+            if args['model']['exclusive_edge']:
+                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
+                changed_edges_pre *= mask_obs_node.long()
+                pred_changes = output['node_change'][:, :-1, ...]
+                # ipdb.set_trace()
+                loss_change = criterion_change(
+                    pred_changes.permute(0, 3, 1, 2), changed_nodes
+                )
+                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
+                loss_change = loss_change.mean()
+                metric_dict['losses_change'].update(loss_change.item())
+                loss += loss_change
 
-            B, T, N = output['states'].shape[:3]
-            changed_edges_from_to = changed_edges_pre.reshape([B, T-1, N, N])
-            changed_nodes = (changed_edges_from_to.sum(-1)  > 0).long()
-            # changed_edges = changed_nodes.repeat(1, 1, N)
-            changed_edges = changed_nodes.repeat_interleave(N, dim=2)
 
-            # ipdb.set_trace()
+            else:
+                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
+                changed_edges_pre *= mask_edges.long()
 
-            pred_changes = output['node_change'][:, :-1, ...]
-            # ipdb.set_trace()
-            loss_change = criterion_change(
-                pred_changes.permute(0, 3, 1, 2), changed_nodes
-            )
-            loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
-            loss_change = loss_change.mean()
-            
-            metric_dict['losses_change'].update(loss_change.item())
+                B, T, N = output['states'].shape[:3]
+                changed_edges_from_to = changed_edges_pre.reshape([B, T-1, N, N])
+                changed_nodes = (changed_edges_from_to.sum(-1)  > 0).long()
+                # changed_edges = changed_nodes.repeat(1, 1, N)
+                changed_edges = changed_nodes.repeat_interleave(N, dim=2)
 
-            # Only loss for changed edges
-            # ipdb.set_trace()
-            loss += loss_change
+                # ipdb.set_trace()
 
-            pred_changes_list = [
-                (pred_changes[...].argmax(-1)).cpu().long(),
-                gt_edges[:, :-1, :].cpu(),
-            ]
-            edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
-            # ipdb.set_trace()
+                pred_changes = output['node_change'][:, :-1, ...]
+                # ipdb.set_trace()
+                loss_change = criterion_change(
+                    pred_changes.permute(0, 3, 1, 2), changed_nodes
+                )
+                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
+                loss_change = loss_change.mean()
+                
+                metric_dict['losses_change'].update(loss_change.item())
 
-            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-            loss_edges = loss_edges * changed_edges
+                # Only loss for changed edges
+                # ipdb.set_trace()
+                loss += loss_change
+
+                pred_changes_list = [
+                    (pred_changes[...].argmax(-1)).cpu().long(),
+                    gt_edges[:, :-1, :].cpu(),
+                ]
+                edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
+                # ipdb.set_trace()
+
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_edges
         else:        
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * mask_edges
@@ -1083,6 +1102,7 @@ def compute_metrics_change(
     edge_accuracy_interest = (edge_acc * mask_edge_norm_interest).sum(-1)
     edge_accuracy_interest = (edge_accuracy_interest * mask_timesteps).sum(-1).mean()
     
+    # The ones where the edge is somewhere
     mask_edges_interest_pos = mask_edges * edge_int * (gt_edges ==  2)
     mask_edge_norm_interest_pos = mask_edges_interest_pos / (mask_edges_interest_pos.sum(-1)[..., None] + 1e-9)
     edge_accuracy_interest_pos = (edge_acc * mask_edge_norm_interest_pos).sum(-1)    
@@ -1243,6 +1263,9 @@ def main(cfg: DictConfig):
 
     if config.inference:
         logger = LoggerSteps(config, log_steps=False)
+        print("Saving results at")
+        print(logger.output_folder)
+        ipdb.set_trace()
         inference(
             test_loader,
             model,

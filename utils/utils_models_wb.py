@@ -22,7 +22,7 @@ import pdb
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from .utils_plot import Plotter
-import utils_rl_agent
+from utils import utils_rl_agent
 
 plt.switch_backend('agg')
 
@@ -83,7 +83,12 @@ def obtain_graph(
 ):
     
     all_samples = []
-    changed_edges_new = [changed_edges[0], changed_edges[1]]
+    if changed_edges[0] is not None:
+        prev_changed_edges = [changed_edges[0], changed_edges[1]]
+        changed_edges_new = [changed_edges[0], changed_edges[1]]
+        
+    prev_step_edges = changed_edges[1].argmax(-1)
+
     do_sample = True
 
     if samples is None:
@@ -94,14 +99,21 @@ def obtain_graph(
         pass
         # edge_prob = nn.functional.softmax(edge_prob, dim=-1).cpu().numpy()
     
-    prev_step_edges = changed_edges_new[1].argmax(-1)
     for sample in range(samples):
         # Sample edge_prob
         if do_sample:
             edge_pred = vectorized(edge_prob)
         else:
             edge_pred = edge_prob.argmax(-1)
-        if len(changed_edges) > 0:
+        if changed_edges[0] is not None:
+            changed_edges = prev_changed_edges    
+            if changed_edges[0].shape[2] != changed_edges[1].shape[2]:
+                # Changes as nodes
+                num_nodes = changed_edges[0].shape[2]
+                changed_edges_build = changed_edges[0].repeat(num_nodes, axis=2)
+                changed_edges = [changed_edges_build, changed_edges[1]]
+
+
             # Sample changed edges
             if do_sample:
                 changed_edges_new[0] = vectorized(changed_edges[0])
@@ -199,10 +211,14 @@ def print_graph_2(
     # If we are only predicitng edge change, the edge is a combination of previous edge and new, modulagted by prediction
     if len(changed_edges) > 0:
 
-        if changed_edges[0].shape[-1] != changed_edges[1].shape[-1]:
+        if changed_edges[0].shape[2] != changed_edges[1].shape[2]:
             # Changes as nodes
-            num_nodes = changed_edges[0].shape[-1]
-            changed_edges_build = changed_edges[0].repeat_interleave(num_nodes, dim=2)
+            num_nodes = changed_edges[0].shape[2]
+
+            if torch.is_tensor(changed_edges[0]):
+                changed_edges_build = changed_edges[0].repeat_interleave(num_nodes, dim=2)
+            else:
+                changed_edges_build = changed_edges[0].repeat(num_nodes, axis=2)
             changed_edges = [changed_edges_build, changed_edges[1]]
 
 
