@@ -432,6 +432,8 @@ class GraphHelper():
 def make_edges_unique(edges, rooms, id2node):
     edge_from_dict = {}
     for edge in edges:
+        if id2node[edge['to_id']]['class_name'] == 'plate':
+            continue
         if edge['from_id'] not in edge_from_dict:
             edge_from_dict[edge['from_id']] = edge
         else:
@@ -440,6 +442,9 @@ def make_edges_unique(edges, rooms, id2node):
                 edge_from_dict[edge['from_id']] = edge
             elif edge['to_id'] in rooms:
                 pass
+            elif edge['relation_type'] == 'INSIDE':
+                # prioritize inside
+                edge_from_dict[edge['from_id']] = edge
             else:
                 print('*****')
                 print(edge)
