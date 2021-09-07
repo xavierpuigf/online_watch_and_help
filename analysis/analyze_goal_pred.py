@@ -81,8 +81,13 @@ def aggregate_multiple_pred(preds, t, change=False):
 if __name__ == "__main__":
     gt_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset_episodes/large_data_toy/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
     # pred_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/results/predict_graph/train_data.dataset_graph_pred_train.pkl-agentsall/time_model.LSTM-stateenc.TF-edgepred.concat-lr0.0001-bs.16-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
+    # pred_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/results/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchangeedge.True_inputgoal.True/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
 
-    pred_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/results/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchangeedge.True_inputgoal.True/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
+    root = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/results/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/"
+    pred_dir = (
+        root
+        + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.edge_inputgoal.False_excledge.False/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
+    )
 
     gt_p = Path(gt_dir).glob("*.pik")
 
@@ -90,6 +95,8 @@ if __name__ == "__main__":
         if 'result' in str(gt_path):
             continue
         gt = pickle.load(open(str(gt_path), 'rb'))
+
+        print(pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl')
         if not Path(
             pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl'
         ).exists():
@@ -98,10 +105,9 @@ if __name__ == "__main__":
             open(pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl', 'rb')
         )
 
-        print(pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl')
-
         print(len(pred['pred_graph']))
         print(pred.keys())
+        print(gt['env_id'], gt['task_id'], gt['gt_goals'], len(gt['action'][0]))
 
         gt_goal = gt['gt_goals']
         actions = gt['action'][0]
