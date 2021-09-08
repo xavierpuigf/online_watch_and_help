@@ -196,6 +196,116 @@ def obtain_graph(
     return all_samples
 
 
+def print_graph_3(
+    graph_helper,
+    graph,
+    edge_info,
+    mask_edge,
+    state_info,
+    changed_edges,
+    batch_item,
+    step,
+    changed_nodes=None,
+):
+
+
+    # If we are only predicitng edge change, the edge is a combination of previous edge and new, modulagted by prediction
+    if len(changed_edges) > 0:
+
+        if changed_edges[0].shape[2] != changed_edges[1].shape[2]:
+            # Changes as nodes
+            num_nodes = changed_edges[0].shape[2]
+
+            if torch.is_tensor(changed_edges[0]):
+                changed_edges_build = changed_edges[0].repeat_interleave(num_nodes, dim=2)
+            else:
+                changed_edges_build = changed_edges[0].repeat(num_nodes, axis=2)
+            changed_edges = [changed_edges_build, changed_edges[1]]
+
+
+        # The changed edges should be boolean at this point
+        # ipdb.set_trace()
+        assert (changed_edges[0] == 1).sum() == (changed_edges[0] != 0).sum()
+
+        # ipdb.set_trace()
+        try:
+            edge_info = (
+                changed_edges[0] * edge_info + (1 - changed_edges[0]) * changed_edges[1]
+            )
+        except:
+            ipdb.set_trace()
+    # We are predicting the next graph, so we sum 1
+    offset = 1
+    mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
+    object_names = graph['class_objects'][batch_item, step + offset]
+    object_states = state_info[batch_item, step]
+    num_nodes = graph['mask_object'].shape[-1]
+
+    # object_coords = graph['object_coords'][batch_item, step+offset]
+
+    # ipdb.set_trace()
+    node_ids = graph['node_ids'][batch_item, step + offset]
+
+    # ipdb.set_trace()
+    print_node = False
+    print("Graph")
+    print("==========")
+    if print_node:
+        print("Nodes:")
+    obj_names = []
+    for nid in range(mask_object):
+
+        state_names = [
+            graph_helper.states[it]
+            for it in range(4)
+            if int(object_states[nid][it]) == 1
+        ]
+        state_names = ' '.join(state_names)
+        class_name = graph_helper.object_dict.get_el(int(object_names[nid]))
+        idi = int(node_ids[nid])
+        # coords = list(object_coords[nid][:3])
+        # coords_str = '{:.2f}, {:.2f}, {:.2f}'.format(coords[0], coords[1], coords[2])
+        obj_name_complete = f"{class_name}.{idi}"
+        obj_name_complete += ' ' * (20 - len(obj_name_complete))
+        obj_names.append(obj_name_complete)
+        if print_node:
+            print(f"{obj_name_complete}. {state_names}")
+
+    if print_node:
+        print('\n')
+
+    print('Edges')
+    current_mask_edge = mask_edge[batch_item, step]
+    current_edge = edge_info[batch_item, step]
+    # Only store on and inside edges, and hold
+
+
+
+    num_edge =  (current_mask_edge > 0).sum()
+    on_from = np.arange(num_edge)
+    on_to = current_edge[:num_edge]
+    from_edge = {}
+
+    for elem_from, elem_to in zip(on_from.tolist(), on_to.tolist()):
+        if int(elem_to) not in from_edge:
+            from_edge[int(elem_to)] = []
+        from_edge[int(elem_to)].append(int(elem_from))
+
+    all_elems = sorted(list(set(list(from_edge.keys()))))
+
+    # ipdb.set_trace()
+    # print("HOLDING:", list(zip(hold_from, hold_to)))
+    for elem in all_elems:
+        on_curr = []
+        if elem in from_edge:
+            on_curr = from_edge[elem]
+        # ipdb.set_trace()
+        on_str = ' '.join([obj_names[itt].strip() for itt in on_curr])
+        elem2 = obj_names[elem]
+        print(f'{elem2}: relation: [{on_str}]')
+    # print("==========")
+
+
 def print_graph_2(
     graph_helper,
     graph,

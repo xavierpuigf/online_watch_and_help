@@ -345,7 +345,7 @@ def inference(
                 print("************************")
                 print(f"File: {current_index}:{fname}")
                 print("\nGroundTrurth")
-                utils_models.print_graph_2(
+                utils_models.print_graph_3(
                     data_loader.dataset.graph_helper,
                     graph_info,
                     gt_edge.cpu().numpy(),
@@ -359,7 +359,7 @@ def inference(
 
                 for t in [0, tsteps//2, tsteps-1]:
                     print("\nInput at {}".format(t))
-                    utils_models.print_graph_2(
+                    utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
                         gt_edges.cpu().numpy(),
@@ -372,7 +372,7 @@ def inference(
 
 
                     print("\nPrediction at {}".format(t))
-                    utils_models.print_graph_2(
+                    utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
                         pred_edge.argmax(-1).cpu().numpy(),
@@ -656,7 +656,7 @@ def evaluate(
                     print("************************")
                     print(f"File: {current_index}:{fname}")
                     print("\nGroundTrurth")
-                    utils_models.print_graph_2(
+                    utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
                         gt_edge.cpu(),
@@ -668,7 +668,7 @@ def evaluate(
                     )
 
                     print("\nPrediction")
-                    utils_models.print_graph_2(
+                    utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
                         pred_edge.argmax(-1).cpu(),
