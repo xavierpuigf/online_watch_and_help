@@ -20,7 +20,11 @@ class GraphPredNetwork(nn.Module):
         self.max_num_classes = args['max_class_objects']
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
-        self.edge_types = args['edge_types']
+
+        if args['exclusive_edge']:
+            self.edge_types = 1
+        else:
+            self.edge_types = args['edge_types']
         self.global_repr = args['global_repr']
         args_tf = {
             'hidden_size': self.hidden_size,
