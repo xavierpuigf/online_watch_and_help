@@ -684,7 +684,7 @@ def evaluate(
 
             # Update accuracy
             update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
-                           mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'])
+                           mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
             
 
             # ipdb.set_trace()
@@ -1307,7 +1307,7 @@ def get_loaders(args):
     return train_loader, test_loader
 
 
-@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_toy")
+@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_toy_excl")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
