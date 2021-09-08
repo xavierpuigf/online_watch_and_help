@@ -62,7 +62,9 @@ class ArenaMP(object):
                 agent.epsilon = epsilon
                 agent.actor_critic.load_state_dict(weights)
 
-    def get_actions(self, obs, action_space=None, true_graph=False):
+    def get_actions(
+        self, obs, action_space=None, true_graph=False, length_plan=5, must_replan=None
+    ):
         # ipdb.set_trace()
         dict_actions, dict_info = {}, {}
         op_subgoal = {0: None, 1: None}
@@ -85,7 +87,11 @@ class ArenaMP(object):
                     opponent_subgoal = self.agents[1 - it].last_subgoal
 
                 dict_actions[it], dict_info[it] = agent.get_action(
-                    obs[it], goal_spec, opponent_subgoal
+                    obs[it],
+                    goal_spec,
+                    opponent_subgoal,
+                    length_plan=length_plan,
+                    must_replan=False if must_replan is None else must_replan[it],
                 )
 
             elif 'RL' in agent.agent_type:
@@ -477,6 +483,13 @@ class ArenaMP(object):
         except:
             raise utils_exception.UnityException
         return step_info, dict_actions, dict_info
+
+    def step_given_action(self, actionss, true_graph=False):
+        try:
+            step_info = self.env.step(actionss)
+        except:
+            raise utils_exception.UnityException
+        return step_info
 
     def run(self, random_goal=False, pred_goal=None, save_img=None):
         """

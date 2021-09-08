@@ -49,9 +49,18 @@ def get_edge_class(pred, t, source='pred'):
         to_node_name = pred_nodes[to_id]
         # if object_name in from_node_name or object_name in to_node_name:
         edge_name = pred_edge_names[edge_pred[edge_id]]
-        if edge_name in ['inside', 'on']:
+        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+            if to_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
+            ]:
+                continue
+            # if from_node_name.split('.')[0]
             edge_class = '{}_{}_{}'.format(
-                from_node_name.split('.')[0], to_node_name.split('.')[0], edge_name
+                edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
             )
             # print(from_node_name, to_node_name, edge_name)
             if edge_class not in edge_pred_class:
@@ -206,7 +215,7 @@ if __name__ == "__main__":
             max_episode_length=args.max_episode_length,
             port_id=env_id,
             env_task_set=env_task_set,
-            observation_types=[args.obs_type],
+            observation_types=[args.obs_type, args.obs_type],
             use_editor=args.use_editor,
             executable_args=executable_args,
             base_port=args.base_port,
@@ -240,7 +249,7 @@ if __name__ == "__main__":
 
     agents = [
         lambda x, y: MCTS_agent_particle_v2(**args_agent1),
-        lambda x, y: MCTS_agent_particle_v2(**args_agent2),
+        # lambda x, y: MCTS_agent_particle_v2(**args_agent2),
     ]
     arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
 
@@ -281,7 +290,11 @@ if __name__ == "__main__":
 
     gt_p = Path(gt_dir).glob("*.pik")
 
+    num_episodes = 0
+
     for gt_path in gt_p:
+        if num_episodes > 0:
+            break
         if 'result' in str(gt_path):
             continue
         gt = pickle.load(open(str(gt_path), 'rb'))
@@ -290,6 +303,8 @@ if __name__ == "__main__":
             pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl'
         ).exists():
             continue
+
+        num_episodes += 1
 
         print(pred_dir + '/' + str(gt_path).split('/')[-1] + '_result.pkl')
 
@@ -349,27 +364,63 @@ if __name__ == "__main__":
         try:
 
             arena.reset(episode_id)
-            success, steps, saved_info = arena.run()
+            print(arena.env.task_goal, arena.env.agent_goals)
+            for t, action in enumerate(actions):
+                action_freq = {}
+                (obs, reward, done, infos) = arena.step_given_action({0: action})
+                for pred_id, pred_graph in enumerate(pred['pred_graph']):
+                    edge_pred_class = get_edge_class(pred_graph, t)
+                    arena.task_goal = {0: edge_pred_class}
+                    actions, info = arena.get_actions(
+                        obs, length_plan=10, must_replan=[True]
+                    )
+                    # print('actions:', actions)
+                    print('pred {}:'.format(pred_id), edge_pred_class)
+                    print('plan {}:'.format(pred_id), info[0]['plan'])
+                    for action in info[0]['plan']:
+                        if action not in action_freq:
+                            action_freq[action] = 1
+                        else:
+                            action_freq[action] += 1
+                edge_pred_class_estimated = aggregate_multiple_pred(
+                    pred['pred_graph'], t, change=True
+                )
+                # for goal_object in goal_objects:
+                print('-------------------------------------')
+                for edge_class, count in edge_pred_class_estimated.items():
+                    if (
+                        edge_pred_class_estimated[edge_class][0] < 1e-6
+                        and edge_pred_class_estimated[edge_class][1] < 1e-6
+                    ):
+                        continue
+                    print(edge_class, edge_pred_class_estimated[edge_class])
+                print('action freq:')
+                N_preds = len(pred['pred_graph'])
+                for action, count in action_freq.items():
+                    print(action, count / N_preds)
+                pdb.set_trace()
+            print('success:', infos['finished'])
+            # success, steps, saved_info = arena.run()
 
-            print('-------------------------------------')
-            print('success' if success else 'failure')
-            print('steps:', steps)
-            print('-------------------------------------')
-            if not success:
-                failed_tasks.append(episode_id)
-            else:
-                steps_list.append(steps)
-            is_finished = 1 if success else 0
+        # print('-------------------------------------')
+        # print('success' if success else 'failure')
+        # print('steps:', steps)
+        # print('-------------------------------------')
+        # if not success:
+        #     failed_tasks.append(episode_id)
+        # else:
+        #     steps_list.append(steps)
+        # is_finished = 1 if success else 0
 
-            Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-            if len(saved_info['obs']) > 0:
-                pickle.dump(saved_info, open(log_file_name, 'wb'))
-            else:
-                with open(log_file_name, 'w+') as f:
-                    f.write(json.dumps(saved_info, indent=4))
+        # Path(args.record_dir).mkdir(parents=True, exist_ok=True)
+        # # if len(saved_info['obs']) > 0:
+        # #     pickle.dump(saved_info, open(log_file_name, 'wb'))
+        # # else:
+        # #     with open(log_file_name, 'w+') as f:
+        # #         f.write(json.dumps(saved_info, indent=4))
 
-            logger.removeHandler(logger.handlers[0])
-            os.remove(failure_file)
+        # logger.removeHandler(logger.handlers[0])
+        # os.remove(failure_file)
 
         except utils_exception.UnityException as e:
             traceback.print_exc()
@@ -412,9 +463,9 @@ if __name__ == "__main__":
             # ipdb.set_trace()
             # pdb.set_trace()
             continue
-        S[episode_id].append(is_finished)
-        L[episode_id].append(steps)
-        test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
+        # S[episode_id].append(is_finished)
+        # L[episode_id].append(steps)
+        # test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
         pdb.set_trace()
 
     #     for t in range(T):
