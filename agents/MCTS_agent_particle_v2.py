@@ -794,6 +794,7 @@ class MCTS_agent_particle_v2:
         logging=False,
         logging_graphs=False,
         agent_params={},
+        get_plan_states=False,
         seed=None,
     ):
         self.agent_type = 'MCTS'
@@ -826,6 +827,7 @@ class MCTS_agent_particle_v2:
         self.num_samples = num_samples
         self.num_processes = num_processes
         self.num_particles = num_particles
+        self.get_plan_states = get_plan_states
 
         self.previous_belief_graph = None
         self.verbose = False
@@ -1121,6 +1123,17 @@ class MCTS_agent_particle_v2:
                 'belief': copy.deepcopy(self.belief.edge_belief),
                 'belief_room': copy.deepcopy(self.belief.room_node),
             }
+            if self.get_plan_states:
+                plan_states = []
+                env = VhGraphEnv()
+                env.pomdp = True
+                particle_id = 0
+                vh_state = self.particles[particle_id][0]
+                plan_states.append(vh_state.to_dict())
+                for action in plan:
+                    success, vh_state = env.transition(vh_state, {0: action})
+                    plan_states.append(vh_state.to_dict())
+                info['plan_states'] = plan_states
             if self.logging_graphs:
                 info.update({'obs': obs['nodes'].copy()})
         else:
