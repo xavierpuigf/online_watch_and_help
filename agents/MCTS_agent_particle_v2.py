@@ -660,6 +660,7 @@ def get_plan(
         print("No root nodes")
         raise Exception
     if num_process > 0:
+        
 
         manager = mp.Manager()
         res = manager.dict()

@@ -118,6 +118,7 @@ class MCTS_particles_v2:
 
         # profiler = Profiler()
         # profiler.start()
+        print("Planning with {} simulations. Verbose: {}".format(self.num_simulation, self.verbose))
         last_reward = 0.
         for explore_step in tqdm(range(self.num_simulation)):
             if explore_step % (self.num_simulation - 2) == 0 and explore_step > 0 and self.any_verbose:
@@ -814,7 +815,7 @@ class MCTS_particles_v2:
                 if self.add_bp:
                     ipdb.set_trace()
                 raise Exception
-            if action_heuristic[0] not in actions_heuristic:
+            if self.get_action_str(action_heuristic[0]) not in actions_heuristic:
                 actions_heuristic.append(self.get_action_str(action_heuristic[0]))
 
         # if len(hands_bsusy) == 1:
@@ -864,7 +865,13 @@ class MCTS_particles_v2:
                 is_expanded=False)
 
 
-        
+        # if self.verbose:
+        #     print(actions_heuristic)
+        #     print(current_actions_children)
+        #     import ipdb
+        #     ipdb.set_trace()
+
+            
         # ipdb.set_trace()
         # if goals_expanded == 0:
         #     return None, []

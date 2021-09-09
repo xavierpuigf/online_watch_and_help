@@ -8,7 +8,8 @@ import pickle
 from pathlib import Path
 import numpy as np
 import pdb
-
+import ipdb
+sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 from arguments import get_args
@@ -291,12 +292,16 @@ if __name__ == "__main__":
     gt_p = Path(gt_dir).glob("*.pik")
 
     num_episodes = 0
-
+    # gt_p = [gp for gp in gt_p if 'logs_episode.26_iter.2.pik_result.pkl' in gp]
+    # ipdb.set_trace()
     for gt_path in gt_p:
+        print(str(gt_path))
         if num_episodes > 0:
             break
         if 'result' in str(gt_path):
             continue
+        if 'logs_episode.26_iter.2.pik' not in str(gt_path):
+            continue 
         gt = pickle.load(open(str(gt_path), 'rb'))
 
         if not Path(
@@ -371,12 +376,19 @@ if __name__ == "__main__":
                 for pred_id, pred_graph in enumerate(pred['pred_graph']):
                     edge_pred_class = get_edge_class(pred_graph, t)
                     arena.task_goal = {0: edge_pred_class}
+                    
+                    # if pred_id == 2:
+                    #     arena.agents[0].mcts.verbose = True
+                    #     arena.agents[0].mcts.any_verbose = True
+
                     actions, info = arena.get_actions(
                         obs, length_plan=10, must_replan=[True]
                     )
                     # print('actions:', actions)
                     print('pred {}:'.format(pred_id), edge_pred_class)
                     print('plan {}:'.format(pred_id), info[0]['plan'])
+                    # if pred_id == 2:
+                    #     ipdb.set_trace()
                     for action in info[0]['plan']:
                         if action not in action_freq:
                             action_freq[action] = 1
