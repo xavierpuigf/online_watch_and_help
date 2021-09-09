@@ -266,6 +266,10 @@ def inference(
             pred_changes_list, edge_changes_list = [], []
             mask_edges_orig = mask_edges
 
+            
+            pred_changes = None
+            changed_edges = None
+            changed_nodes = None
             if args.model.predict_node_change and args.model.exclusive_edge:
                 changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
                 changed_edges_pre *= mask_obs_node[:, 1:, ...].long().cuda()
@@ -334,10 +338,12 @@ def inference(
             }
             # ipdb.set_trace()
             for index in range(ind.shape[0]):
-                program_gt = utils_models.decode_program(
-                    data_loader.dataset.graph_helper, prog_gt, index=index
-                )
-
+                try:
+                    program_gt = utils_models.decode_program(
+                        data_loader.dataset.graph_helper, prog_gt, index=index
+                    )
+                except:
+                    continue
                 current_index = ind[index]
                 fname = data_loader.dataset.pkl_files[current_index]
                 pred_graph = utils_models.obtain_graph_3(
@@ -363,49 +369,49 @@ def inference(
                     len_mask,
                 )
 
-                print("************************")
-                print(f"File: {current_index}:{fname}")
-                print("\nGroundTrurth")
-                utils_models.print_graph_3(
-                    data_loader.dataset.graph_helper,
-                    graph_info,
-                    gt_edge.cpu().numpy(),
-                    mask_edges_orig.cpu().numpy(),
-                    gt_state.cpu().numpy(),
-                    [edge_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
-                    index,
-                    0,
-                )
-                tsteps =  int(len_mask[index].sum()) - 1
+                # print("************************")
+                # print(f"File: {current_index}:{fname}")
+                # print("\nGroundTrurth")
+                # utils_models.print_graph_3(
+                #     data_loader.dataset.graph_helper,
+                #     graph_info,
+                #     gt_edge.cpu().numpy(),
+                #     mask_edges_orig.cpu().numpy(),
+                #     gt_state.cpu().numpy(),
+                #     [edge_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
+                #     index,
+                #     0,
+                # )
+                # tsteps =  int(len_mask[index].sum()) - 1
 
-                for t in [0, tsteps//2, tsteps-1]:
-                    print("\nInput at {}".format(t))
-                    utils_models.print_graph_3(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        gt_edges.cpu().numpy(),
-                        mask_edges_orig.cpu().numpy(),
-                        gt_states.cpu().numpy(),
-                        [],
-                        index,
-                        t,
-                    )
+                # for t in [0, tsteps//2, tsteps-1]:
+                #     print("\nInput at {}".format(t))
+                #     utils_models.print_graph_3(
+                #         data_loader.dataset.graph_helper,
+                #         graph_info,
+                #         gt_edges.cpu().numpy(),
+                #         mask_edges_orig.cpu().numpy(),
+                #         gt_states.cpu().numpy(),
+                #         [],
+                #         index,
+                #         t,
+                #     )
 
 
-                    print("\nPrediction at {}".format(t))
-                    # ipdb.set_trace()c
-                    utils_models.print_graph_3(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        pred_edge.argmax(-1).cpu().numpy(),
-                        mask_edges_orig.cpu().numpy(),
-                        (pred_state > 0).cpu().numpy(),
-                        [pred_changes_list[0].argmax(-1), 
-                            edge_changes_list[1].argmax(-1) if len(pred_changes_list) > 0 else []],
-                        index,
-                        t,
-                    )
-                print("************************")
+                #     print("\nPrediction at {}".format(t))
+                #     # ipdb.set_trace()c
+                #     utils_models.print_graph_3(
+                #         data_loader.dataset.graph_helper,
+                #         graph_info,
+                #         pred_edge.argmax(-1).cpu().numpy(),
+                #         mask_edges_orig.cpu().numpy(),
+                #         (pred_state > 0).cpu().numpy(),
+                #         [pred_changes_list[0].argmax(-1), 
+                #             edge_changes_list[1].argmax(-1) if len(pred_changes_list) > 0 else []],
+                #         index,
+                #         t,
+                #     )
+                # print("************************")
                 
 
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
@@ -427,7 +433,7 @@ def inference(
                            mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
 
             progress.display(it)
-            ipdb.set_trace()
+            # ipdb.set_trace()
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
             end = time.time()

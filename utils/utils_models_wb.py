@@ -134,11 +134,11 @@ def obtain_graph_3(
         offset = 0
         nedges = len(graph_helper.relation_dict)
         state_names = [(graph_helper.states[it],) for it in range(4)]
-        
-        # edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
-        
-        info = {'results': [], 'state_names': state_names}
-        all_edges, all_from, all_to, all_edges_input = [], [], [], []
+        edge_names = [graph_helper.relation_dict.get_el(it) for it in range(nedges)]
+
+        info = {'results': [], 'state_names': state_names, 'edge_names': edge_names}
+
+        all_edges, all_from, all_to, all_edges_input, all_from_input, all_to_input = [], [], [], [], [], []
         object_states = state_prob[batch_item, :num_tsteps].numpy()
         
         for step in range(num_tsteps):
@@ -158,6 +158,7 @@ def obtain_graph_3(
                 obj_name_complete = f"{class_name}.{idi}"
                 obj_names.append(obj_name_complete)
 
+            # ipdb.set_trace()
             current_mask_edge = mask_edge[batch_item, step]
             # current_edge = edge_info[batch_item, step]
             indices_valid = np.where(current_mask_edge == 1)[0]
@@ -166,24 +167,40 @@ def obtain_graph_3(
             edge_input_step = prev_step_edges[batch_item, step + offset, indices_valid]
             # edge_probs = edge_prob[batch_item, step + offset, indices_valid]
 
-            from_id = indices_valid // num_nodes
-            to_id = indices_valid % num_nodes
+            from_id = indices_valid
+            to_id = edge_pred_step
+
+            from_id_input = indices_valid
+            to_id_input = edge_input_step
 
             curr_res = {}
             # all_edges.append(edge_prob[None, :].numpy())
-            all_edges.append(edge_pred_step[None, :])
-            all_edges_input.append(edge_input_step[None, :])
+
+            # obtain class
+            edge_pred_step_class = obtain_class_edge(from_id, to_id, obj_names, graph_helper.object_dict)
+            edge_input_step_class = obtain_class_edge(from_id_input, to_id_input, obj_names, graph_helper.object_dict)
+
+            all_edges.append(edge_pred_step_class[None, :])
+            all_edges_input.append(edge_input_step_class[None, :])
             all_from.append(from_id[None, :])
             all_to.append(to_id[None, :])
+            all_from_input.append(from_id_input[None, :])
+            all_to_input.append(to_id_input[None, :])
 
         all_edges = np.concatenate(all_edges, 0)
         all_edges_input = np.concatenate(all_edges_input, 0)
         all_from = np.concatenate(all_from, 0)
         all_to = np.concatenate(all_to, 0)
+        all_from_input = np.concatenate(all_from_input, 0)
+        all_to_input = np.concatenate(all_to_input, 0)
+        
         info['edge_pred'] = all_edges
         info['edge_input'] = all_edges_input
         info['from_id'] = all_from
         info['to_id'] = all_to
+
+        info['from_id_input'] = all_from_input
+        info['to_id_input'] = all_to_input
         info['states'] = object_states
 
         info['nodes'] = obj_names
@@ -192,6 +209,61 @@ def obtain_graph_3(
             info['changed_edges'] = changed_edges[0]
         all_samples.append(info)
     return all_samples
+
+def obtain_class_edge(from_id, to_id, obj_names, obj_dict):
+    info_objects = {
+        "objects_inside": [
+          "bathroomcabinet",
+          "kitchencabinet",
+          "cabinet",
+          "fridge",
+          "stove",
+          "dishwasher",
+          "microwave"],
+        "objects_surface": ["bench",
+                             "cabinet",
+                             "chair",
+                             "coffeetable",
+                             "desk",
+                             "kitchencounter",
+                             "kitchentable",
+                             "nightstand",
+                             "sofa"],
+        "objects_grab": [
+                         "apple",
+                         "book",
+                         "coffeepot",
+                         "cupcake",
+                             "cutleryfork",
+                         "juice",
+                         "pancake",
+                         "plate",
+                         "poundcake",
+                         "pudding",
+                         "remotecontrol",
+                         "waterglass",
+                         "whippedcream",
+                         "wine",
+                         "wineglass"],
+        "others": ["character"]
+
+    }
+    relations = []
+    for obj_name in obj_names:
+        obj_class_name = obj_name.split('.')[0]
+        if obj_name in info_objects['objects_inside']:
+            relation =  obj_dict.get_id('inside')
+        elif obj_name == 'character':
+            relation = obj_dict.get_id('hold')
+        elif obj_name in info_objects['objects_surface']:
+            relation = obj_dict.get_id('on')
+        elif obj_name in info_objects['objects_grab']:
+            relation = obj_dict.get_id('on')
+        else:
+            relation = obj_dict.get_id('inside')
+
+        relations.append(relation)
+    return np.array(relations)
 
 
 def obtain_graph(
@@ -360,8 +432,6 @@ def print_graph_3(
         except:
             ipdb.set_trace()
 
-        if step == 11:
-            ipdb.set_trace()
 
     # We are predicting the next graph, so we sum 1
     offset = 1
