@@ -155,7 +155,7 @@ def inference(
     model.eval()
 
 
-    meric_dict = get_metrics()
+    metric_dict = get_metrics()
 
     progress = ProgressMeter(
         len(data_loader),
@@ -209,7 +209,7 @@ def inference(
                     len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
                 )
                 gt_edge = (
-                    torch.gather(gt_edges, 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
+                    torch.gather(gt_edges.cuda(), 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
                 )
                 gt_state = goal_graph['states_objects'][:, 1:, :, :]
             else:
@@ -220,6 +220,10 @@ def inference(
                 output = model(inputs)
 
             pred_edge = output['edges'][:, :-1, ...]
+            if args.model.exclusive_edge:
+                b, t, n, _ = output['states'].shape
+                pred_edge = pred_edge.reshape([b, t-1, n, n])
+
             pred_state = output['states'][:, :-1, ...]
             mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
             mask_length = len_mask[:, 1:].cuda()
@@ -240,7 +244,13 @@ def inference(
 
             medges1 = mask_obs_node.repeat([1, 1, num_nodes]).cuda()
             medges2 = mask_obs_node.repeat_interleave(num_nodes, dim=2).cuda()
-            mask_edges = medges1 * medges2
+            
+
+            if args.model.exclusive_edge:
+                mask_edges = mask_obs_node.cuda()
+            else:
+                mask_edges = medges1 * medges2
+
             mask_edges = mask_edges[:, 1:, ...]
 
             predicted_edge = nn.functional.softmax(pred_edge, dim=-1).cpu().numpy()
@@ -256,42 +266,53 @@ def inference(
             pred_changes_list, edge_changes_list = [], []
             mask_edges_orig = mask_edges
 
-            if args.model.predict_edge_change:
-                changed_edges = (gt_edge != gt_edges[:, :-1, :].cuda()).long()
-                pred_changes = output['edge_change'][
-                    :, :-1, ...
-                ]  # TODO: is this correct? Xavi: Correct
+            if args.model.predict_node_change and args.model.exclusive_edge:
+                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
+                changed_edges_pre *= mask_obs_node[:, 1:, ...].long().cuda()
+                pred_changes = output['node_change'][:, :-1, ...]
+
+                # Only care about the from edges
+                changed_nodes = changed_edges_pre
+
+
                 loss_change = criterion_change(
-                    pred_changes.permute(0, 3, 1, 2), changed_edges
+                    pred_changes.permute(0, 3, 1, 2), changed_nodes
                 )
-                loss_change = loss_change * mask_edges
+                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
                 loss_change = loss_change.mean()
+                
                 metric_dict['losses_change'].update(loss_change.item())
 
                 # Only loss for changed edges
-                mask_edges = mask_edges * changed_edges
                 loss += loss_change
 
+
                 gt_edges_onehot = torch.nn.functional.one_hot(
-                    gt_edges, predicted_edge.shape[-1]
+                    gt_edges, predicted_edge.shape[-2]
                 )
 
-                changed_edges_onehot = torch.nn.functional.one_hot(
-                    changed_edges, 2
+
+
+                changed_nodes_onehot = torch.nn.functional.one_hot(
+                    changed_nodes, 2
                 )
 
+                # ipdb.set_trace()
                 pred_changes_list = [
                     (nn.functional.softmax(pred_changes, dim=3)).cpu().numpy(),
                     gt_edges_onehot[:, :-1, :].cpu().numpy(),
                 ]
+
                 edge_changes_list = [
-                    changed_edges_onehot.cpu().numpy(),
+                    changed_nodes_onehot.cpu().numpy(),
                     gt_edges_onehot[:, :-1, :].cpu().numpy(),
                 ]
 
 
-            loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-            loss_edges = loss_edges * mask_edges
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_nodes
+
+
             loss_edges = loss_edges.mean()
 
             loss += loss_edges + loss_state
@@ -311,7 +332,7 @@ def inference(
                 'graph': graph_info,
                 'mask_len': len_mask,
             }
-
+            # ipdb.set_trace()
             for index in range(ind.shape[0]):
                 program_gt = utils_models.decode_program(
                     data_loader.dataset.graph_helper, prog_gt, index=index
@@ -319,7 +340,7 @@ def inference(
 
                 current_index = ind[index]
                 fname = data_loader.dataset.pkl_files[current_index]
-                pred_graph = utils_models.obtain_graph(
+                pred_graph = utils_models.obtain_graph_3(
                     data_loader.dataset.graph_helper,
                     graph_info,
                     predicted_edge,
@@ -331,7 +352,7 @@ def inference(
                     samples=args.samples_per_graph if args.inference_sample else None,
                 )
 
-                gt_graph = utils_models.obtain_graph(
+                gt_graph = utils_models.obtain_graph_3(
                     data_loader.dataset.graph_helper,
                     graph_info,
                     gt_edge_onehot.cpu().numpy(),
@@ -372,6 +393,7 @@ def inference(
 
 
                     print("\nPrediction at {}".format(t))
+                    # ipdb.set_trace()c
                     utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
@@ -379,12 +401,12 @@ def inference(
                         mask_edges_orig.cpu().numpy(),
                         (pred_state > 0).cpu().numpy(),
                         [pred_changes_list[0].argmax(-1), 
-                            (nn.functional.softmax(pred_changes, dim=3)).cpu().argmax(-1).numpy() if len(pred_changes_list) > 0 else []],
+                            edge_changes_list[1].argmax(-1) if len(pred_changes_list) > 0 else []],
                         index,
                         t,
                     )
                 print("************************")
-                ipdb.set_trace()
+                
 
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
@@ -392,18 +414,20 @@ def inference(
                 cpath = '/'.join(fname.split('/')[-3:-1])
                 dir_name = f'{expath}/{cpath}/'
                 result_name = f'{dir_name}/{sfname}.pkl'
-                if not os.path.isdir(dir_name):
-                    os.makedirs(dir_name)
+                if args.save_inference:
+                    if not os.path.isdir(dir_name):
+                        os.makedirs(dir_name)
 
-                #with open(result_name, 'wb') as f:
-                #    pkl.dump(results, f)
+                    with open(result_name, 'wb') as f:
+                       pkl.dump(results, f)
 
                 # ipdb.set_trace()
             # Update accuracy
             update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
                            mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
 
-
+            progress.display(it)
+            ipdb.set_trace()
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
             end = time.time()
@@ -989,6 +1013,7 @@ def train_epoch(
                 ]
                 edge_changes_list = [changed_nodes.cpu(), gt_edges[:, :-1, :].cpu()]
 
+                # ipdb.set_trace()
                 loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
                 loss_edges = loss_edges * changed_nodes
 
@@ -1345,8 +1370,8 @@ def main(cfg: DictConfig):
     if config.inference:
         logger = LoggerSteps(config, log_steps=False)
         print("Saving results at")
-        print(logger.output_folder)
-        ipdb.set_trace()
+        print(logger.results_path)
+        # ipdb.set_trace()
         inference(
             test_loader,
             model,

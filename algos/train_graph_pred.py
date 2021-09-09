@@ -435,12 +435,13 @@ def inference(
                 cpath = '/'.join(fname.split('/')[-3:-1])
                 dir_name = f'{expath}/{cpath}/'
                 result_name = f'{dir_name}/{sfname}.pkl'
-                if not os.path.isdir(dir_name):
-                    os.makedirs(dir_name)
+                if args.save_inference:
+                    if not os.path.isdir(dir_name):
+                        os.makedirs(dir_name)
 
-                ipdb.set_trace()
-                with open(result_name, 'wb') as f:
-                   pkl.dump(results, f)
+                    ipdb.set_trace()
+                    with open(result_name, 'wb') as f:
+                       pkl.dump(results, f)
 
             # Update accuracy
             update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 

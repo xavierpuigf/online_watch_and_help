@@ -2,6 +2,7 @@ cuda: True
 logging: True
 name_log: ''
 inference: False
+save_inference: False
 inference_sample: False
 samples_per_graph: 20
 ckpt_load: ''

@@ -20,8 +20,10 @@ class GraphPredNetwork(nn.Module):
         self.max_num_classes = args['max_class_objects']
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
+        self.exclusive_edge = False
 
         if args['exclusive_edge']:
+            self.exclusive_edge = True
             self.edge_types = 1
         else:
             self.edge_types = args['edge_types']
@@ -240,6 +242,11 @@ class GraphPredNetwork(nn.Module):
 
         output_and_lstm = self.comb_out_layer(output_and_lstm)
         pred_states, pred_edges, pred_changes = self.pred_obj_states(output_and_lstm)
+
+        if self.exclusive_edge:
+            N = mask_nodes.shape[-1]
+            mask_nodes_edge = mask_nodes.repeat(1, 1, N)[..., None]
+            pred_edges = -1e9 * (1 - mask_nodes_edge) + mask_nodes_edge * pred_edges
         # ipdb.set_trace()
         name_change = 'edge_change'
         if self.node_change:
