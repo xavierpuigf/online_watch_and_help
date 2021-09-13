@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pdb
 import ipdb
+
 sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
@@ -34,8 +35,8 @@ def get_edge_class(pred, t, source='pred'):
     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
     pred_edge_names = pred['edge_names']
     pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id']
-    pred_to_ids = pred['to_id']
+    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -43,6 +44,7 @@ def get_edge_class(pred, t, source='pred'):
     edge_pred_class = {}
 
     num_edges = len(edge_pred)
+    print(pred_from_ids[t], num_edges)
     for edge_id in range(num_edges):
         from_id = pred_from_ids[t][edge_id]
         to_id = pred_to_ids[t][edge_id]
@@ -287,7 +289,7 @@ if __name__ == "__main__":
     root = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/results/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/"
     pred_dir = (
         root
-        + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.edge_inputgoal.False_excledge.False/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
+        + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.32-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
     )
 
     gt_p = Path(gt_dir).glob("*.pik")
@@ -302,7 +304,7 @@ if __name__ == "__main__":
         if 'result' in str(gt_path):
             continue
         if 'logs_episode.26_iter.2.pik' not in str(gt_path):
-            continue 
+            continue
         gt = pickle.load(open(str(gt_path), 'rb'))
 
         if not Path(
@@ -377,7 +379,7 @@ if __name__ == "__main__":
                 for pred_id, pred_graph in enumerate(pred['pred_graph']):
                     edge_pred_class = get_edge_class(pred_graph, t)
                     arena.task_goal = {0: edge_pred_class}
-                    
+
                     # if pred_id == 2:
                     #     arena.agents[0].mcts.verbose = True
                     #     arena.agents[0].mcts.any_verbose = True
