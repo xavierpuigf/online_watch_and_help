@@ -342,6 +342,7 @@ if __name__ == "__main__":
         #     continue
 
         print('init state')
+        ipdb.set_trace()
         edge_input_class = get_edge_class(pred['pred_graph'][0], 0, 'input')
         for goal_object in goal_objects:
             for edge_class, count in edge_input_class.items():
