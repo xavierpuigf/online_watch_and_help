@@ -68,6 +68,105 @@ def obtain_graph_from_graph_dict(graph_helper, graphs):
     info['states'] = object_states
     return [info]            
 
+def prepare_graph_for_model(graphs, observations, program_hist, args_config, dataloader):
+    graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], 
+                                              toy_dataset=args_config['model']['reduced_graph'])
+    max_tsteps = args_config['model']['max_tsteps']
+    obs_ids = None
+    attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
+    attributes_include += ['edge_tuples', 'edge_classes', 'mask_edge']
+    time_graph = {attr_name: [] for attr_name in attributes_include}
+    time_graph['mask_close'] = []
+
+    ##################
+    # Build graph
+    it = 0
+    for graph in graphs:
+        graph_info, _ = graph_helper.build_graph(
+                        graph, character_id=1, include_edges=True, 
+                        obs_ids=observations[it], relative_coords=args_config.model.relative_coords,
+                        unique_from=args_config.model.exclusive_edge)
+        it += 1
+        for attribute_name in attributes_include:
+            time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
+        
+        # Build closeness and goal mask
+        close_rel_id = graph_helper.relation_dict.get_id('CLOSE')
+        close_nodes = list(graph_info['edge_tuples'][graph_info['edge_classes'] == close_rel_id])
+        
+        mask_close = np.zeros(graph_info['class_objects'].shape)
+        mask_goal = np.zeros(graph_info['class_objects'].shape) 
+
+        # fill up the closeness mask
+        if len(close_nodes) > 0:
+            indexe = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
+            if len(indexe) > 0:
+                mask_close[np.array(indexe)] = 1.0
+
+        time_graph['mask_close'].append(torch.tensor(mask_close))
+
+    # batch graph
+
+    for attribute_name in time_graph.keys():
+        unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
+        time_graph[attribute_name] = unpadded_tensor[None, :]
+        # print(attribute_name, unpadded_tensor.shape)
+    # ipdb.set_trace()
+    ####################
+
+    node_ids = graph_info['node_ids']
+    indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
+
+    ##################
+    # Build program
+    # We will start with a No-OP action
+    program_batch = {
+        'action': [args_config.model.max_actions - 1],
+        'obj1': [-1],
+        'obj2': [-1],
+        'indobj1': [indexgraph2ind[-1]],
+        'indobj2': [indexgraph2ind[-1]],
+    }
+
+    for it, instr in enumerate(program_hist):
+        
+        # we want to add an ending action
+        if it >= max_tsteps - 1:
+            break
+        instr_item = graph_helper.actionstr2index(instr)
+        program_batch['action'].append(instr_item[0])
+        program_batch['obj1'].append(instr_item[1])
+        program_batch['obj2'].append(instr_item[2])
+        try:
+            program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
+            program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+        except:
+            #print("Index", index, program, it)
+            raise Exception
+
+    program_batch['action'].append(args_config.model.max_actions  - 1)
+    program_batch['obj1'].append(-1)
+    program_batch['obj2'].append(-1)
+    program_batch['indobj1'].append(indexgraph2ind[-1])
+    program_batch['indobj2'].append(indexgraph2ind[-1])
+
+    # batch program
+    for prog_key, prog_val in program_batch.items():
+        program_batch[prog_key] = torch.tensor(prog_val)[None, :]
+    ######################
+
+
+    num_tsteps = program_batch['action'].shape[-1] - 1
+
+    length_mask = torch.ones(num_tsteps)
+    # ipdb.set_trace()
+
+    inputs = {
+        'program': program_batch,
+        'graph': time_graph,
+        'mask_len': length_mask
+    }
+    return inputs
 
 def obtain_graph_3(
     graph_helper,
@@ -177,8 +276,9 @@ def obtain_graph_3(
             # all_edges.append(edge_prob[None, :].numpy())
 
             # obtain class
-            edge_pred_step_class = obtain_class_edge(from_id, to_id, obj_names, graph_helper.object_dict)
-            edge_input_step_class = obtain_class_edge(from_id_input, to_id_input, obj_names, graph_helper.object_dict)
+            edge_pred_step_class = obtain_class_edge(from_id, to_id, obj_names, graph_helper.object_dict, graph_helper.relation_dict)
+            edge_input_step_class = obtain_class_edge(from_id_input, to_id_input, obj_names, graph_helper.object_dict, graph_helper.relation_dict)
+            # ipdb.set_trace()
 
             all_edges.append(edge_pred_step_class[None, :])
             all_edges_input.append(edge_input_step_class[None, :])
@@ -210,7 +310,7 @@ def obtain_graph_3(
         all_samples.append(info)
     return all_samples
 
-def obtain_class_edge(from_id, to_id, obj_names, obj_dict):
+def obtain_class_edge(from_id, to_id, obj_names, obj_dict, relation_dict):
     info_objects = {
         "objects_inside": [
           "bathroomcabinet",
@@ -249,18 +349,19 @@ def obtain_class_edge(from_id, to_id, obj_names, obj_dict):
 
     }
     relations = []
-    for obj_name in obj_names:
+    for index in list(to_id):
+        obj_name = obj_names[index]
         obj_class_name = obj_name.split('.')[0]
         if obj_name in info_objects['objects_inside']:
-            relation =  obj_dict.get_id('inside')
+            relation =  relation_dict.get_id('inside')
         elif obj_name == 'character':
-            relation = obj_dict.get_id('hold')
+            relation = relation_dict.get_id('hold')
         elif obj_name in info_objects['objects_surface']:
-            relation = obj_dict.get_id('on')
+            relation = relation_dict.get_id('on')
         elif obj_name in info_objects['objects_grab']:
-            relation = obj_dict.get_id('on')
+            relation = relation_dict.get_id('on')
         else:
-            relation = obj_dict.get_id('inside')
+            relation = relation_dict.get_id('inside')
 
         relations.append(relation)
     return np.array(relations)

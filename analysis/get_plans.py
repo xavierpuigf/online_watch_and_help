@@ -279,6 +279,7 @@ if __name__ == "__main__":
         num_particles=20,
         logging=True,
         logging_graphs=True,
+        get_plan_states=True,
     )
     if args.obs_type == 'full':
         args_common['num_particles'] = 1
@@ -385,6 +386,7 @@ if __name__ == "__main__":
         #     continue
 
         print('init state')
+        ipdb.set_trace()
         edge_input_class = get_edge_class(pred['pred_graph'][0], 0, 'input')
         for goal_object in goal_objects:
             for edge_class, count in edge_input_class.items():
@@ -433,6 +435,10 @@ if __name__ == "__main__":
                     # print('actions:', actions)
                     print('pred {}:'.format(pred_id), edge_pred_class)
                     print('plan {}:'.format(pred_id), info[0]['plan'])
+
+                    # Here you can get the intermediate states
+                    plan_states = info[0]['plan_states']
+                    # ipdb.set_trace()
                     # if pred_id == 2:
                     #     ipdb.set_trace()
                     for action in info[0]['plan']:
@@ -553,5 +559,4 @@ if __name__ == "__main__":
     #             for goal_object in goal_objects:
     #                 for edge_class, count in edge_pred_class_estimated.items():
     #                     if goal_object in edge_class:
-    #                         print(edge_class, edge_pred_class_estimated[edge_class])
-    #             pdb.set_trace()
+    #                         print(edge_class, edge_pr
