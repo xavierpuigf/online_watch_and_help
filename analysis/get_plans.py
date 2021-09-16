@@ -35,8 +35,8 @@ def get_edge_class(pred, t, source='pred'):
     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
     pred_edge_names = pred['edge_names']
     pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+    pred_from_ids = pred['from_id']  # if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred['to_id']  # if source == 'pred' else pred['to_id_input']
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -44,7 +44,6 @@ def get_edge_class(pred, t, source='pred'):
     edge_pred_class = {}
 
     num_edges = len(edge_pred)
-    print(pred_from_ids[t], num_edges)
     for edge_id in range(num_edges):
         from_id = pred_from_ids[t][edge_id]
         to_id = pred_to_ids[t][edge_id]
@@ -71,6 +70,50 @@ def get_edge_class(pred, t, source='pred'):
             else:
                 edge_pred_class[edge_class] += 1
     return edge_pred_class
+
+
+# def get_edge_class(pred, t, source='pred'):
+#     # pred_edge_prob = pred['edge_prob']
+#     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+#     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
+#     pred_edge_names = pred['edge_names']
+#     pred_nodes = pred['nodes']
+#     pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
+#     pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+
+#     # edge_prob = pred_edge_prob[t]
+#     # edge_pred = np.argmax(edge_prob, 1)
+
+#     edge_pred_class = {}
+
+#     num_edges = len(edge_pred)
+#     # print(pred_from_ids[t], num_edges)
+#     for edge_id in range(num_edges):
+#         from_id = pred_from_ids[t][edge_id]
+#         to_id = pred_to_ids[t][edge_id]
+#         from_node_name = pred_nodes[from_id]
+#         to_node_name = pred_nodes[to_id]
+#         # if object_name in from_node_name or object_name in to_node_name:
+#         edge_name = pred_edge_names[edge_pred[edge_id]]
+#         # if edge_name in ['inside', 'on']:  # disregard room locations + plate
+#         # if to_node_name.split('.')[0] in [
+#         #     'kitchen',
+#         #     'livingroom',
+#         #     'bedroom',
+#         #     'bathroom',
+#         #     'plate',
+#         # ]:
+#         #     continue
+#         # if from_node_name.split('.')[0]
+#         edge_class = '()_{}_{}'.format(
+#             edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+#         )
+#         # print(from_node_name, to_node_name, edge_name)
+#         if edge_class not in edge_pred_class:
+#             edge_pred_class[edge_class] = 1
+#         else:
+#             edge_pred_class[edge_class] += 1
+#     return edge_pred_class
 
 
 def aggregate_multiple_pred(preds, t, change=False):
@@ -288,7 +331,8 @@ if __name__ == "__main__":
     root = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/results/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/"
     pred_dir = (
         root
-        + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.32-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
+        + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.8-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.edge_inputgoal.False_excledge.False/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
+        # + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.32-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
     )
 
     gt_p = Path(gt_dir).glob("*.pik")
@@ -298,12 +342,12 @@ if __name__ == "__main__":
     # ipdb.set_trace()
     for gt_path in gt_p:
         print(str(gt_path))
-        if num_episodes > 0:
-            break
+        # if num_episodes > 0:
+        #     break
         if 'result' in str(gt_path):
             continue
-        if 'logs_episode.26_iter.2.pik' not in str(gt_path):
-            continue
+        # if 'episode.26' not in str(gt_path):
+        #     continue
         gt = pickle.load(open(str(gt_path), 'rb'))
 
         if not Path(
@@ -414,7 +458,6 @@ if __name__ == "__main__":
                     print(action, count / N_preds)
                 pdb.set_trace()
             print('success:', infos['finished'])
-            # success, steps, saved_info = arena.run()
 
         # print('-------------------------------------')
         # print('success' if success else 'failure')
