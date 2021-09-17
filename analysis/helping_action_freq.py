@@ -21,7 +21,7 @@ from utils import utils_models_wb
 sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
-from arguments import get_args
+#from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 from utils import utils_goals
 from utils import utils_exception
@@ -167,10 +167,13 @@ def aggregate_multiple_pred(preds, t, change=False):
 
 
 @hydra.main(
-    config_path="../config/agent_pred_graph", config_name="config_default_toy_excl"
+        config_path="../config/", config_name="config_default_toy_excl_plan"
 )
 def main(cfg: DictConfig):
-    args = get_args()
+    config = cfg
+    print("Config")
+    print(OmegaConf.to_yaml(cfg))
+    args = config
     num_proc = 5
 
     num_tries = 5
@@ -350,11 +353,10 @@ def main(cfg: DictConfig):
 
     gt_p = Path(gt_dir).glob("*.pik")
 
-    config = cfg
-    args_pred = config
+    args_pred = args.agent_pred_graph
 
-    model = agent_pref_policy.GraphPredNetwork(config)
-    state_dict = torch.load(cfg.ckpt_load)['model']
+    model = agent_pref_policy.GraphPredNetwork(args_pred)
+    state_dict = torch.load(args_pred.ckpt_load)['model']
     state_dict_new = {}
 
     for param_name, param_value in state_dict.items():

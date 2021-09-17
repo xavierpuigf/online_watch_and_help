@@ -1,0 +1,12 @@
+defaults:
+        - agent_pred_graph: config_default_toy_excl
+
+executable_file: ""
+max_episode_length: 250
+num_per_apartment: 20
+dataset_path: ""
+obs_type: "full"
+mode: ""
+record_dir: ""
+base_port: 8080
+use_editor: False
