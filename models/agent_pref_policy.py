@@ -174,6 +174,7 @@ class GraphPredNetwork(nn.Module):
         # node_embeddings[node_embeddings.isnan()] = 1
 
         dims = list(node_embeddings.shape)
+        # ipdb.set_trace()
         action_embed = self.action_embedding(program['action'])
 
         assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
@@ -190,7 +191,7 @@ class GraphPredNetwork(nn.Module):
         # Input previous action and current graph
         if not self.goal_inp:
 
-            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
+            action_graph = torch.cat([action_embed[:, :, :], graph_repr], -1)
         else:
             raise Exception
             # Goal encoding
@@ -207,7 +208,7 @@ class GraphPredNetwork(nn.Module):
 
             goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
             gated_goal = graph_repr * goal_mask_action[:, None, :]
-            action_graph = torch.cat([action_embed[:, :-1, :], gated_goal], -1)
+            action_graph = torch.cat([action_embed[:, :, :], gated_goal], -1)
 
         if self.use_agent_embedding:
             raise Exception
@@ -583,7 +584,7 @@ class ActionPredNetwork(nn.Module):
         # Input previous action and current graph
         if not self.goal_inp:
 
-            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
+            action_graph = torch.cat([action_embed[:, :, :], graph_repr], -1)
         else:
             # Goal encoding
             obj_class_name = inputs['goal']['target_obj_class']  # [:, 0].long()
@@ -594,7 +595,7 @@ class ActionPredNetwork(nn.Module):
             goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
             goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
             action_graph = torch.cat(
-                [action_embed[:, :-1, :], graph_repr, goal_encoding], -1
+                [action_embed[:, :, :], graph_repr, goal_encoding], -1
             )
 
         input_embed = self.comb_layer(action_graph)
@@ -737,7 +738,7 @@ class ActionCharNetwork(nn.Module):
         # Input previous action and current graph
         if not self.goal_inp:
 
-            action_graph = torch.cat([action_embed[:, :-1, :], graph_repr], -1)
+            action_graph = torch.cat([action_embed[:, :, :], graph_repr], -1)
         else:
             # Goal encoding
             obj_class_name = inputs['goal']['target_obj_class']  # [:, 0].long()
@@ -748,7 +749,7 @@ class ActionCharNetwork(nn.Module):
             goal_encoding = self.goal_encoder(obj_class_name, loc_class_name, mask_goal)
             goal_encoding = goal_encoding[:, None, :].repeat(1, graph_repr.shape[1], 1)
             action_graph = torch.cat(
-                [action_embed[:, :-1, :], graph_repr, goal_encoding], -1
+                [action_embed[:, :, :], graph_repr, goal_encoding], -1
             )
 
         input_embed = self.comb_layer(action_graph)

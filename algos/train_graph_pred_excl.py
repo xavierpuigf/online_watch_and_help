@@ -325,9 +325,9 @@ def inference(
             metric_dict['losses_edge'].update(loss_edges.item())
 
 
-            label_action = program['action'][:, 1:]
-            index_label_obj1 = program['indobj1'][:, 1:]
-            index_label_obj2 = program['indobj2'][:, 1:]
+            label_action = program['action']
+            index_label_obj1 = program['indobj1']
+            index_label_obj2 = program['indobj2']
 
             prog_gt = {
                 'action': label_action,
@@ -863,9 +863,9 @@ def train_epoch(
             ind,
         ) = data_item
 
-        label_action = program['action'][:, 1:]
-        index_label_obj1 = program['indobj1'][:, 1:]
-        index_label_obj2 = program['indobj2'][:, 1:]
+        label_action = program['action']
+        index_label_obj1 = program['indobj1']
+        index_label_obj2 = program['indobj2']
 
         prog_gt = {
             'action': label_action,
@@ -874,6 +874,9 @@ def train_epoch(
             'graph': graph_info,
             'mask_len': len_mask,
         }
+        # if int(len_mask[0,:].sum()) == 30:
+        #     ipdb.set_trace()
+
         program_gt = utils_models.decode_program(
             data_loader.dataset.graph_helper, prog_gt
         )

@@ -855,6 +855,8 @@ def decode_program(graph_helper, program_info, index=0):
     node_ids = list(program_info_new['node_ids'][index])
 
     program_str = []
+    # ipdb.set_trace()
+    # print(length)
     for it in range(length):
         if action_ind[it] == len(graph_helper.action_dict):
             action_str = '[None]'
@@ -1086,7 +1088,7 @@ class LoggerSteps:
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'
             'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-'
-            'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchange.{}_inputgoal.{}_excledge.{}'
+            'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchange.{}_inputgoal.{}_excledge.{}_goodaction'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],

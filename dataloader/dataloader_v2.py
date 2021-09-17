@@ -216,12 +216,20 @@ class AgentTypeDataset(Dataset):
         indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
 
         # We will start with a No-OP action
+        # program_batch = {
+        #     'action': [self.max_actions - 1],
+        #     'obj1': [-1],
+        #     'obj2': [-1],
+        #     'indobj1': [indexgraph2ind[-1]],
+        #     'indobj2': [indexgraph2ind[-1]],
+        # }
+
         program_batch = {
-            'action': [self.max_actions - 1],
-            'obj1': [-1],
-            'obj2': [-1],
-            'indobj1': [indexgraph2ind[-1]],
-            'indobj2': [indexgraph2ind[-1]],
+            'action': [],
+            'obj1': [],
+            'obj2': [],
+            'indobj1': [],
+            'indobj2': [],
         }
 
         # We start at 1 to skip the first instruction
@@ -248,7 +256,7 @@ class AgentTypeDataset(Dataset):
         program_batch['indobj1'].append(indexgraph2ind[-1])
         program_batch['indobj2'].append(indexgraph2ind[-1])
 
-        num_tsteps = len(program_batch['action']) - 1
+        num_tsteps = len(program_batch['action'])
         for key in program_batch.keys():
             unpadded_tensor = torch.tensor(program_batch[key])
 
