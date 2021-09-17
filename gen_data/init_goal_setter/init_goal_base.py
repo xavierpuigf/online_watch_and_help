@@ -14,7 +14,8 @@ curr_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 class SetInitialGoal:
-    def __init__(self, obj_position, class_name_size, init_pool_tasks, task_name, same_room=True, goal_template=None, rand=None):
+    def __init__(self, obj_position, class_name_size, init_pool_tasks, 
+                 task_name, same_room=True, goal_template=None, rand=None, set_random_goal=False):
         self.task_name = task_name
         self.init_pool_tasks = init_pool_tasks
         self.obj_position = obj_position
@@ -27,7 +28,7 @@ class SetInitialGoal:
 
         self.min_num_other_object = 0  # 15
         self.max_num_other_object = 0  # 45
-
+        self.set_random_goal =  set_random_goal
         self.add_goal_obj_success = True
         if rand is not None:
             self.rand = rand
@@ -79,6 +80,7 @@ class SetInitialGoal:
             self.init_pool.update(self.init_pool_tasks["read_book"])
 
         ## make sure the goal is not empty
+        self.goal_random_agent = {}
         deb = '''
         while 1:
             self.goal = {}
@@ -117,6 +119,27 @@ class SetInitialGoal:
 
                 if 2 <= count <= 6 and self.task_name not in ['clean_table', 'unload_dishwasher'] or 3 <= count <= 6:
                     break
+
+        # Select goals for random agent
+        if self.set_random_goal:
+            objects_not_pick = [goal_name for goal_name, goal_count in self.goal.items() if goal_count > 0]
+            total_count = self.rand.randint(2,6)
+
+            possible_objects_dict = self.init_pool_tasks['noise']
+            objects_used = []
+            object_candidates = list(possible_objects_dict.keys())
+            self.rand.shuffle(object_candidates)
+            it_obj = 0
+            while total_count > 0 and it_obj < len(object_candidates):
+                object_name = object_candidates[it_obj]
+                it_obj += 1
+                if object_name in objects_not_pick:
+                    continue
+                v = possible_objects_dict[object_name]
+                count = min(self.rand.randint(v['min_num'], v['max_num']), total_count)
+                total_count -= count
+                self.goal_random_agent[object_name] = count
+
 
     def get_obj_room(self, obj_id):
         room_ids = [node['id'] for node in graph['nodes'] if node['category'] == 'Rooms']

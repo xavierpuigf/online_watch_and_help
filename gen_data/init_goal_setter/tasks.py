@@ -52,6 +52,8 @@ class Task:
             env_goal['setup_table_toy'].append({'put_{}_on_{}'.format(k, table_id): v})
 
         return graph, env_goal, True
+
+        
     @staticmethod
     def setup_table(init_goal_manager, graph, start=True):
         ## setup table
