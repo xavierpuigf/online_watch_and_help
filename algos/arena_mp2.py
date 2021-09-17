@@ -55,6 +55,7 @@ class ArenaMP(object):
                 )
             else:
                 agent.reset(self.env.full_graph)
+        return ob
 
     def set_weigths(self, epsilon, weights):
         for agent in self.agents:
@@ -63,7 +64,13 @@ class ArenaMP(object):
                 agent.actor_critic.load_state_dict(weights)
 
     def get_actions(
-        self, obs, action_space=None, true_graph=False, length_plan=5, must_replan=None
+        self,
+        obs,
+        action_space=None,
+        true_graph=False,
+        length_plan=5,
+        must_replan=None,
+        agent_id=None,
     ):
         # ipdb.set_trace()
         dict_actions, dict_info = {}, {}
@@ -71,6 +78,8 @@ class ArenaMP(object):
         # pdb.set_trace()
 
         for it, agent in enumerate(self.agents):
+            if agent_id is not None and it != agent_id:
+                continue
             if self.task_goal is None:
                 goal_spec = self.env.get_goal(
                     self.env.task_goal[it], self.env.agent_goals[it]
