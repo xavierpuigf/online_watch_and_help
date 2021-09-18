@@ -26,6 +26,74 @@ from utils import utils_rl_agent
 
 plt.switch_backend('agg')
 
+
+# Convert adjacency list to adjacency matrix
+# Convert adjacency list to adjacency matrix
+def build_gt_edge(graph_info, graph_helper, exclusive_edge=False):
+    batch, time, num_nodes = graph_info['mask_object'].shape
+    
+    
+    
+    # most edges have relation with nothing
+    # last_node = 
+
+    # num_edges = gt_edges.shape[-1]
+    edge_tuples = graph_info['edge_tuples']
+    
+    
+    
+    if exclusive_edge:
+        gt_edges = torch.zeros([batch, time, num_nodes])
+    
+        # Get the index of the -1 object for every element in the batch
+        node_ids_none = ((graph_info['node_ids'][:, 0, :] > 0).sum(-1))[:, None, None]
+        gt_edges = node_ids_none.repeat(1, time, num_nodes).float()
+
+        edge_to = edge_tuples[..., 1]
+        edge_from = edge_tuples[..., 0]
+        # All the edges that have type 0, we will put them as going from node none to node none
+        mask_edge = (graph_info['edge_classes'] > 0).float()
+        edge_from = edge_from * mask_edge + (1-mask_edge) * node_ids_none
+        edge_to = edge_to * mask_edge + (1-mask_edge) * node_ids_none
+        gt_edges = gt_edges.scatter(2, edge_from.long(), edge_to)
+    
+    else:
+        gt_edges = torch.zeros([batch, time, num_nodes ** 2])
+        index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
+        edge_types = graph_info['edge_classes']  # - 1
+        gt_edges = gt_edges.scatter(2, index_edges.long(), edge_types)
+    
+    gt_edges = gt_edges.long()
+    class_names = ['cupcake', 'apple', 'plate', 'waterglass']
+    ids_interest = [graph_helper.object_dict.get_id(name) for name in class_names]
+    assert len([idi for idi in ids_interest if idi == 0]) == 0, 'Object of interest not recognized {}'.format(str(ids_interest))
+    
+    # Mask of objects that we care about
+    mask_obj_interest = torch.zeros(graph_info['mask_object'].shape)
+    
+    for id_interest in ids_interest:
+        mask_obj_interest[graph_info['class_objects'] == id_interest] = 1.
+
+
+    edge_dict = {}
+    if not exclusive_edge:
+        mask_obj_interest_2 = torch.zeros(graph_info['mask_object'].shape)
+        mask_obj_interest_2[graph_info['class_objects'] == graph_helper.object_dict.get_id('kitchentable')] = 1.
+    
+        # We only care about edges that from is in mask_obj_interest
+        edge_interest_from = mask_obj_interest.repeat_interleave(num_nodes, dim=2)
+        edge_interest_to = mask_obj_interest_2.repeat(1, 1, num_nodes)
+        edge_interest = edge_interest_from * edge_interest_to
+    else:
+        edge_interest = mask_obj_interest
+        edge_dict['id_nothing'] = node_ids_none[:, 0, 0]
+    
+    edge_dict['gt_edges'] = gt_edges
+    edge_dict['edge_interest'] = edge_interest
+    return edge_dict
+
+
+
 # Nice vectorized sampling function 
 # https://stackoverflow.com/questions/34187130/fast-random-weighted-selection-across-all-rows-of-a-stochastic-matrix/34190035
 def vectorized(prob_matrix):
@@ -68,9 +136,8 @@ def obtain_graph_from_graph_dict(graph_helper, graphs):
     info['states'] = object_states
     return [info]            
 
-def prepare_graph_for_model(graphs, observations, program_hist, args_config, dataloader):
-    graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], 
-                                              toy_dataset=args_config['model']['reduced_graph'])
+def prepare_graph_for_model(graphs, observations, program_hist, args_config, graph_helper):
+
     max_tsteps = args_config['model']['max_tsteps']
     obs_ids = None
     attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
@@ -121,11 +188,11 @@ def prepare_graph_for_model(graphs, observations, program_hist, args_config, dat
     # Build program
     # We will start with a No-OP action
     program_batch = {
-        'action': [args_config.model.max_actions - 1],
-        'obj1': [-1],
-        'obj2': [-1],
-        'indobj1': [indexgraph2ind[-1]],
-        'indobj2': [indexgraph2ind[-1]],
+        'action': [],
+        'obj1': [],
+        'obj2': [],
+        'indobj1': [],
+        'indobj2': [],
     }
 
     for it, instr in enumerate(program_hist):
@@ -156,9 +223,9 @@ def prepare_graph_for_model(graphs, observations, program_hist, args_config, dat
     ######################
 
 
-    num_tsteps = program_batch['action'].shape[-1] - 1
+    num_tsteps = program_batch['action'].shape[-1]
 
-    length_mask = torch.ones(num_tsteps)
+    length_mask = torch.ones(num_tsteps)[None, :]
     # ipdb.set_trace()
 
     inputs = {
@@ -175,8 +242,8 @@ def obtain_graph_3(
     state_prob,
     mask_edge,
     changed_edges,
-    batch_item,
     len_mask,
+    batch_item=0,
     changed_nodes=None,
     samples=None
 ):
@@ -198,7 +265,7 @@ def obtain_graph_3(
     else:
         pass
         # edge_prob = nn.functional.softmax(edge_prob, dim=-1).cpu().numpy()
-    
+    # ipdb.set_trace()
     for sample in range(samples):
         # Sample edge_prob
         if do_sample:
@@ -239,7 +306,7 @@ def obtain_graph_3(
 
         all_edges, all_from, all_to, all_edges_input, all_from_input, all_to_input = [], [], [], [], [], []
         object_states = state_prob[batch_item, :num_tsteps].numpy()
-        
+        print(num_tsteps)
         for step in range(num_tsteps):
             result = {}
             mask_object = int(graph['mask_object'][batch_item, step + offset].sum())

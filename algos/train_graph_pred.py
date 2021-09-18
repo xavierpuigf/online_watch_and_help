@@ -74,48 +74,7 @@ def unmerge(tensor, firstdim):
     return tensor.reshape([firstdim, -1] + dim[1:])
 
 
-# Convert adjacency list to adjacency matrix
-def build_gt_edge(graph_info, graph_helper):
-    batch, time, num_nodes = graph_info['mask_object'].shape
-    gt_edges = torch.zeros([batch, time, num_nodes ** 2])
-    # num_nodes = graph_info['mask_object'].shape[-1]
 
-    # num_edges = gt_edges.shape[-1]
-    edge_tuples = graph_info['edge_tuples']
-    index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
-    edge_types = graph_info['edge_classes']  # - 1
-    # ipdb.set_trace()
-    # gt_edges[..., index_edges.long()] = edge_types
-    gt_edges = gt_edges.scatter(2, index_edges.long(), edge_types)
-    gt_edges = gt_edges.long()
-    # for it_edge in range(num_edges):
-    #     index_edge = edge_types == it_edge
-    #     index_edge_curr = index_edges[index_edge]
-    #     gt_edges[..., index_edge_curr.long(), it_edge] = 1
-
-    class_names = ['cupcake', 'apple', 'plate', 'waterglass']
-    ids_interest = [graph_helper.object_dict.get_id(name) for name in class_names]
-    assert len([idi for idi in ids_interest if idi == 0]) == 0, 'Object of interest not recognized {}'.format(str(ids_interest))
-    
-    # Mask of objects that we care about
-    mask_obj_interest = torch.zeros(graph_info['mask_object'].shape)
-    mask_obj_interest_2 = torch.zeros(graph_info['mask_object'].shape)
-    
-    for id_interest in ids_interest:
-        mask_obj_interest[graph_info['class_objects'] == id_interest] = 1.
-
-
-    mask_obj_interest_2[graph_info['class_objects'] == graph_helper.object_dict.get_id('kitchentable')] = 1.
-    
-    # We only care about edges that from is in mask_obj_interest
-    edge_interest_from = mask_obj_interest.repeat_interleave(num_nodes, dim=2)
-    edge_interest_to = mask_obj_interest_2.repeat(1, 1, num_nodes)
-    edge_interest = edge_interest_from * edge_interest_to
-    # ipdb.set_trace()
-    edge_dict = {}
-    edge_dict['gt_edges'] = gt_edges
-    edge_dict['edge_interest'] = edge_interest
-    return edge_dict
 
 
 # # Convert adjacency matrix to adjacency list
@@ -180,7 +139,7 @@ def inference(
 
             inputs['goal_graph'] = goal_graph
 
-            edge_dict = build_gt_edge(graph_info, data_loader.dataset.graph_helper)
+            edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper)
             gt_edges = edge_dict['gt_edges']
             edge_interest = edge_dict['edge_interest']
 
@@ -526,7 +485,7 @@ def evaluate(
             goal_graph = build_goal_graph(graph_info, len_mask)
             inputs['goal_graph'] = goal_graph
 
-            edge_dict = build_gt_edge(graph_info, data_loader.dataset.graph_helper)
+            edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper)
             gt_edges = edge_dict['gt_edges']
             edge_interest = edge_dict['edge_interest']
 
@@ -884,7 +843,7 @@ def train_epoch(
         goal_graph = build_goal_graph(graph_info, len_mask)
         inputs['goal_graph'] = goal_graph
 
-        edge_dict = build_gt_edge(graph_info, data_loader.dataset.graph_helper)
+        edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper)
         gt_edges = edge_dict['gt_edges']
         edge_interest = edge_dict['edge_interest']
 

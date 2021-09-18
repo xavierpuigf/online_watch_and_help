@@ -21,7 +21,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import pathlib
 import numpy as np
-from utils import utils_models_wb
+from utils import utils_models_wb, utils_rl_agent
 
 @hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_toy_excl")
 def main(cfg: DictConfig):
@@ -94,7 +94,9 @@ def main(cfg: DictConfig):
 
 
     # How to load the data from a graph
-    inputs_func = utils_models_wb.prepare_graph_for_model(graphs, observations, program_hist, args, dataset_test)
+    graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args['model']['max_nodes'], 
+                                          toy_dataset=args['model']['reduced_graph'])
+    inputs_func = utils_models_wb.prepare_graph_for_model(graphs, observations, program_hist, args, graph_helper)
     with torch.no_grad():
         output_func = model(inputs_func)
 
@@ -132,12 +134,35 @@ def main(cfg: DictConfig):
         val_loader = output_loader[key][0,:mask_len]
         val_func = output_func[key][0,:mask_len]
         try:
-            assert np.sum(val_loader.numpy() - val_func.numpy()) < 0.01, f"values from {key} differ"
+            assert np.max(np.abs(val_loader.numpy() - val_func.numpy())) < 0.01, f"values from {key} differ"
         except:
             ipdb.set_trace()
 
+
+    print("DONE")
+
+    
+    # Obtain the graph in a nice format
+    # Obtain edges as a adjacency list
+    edge_dict = utils_models_wb.build_gt_edge(inputs_func['graph'], graph_helper, exclusive_edge=True)
+    b, t, n =  inputs_func['graph']['mask_obs_node'].shape
+    pred_edge = output_func['edges'].reshape([b, t, n, n])
+    graph_result = utils_models_wb.obtain_graph_3(
+        graph_helper, 
+        inputs_func['graph'],
+        nn.functional.softmax(pred_edge, dim=-1).cpu().numpy(),
+        output_func['states'].cpu(),
+        inputs_func['graph']['mask_obs_node'],
+        [
+            nn.functional.softmax(output_func['node_change'], dim=-1).cpu().numpy(),
+            torch.nn.functional.one_hot(edge_dict['gt_edges'], n).cpu().numpy(),
+        ],
+        inputs_func['mask_len']
+
+    )
     ipdb.set_trace()
 
 
+
 if __name__ == '__main__':
-    main()
+    

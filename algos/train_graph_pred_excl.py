@@ -75,60 +75,65 @@ def unmerge(tensor, firstdim):
 
 
 # Convert adjacency list to adjacency matrix
-def build_gt_edge(graph_info, graph_helper, exclusive_edge=False):
+def utils_models.build_gt_edge(graph_info, graph_helper, exclusive_edge=False):
     batch, time, num_nodes = graph_info['mask_object'].shape
-    num_rel = graph_helper.relations
-
-    gt_edges = torch.zeros([batch, time, num_nodes])
-    # ipdb.set_trace()
-
-    # Get the index of the -1 object for every element in the batch
-    node_ids_none = ((graph_info['node_ids'][:, 0, :] > 0).sum(-1))[:, None, None]
-    gt_edges = node_ids_none.repeat(1, time, num_nodes).float()
-
+    
+    
+    
     # most edges have relation with nothing
     # last_node = 
 
     # num_edges = gt_edges.shape[-1]
     edge_tuples = graph_info['edge_tuples']
-    edge_to = edge_tuples[..., 1]
-    edge_from = edge_tuples[..., 0]
     
-    # All the edges that have type 0, we will put them as going from node none to node none
-    mask_edge = (graph_info['edge_classes'] > 0).float()
-    edge_from = edge_from * mask_edge + (1-mask_edge) * node_ids_none
-    edge_to = edge_to * mask_edge + (1-mask_edge) * node_ids_none
+    
+    
+    if exclusive_edge:
+        gt_edges = torch.zeros([batch, time, num_nodes])
+    
+        # Get the index of the -1 object for every element in the batch
+        node_ids_none = ((graph_info['node_ids'][:, 0, :] > 0).sum(-1))[:, None, None]
+        gt_edges = node_ids_none.repeat(1, time, num_nodes).float()
 
-    gt_edges = gt_edges.scatter(2, edge_from.long(), edge_to)
+        edge_to = edge_tuples[..., 1]
+        edge_from = edge_tuples[..., 0]
+        # All the edges that have type 0, we will put them as going from node none to node none
+        mask_edge = (graph_info['edge_classes'] > 0).float()
+        edge_from = edge_from * mask_edge + (1-mask_edge) * node_ids_none
+        edge_to = edge_to * mask_edge + (1-mask_edge) * node_ids_none
+        gt_edges = gt_edges.scatter(2, edge_from.long(), edge_to)
+    
+    else:
+        gt_edges = torch.zeros([batch, time, num_nodes ** 2])
+        index_edges = edge_tuples[..., 0] * num_nodes + edge_tuples[..., 1]
+        edge_types = graph_info['edge_classes']  # - 1
+        gt_edges = gt_edges.scatter(2, index_edges.long(), edge_types)
+    
     gt_edges = gt_edges.long()
-    # ipdb.set_trace()
-
     class_names = ['cupcake', 'apple', 'plate', 'waterglass']
     ids_interest = [graph_helper.object_dict.get_id(name) for name in class_names]
     assert len([idi for idi in ids_interest if idi == 0]) == 0, 'Object of interest not recognized {}'.format(str(ids_interest))
     
     # Mask of objects that we care about
     mask_obj_interest = torch.zeros(graph_info['mask_object'].shape)
-    mask_obj_interest_2 = torch.zeros(graph_info['mask_object'].shape)
     
     for id_interest in ids_interest:
         mask_obj_interest[graph_info['class_objects'] == id_interest] = 1.
 
-    # ipdb.set_trace()
-    mask_obj_interest_2[graph_info['class_objects'] == graph_helper.object_dict.get_id('kitchentable')] = 1.
-    
 
-    # ipdb.set_trace()
+    edge_dict = {}
     if not exclusive_edge:
+        mask_obj_interest_2 = torch.zeros(graph_info['mask_object'].shape)
+        mask_obj_interest_2[graph_info['class_objects'] == graph_helper.object_dict.get_id('kitchentable')] = 1.
+    
         # We only care about edges that from is in mask_obj_interest
         edge_interest_from = mask_obj_interest.repeat_interleave(num_nodes, dim=2)
         edge_interest_to = mask_obj_interest_2.repeat(1, 1, num_nodes)
         edge_interest = edge_interest_from * edge_interest_to
     else:
         edge_interest = mask_obj_interest
-
-    edge_dict = {}
-    edge_dict['id_nothing'] = node_ids_none[:, 0, 0]
+        edge_dict['id_nothing'] = node_ids_none[:, 0, 0]
+    
     edge_dict['gt_edges'] = gt_edges
     edge_dict['edge_interest'] = edge_interest
     return edge_dict
@@ -196,7 +201,7 @@ def inference(
 
             inputs['goal_graph'] = goal_graph
 
-            edge_dict = build_gt_edge(graph_info, data_loader.dataset.graph_helper,  exclusive_edge=args.model.exclusive_edge)
+            edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper,  exclusive_edge=args.model.exclusive_edge)
             gt_edges = edge_dict['gt_edges']
             edge_interest = edge_dict['edge_interest']
 
@@ -353,8 +358,8 @@ def inference(
                     predicted_state,
                     mask_edges_orig.cpu(),
                     pred_changes_list,
-                    index,
                     len_mask,
+                    index,
                     samples=args.samples_per_graph if args.inference_sample else None,
                 )
 
@@ -365,8 +370,8 @@ def inference(
                     gt_state.cpu(),
                     mask_edges_orig.cpu(),
                     edge_changes_list,
-                    index,
                     len_mask,
+                    index
                 )
 
                 # print("************************")
@@ -509,7 +514,7 @@ def evaluate(
             goal_graph = build_goal_graph(graph_info, len_mask)
             inputs['goal_graph'] = goal_graph
 
-            edge_dict = build_gt_edge(graph_info, data_loader.dataset.graph_helper,  exclusive_edge=args.model.exclusive_edge)
+            edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper,  exclusive_edge=args.model.exclusive_edge)
             gt_edges = edge_dict['gt_edges']
             edge_interest = edge_dict['edge_interest']
 
@@ -908,7 +913,7 @@ def train_epoch(
         goal_graph = build_goal_graph(graph_info, len_mask)
         inputs['goal_graph'] = goal_graph
 
-        edge_dict = build_gt_edge(graph_info, data_loader.dataset.graph_helper, exclusive_edge=args.model.exclusive_edge)
+        edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper, exclusive_edge=args.model.exclusive_edge)
         gt_edges = edge_dict['gt_edges']
         edge_interest = edge_dict['edge_interest']
 
