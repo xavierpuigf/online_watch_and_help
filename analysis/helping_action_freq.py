@@ -16,12 +16,13 @@ from dataloader.dataloader_v2 import AgentTypeDataset
 from dataloader import dataloader_v2 as dataloader_v2
 from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
-from utils import utils_models_wb
+from utils import utils_models_wb, utils_rl_agent
 
 sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
-#from arguments import get_args
+
+# from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 from utils import utils_goals
 from utils import utils_exception
@@ -39,7 +40,7 @@ def get_class_mode(agent_args):
     return mode_str
 
 
-def get_edge_class(pred, t, source='pred'):
+def get_edge_class0(pred, t, source='pred'):
     # pred_edge_prob = pred['edge_prob']
     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
     pred_edge_names = pred['edge_names']
@@ -81,48 +82,48 @@ def get_edge_class(pred, t, source='pred'):
     return edge_pred_class
 
 
-# def get_edge_class(pred, t, source='pred'):
-#     # pred_edge_prob = pred['edge_prob']
-#     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-#     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-#     pred_edge_names = pred['edge_names']
-#     pred_nodes = pred['nodes']
-#     pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
-#     pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+def get_edge_class(pred, t, source='pred'):
+    # pred_edge_prob = pred['edge_prob']
+    # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
+    pred_edge_names = pred['edge_names']
+    pred_nodes = pred['nodes']
+    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
 
-#     # edge_prob = pred_edge_prob[t]
-#     # edge_pred = np.argmax(edge_prob, 1)
+    # edge_prob = pred_edge_prob[t]
+    # edge_pred = np.argmax(edge_prob, 1)
 
-#     edge_pred_class = {}
+    edge_pred_class = {}
 
-#     num_edges = len(edge_pred)
-#     # print(pred_from_ids[t], num_edges)
-#     for edge_id in range(num_edges):
-#         from_id = pred_from_ids[t][edge_id]
-#         to_id = pred_to_ids[t][edge_id]
-#         from_node_name = pred_nodes[from_id]
-#         to_node_name = pred_nodes[to_id]
-#         # if object_name in from_node_name or object_name in to_node_name:
-#         edge_name = pred_edge_names[edge_pred[edge_id]]
-#         # if edge_name in ['inside', 'on']:  # disregard room locations + plate
-#         # if to_node_name.split('.')[0] in [
-#         #     'kitchen',
-#         #     'livingroom',
-#         #     'bedroom',
-#         #     'bathroom',
-#         #     'plate',
-#         # ]:
-#         #     continue
-#         # if from_node_name.split('.')[0]
-#         edge_class = '()_{}_{}'.format(
-#             edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
-#         )
-#         # print(from_node_name, to_node_name, edge_name)
-#         if edge_class not in edge_pred_class:
-#             edge_pred_class[edge_class] = 1
-#         else:
-#             edge_pred_class[edge_class] += 1
-#     return edge_pred_class
+    num_edges = len(edge_pred)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = pred_from_ids[t][edge_id]
+        to_id = pred_to_ids[t][edge_id]
+        from_node_name = pred_nodes[from_id]
+        to_node_name = pred_nodes[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = pred_edge_names[edge_pred[edge_id]]
+        # if edge_name in ['inside', 'on']:  # disregard room locations + plate
+        # if to_node_name.split('.')[0] in [
+        #     'kitchen',
+        #     'livingroom',
+        #     'bedroom',
+        #     'bathroom',
+        #     'plate',
+        # ]:
+        #     continue
+        # if from_node_name.split('.')[0]
+        edge_class = '()_{}_{}'.format(
+            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+        )
+        # print(from_node_name, to_node_name, edge_name)
+        if edge_class not in edge_pred_class:
+            edge_pred_class[edge_class] = 1
+        else:
+            edge_pred_class[edge_class] += 1
+    return edge_pred_class
 
 
 def aggregate_multiple_pred(preds, t, change=False):
@@ -166,9 +167,7 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
-@hydra.main(
-        config_path="../config/", config_name="config_default_toy_excl_plan"
-)
+@hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
@@ -368,11 +367,15 @@ def main(cfg: DictConfig):
     curr_file = (
         '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah'
     )
-    dataset_test = AgentTypeDataset(
-        path_init='{}/agent_preferences/dataset/{}'.format(
-            curr_file, args_pred['data']['test_data']
-        ),
-        args_config=args_pred,
+    # dataset_test = AgentTypeDataset(
+    #     path_init='{}/agent_preferences/dataset/{}'.format(
+    #         curr_file, args_pred['data']['test_data']
+    #     ),
+    #     args_config=args_pred,
+    # )
+    graph_helper = utils_rl_agent.GraphHelper(
+        max_num_objects=args_pred['model']['max_nodes'],
+        toy_dataset=args_pred['model']['reduced_graph'],
     )
 
     num_episodes = 0
@@ -427,7 +430,7 @@ def main(cfg: DictConfig):
 
         print('init state')
         # ipdb.set_trace()
-        edge_input_class = get_edge_class(pred['pred_graph'][0], 0, 'input')
+        edge_input_class = get_edge_class0(pred['pred_graph'][0], 0, 'input')
         for goal_object in goal_objects:
             for edge_class, count in edge_input_class.items():
                 if goal_object in edge_class:
@@ -478,20 +481,44 @@ def main(cfg: DictConfig):
 
             (curr_obs, reward, done, infos) = arena.step_given_action({0: actions[0]})
             curr_graph = infos['graph']
-            history_obs.append(curr_obs[0])
-            history_graph.append(curr_graph)
 
             success = False
             while steps < max_steps:
                 steps += 1
+
                 # predict goal states
+                assert len(history_graph) == len(history_graph)
+                assert len(history_graph) == len(history_action)
                 inputs_func = utils_models_wb.prepare_graph_for_model(
-                    history_graph, history_obs, history_action, args_pred, dataset_test
+                    history_graph, history_obs, history_action, args_pred, graph_helper
                 )
                 with torch.no_grad():
                     output_func = model(inputs_func)
-                print(output_func.keys())
-                pdb.set_trace()
+
+                edge_dict = utils_models_wb.build_gt_edge(
+                    inputs_func['graph'], graph_helper, exclusive_edge=True
+                )
+                b, t, n = inputs_func['graph']['mask_obs_node'].shape
+                pred_edge = output_func['edges'].reshape([b, t, n, n])
+                graph_result = utils_models_wb.obtain_graph_3(
+                    graph_helper,
+                    inputs_func['graph'],
+                    torch.nn.functional.softmax(pred_edge, dim=-1).cpu().numpy(),
+                    output_func['states'].cpu(),
+                    inputs_func['graph']['mask_obs_node'],
+                    [
+                        torch.nn.functional.softmax(output_func['node_change'], dim=-1)
+                        .cpu()
+                        .numpy(),
+                        torch.nn.functional.one_hot(edge_dict['gt_edges'], n)
+                        .cpu()
+                        .numpy(),
+                    ],
+                    inputs_func['mask_len'],
+                )
+                print(len(graph_result))
+
+                ipdb.set_trace()
 
                 # get main agent's action
                 selected_actions, info = arena.get_actions(
@@ -499,8 +526,9 @@ def main(cfg: DictConfig):
                 )
                 # get helper action
                 action_freq = {}
-                for pred_id, pred_graph in enumerate(pred['pred_graph']):
-                    edge_pred_class = get_edge_class(pred_graph, t)
+                # for pred_id, pred_graph in enumerate(pred['pred_graph']):
+                for pred_id, pred_graph in enumerate(graph_result):
+                    edge_pred_class = get_edge_class(pred_graph, steps)
                     arena.task_goal = {0: edge_pred_class, 1: edge_pred_class}
 
                     # if pred_id == 2:
@@ -533,7 +561,7 @@ def main(cfg: DictConfig):
                         action_freq[action] += 1
 
                 edge_pred_class_estimated = aggregate_multiple_pred(
-                    pred['pred_graph'], t, change=True
+                    pred['pred_graph'], steps, change=True
                 )
                 # for goal_object in goal_objects:
                 print('-------------------------------------')
@@ -557,12 +585,16 @@ def main(cfg: DictConfig):
                 prev_obs = copy.deepcopy(curr_obs)
                 prev_graph = copy.deepcopy(curr_graph)
                 prev_action = selected_actions[0]
+
+                history_obs.append(curr_obs[0])
+                history_graph.append(curr_graph)
+
                 (curr_obs, reward, done, infos) = arena.step_given_action(
                     selected_actions
                 )
                 curr_graph = infos['graph']
-                history_obs.append(curr_obs[0])
-                history_graph.append(curr_graph)
+                # history_obs.append(curr_obs[0])
+                # history_graph.append(curr_graph)
                 history_action.append(selected_actions[0])
 
                 pdb.set_trace()
