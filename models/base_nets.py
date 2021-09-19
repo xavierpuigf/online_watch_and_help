@@ -324,9 +324,8 @@ class TransformerBase(nn.Module):
             inputs['class_objects'].long(),
             inputs['object_coords'],
             inputs['states_objects'],
-        ).squeeze(1)
+            )
         should_reshape = False
-        # ipdb.set_trace()
         if input_node_embedding.ndim > 3:
             should_reshape = True
             dims = list(input_node_embedding.shape)
@@ -363,7 +362,6 @@ class ObjNameCoordStateEncode(nn.Module):
         state_embedding = self.state_embedding(state)
         class_embedding = self.class_embedding(class_ids)
         coord_embedding = self.coord_embedding(coords)
-        # ipdb.set_trace()
         inp = torch.cat([class_embedding, coord_embedding, state_embedding], dim=-1)
 
         return self.combine(inp)

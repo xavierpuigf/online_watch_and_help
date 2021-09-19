@@ -246,7 +246,8 @@ def obtain_graph_3(
     len_mask,
     batch_item=0,
     changed_nodes=None,
-    samples=None
+    samples=None,
+    include_last=True
 ):
     
     # TODO: modify this fro exclusive edge perd
@@ -297,7 +298,9 @@ def obtain_graph_3(
                 ipdb.set_trace()
 
         # We are predicting the next graph, so we sum
-        num_tsteps = int(len_mask[batch_item].sum()) - 1
+        num_tsteps = int(len_mask[batch_item].sum())
+        if include_last:
+            num_tsteps -= 1
         offset = 0
         nedges = len(graph_helper.relation_dict)
         state_names = [(graph_helper.states[it],) for it in range(4)]
@@ -351,7 +354,8 @@ def obtain_graph_3(
             all_edges.append(edge_pred_step_class[None, :])
             all_edges_input.append(edge_input_step_class[None, :])
             all_from.append(from_id[None, :])
-            all_to.append(to_id[None, :])
+            all_to.append(to_id[None, :]
+                    )
             all_from_input.append(from_id_input[None, :])
             all_to_input.append(to_id_input[None, :])
 

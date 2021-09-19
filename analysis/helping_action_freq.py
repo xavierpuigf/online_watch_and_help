@@ -493,6 +493,7 @@ def main(cfg: DictConfig):
                     history_graph, history_obs, history_action, args_pred, graph_helper
                 )
                 with torch.no_grad():
+                    print("FORWARD")
                     output_func = model(inputs_func)
 
                 edge_dict = utils_models_wb.build_gt_edge(
@@ -515,6 +516,7 @@ def main(cfg: DictConfig):
                         .numpy(),
                     ],
                     inputs_func['mask_len'],
+                    include_last=False
                 )
                 print(len(graph_result))
 

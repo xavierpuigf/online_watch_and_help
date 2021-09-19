@@ -442,6 +442,7 @@ class Transformer(nn.Module):
     def forward(self, inputs, mask_nodes):
         if not self.bad_transformer:
             mask_nodes = 1 - mask_nodes
+
         outputs = self.transformer(inputs.transpose(0,1), src_key_padding_mask=mask_nodes.bool())
 
         outputs = outputs.squeeze(0).transpose(0,1)
