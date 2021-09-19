@@ -210,12 +210,13 @@ def prepare_graph_for_model(graphs, observations, program_hist, args_config, gra
         except:
             #print("Index", index, program, it)
             raise Exception
-
-    program_batch['action'].append(args_config.model.max_actions  - 1)
-    program_batch['obj1'].append(-1)
-    program_batch['obj2'].append(-1)
-    program_batch['indobj1'].append(indexgraph2ind[-1])
-    program_batch['indobj2'].append(indexgraph2ind[-1])
+    
+    if False:
+        program_batch['action'].append(args_config.model.max_actions  - 1)
+        program_batch['obj1'].append(-1)
+        program_batch['obj2'].append(-1)
+        program_batch['indobj1'].append(indexgraph2ind[-1])
+        program_batch['indobj2'].append(indexgraph2ind[-1])
 
     # batch program
     for prog_key, prog_val in program_batch.items():

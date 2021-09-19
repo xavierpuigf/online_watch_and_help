@@ -96,15 +96,17 @@ def main(cfg: DictConfig):
     # How to load the data from a graph
     graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args['model']['max_nodes'], 
                                           toy_dataset=args['model']['reduced_graph'])
-    inputs_func = utils_models_wb.prepare_graph_for_model(graphs, observations, program_hist, args, graph_helper)
+    inputs_func = utils_models_wb.prepare_graph_for_model(graphs[:-1], observations[:-1], program_hist, args, graph_helper)
     with torch.no_grad():
         output_func = model(inputs_func)
 
 
 
 
+
     with torch.no_grad():
         output_loader = model(inputs_loader)
+    ipdb.set_trace()
 
     # Compare inputs
     assert inputs_func['mask_len'].sum() == inputs_loader['mask_len'].sum(), "Different mask lengths"
@@ -165,4 +167,4 @@ def main(cfg: DictConfig):
 
 
 if __name__ == '__main__':
-    
+    main()
