@@ -97,7 +97,7 @@ def get_edge_class(pred, t, source='pred'):
     edge_pred_class = {}
 
     num_edges = len(edge_pred)
-    print(pred_from_ids[t], num_edges)
+    # print(pred_from_ids[t], num_edges)
     for edge_id in range(num_edges):
         from_id = pred_from_ids[t][edge_id]
         to_id = pred_to_ids[t][edge_id]
@@ -116,6 +116,8 @@ def get_edge_class(pred, t, source='pred'):
                 'plate',
             ]:
                 continue
+        else:
+            continue
         # if from_node_name.split('.')[0]
 
         # # TODO: need to infer the correct edge class
@@ -227,7 +229,7 @@ def main(cfg: DictConfig):
         'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
     }
     # TODO: add num_samples to the argument
-    num_samples = 1
+    num_samples = 20
     args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
@@ -341,11 +343,11 @@ def main(cfg: DictConfig):
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(0)):
+        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
             test_results = {}
         else:
             test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(0), 'rb')
+                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
             )
 
         logger = logging.getLogger()
@@ -585,7 +587,7 @@ def main(cfg: DictConfig):
                             selected_actions[1] = action
                         print(action, max_freq)
                     print('selected_actions:', selected_actions)
-                    
+
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
                     prev_action = selected_actions[0]
@@ -598,8 +600,8 @@ def main(cfg: DictConfig):
                     # history_graph.append(curr_graph)
                     history_action.append(selected_actions[0])
 
-                    # pdb.set_trace()
                     print('success:', infos['finished'])
+                    # pdb.set_trace()
                     if infos['finished']:
                         success = True
                         break
@@ -615,11 +617,11 @@ def main(cfg: DictConfig):
                 is_finished = 1 if success else 0
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                if len(saved_info['obs']) > 0:
-                    pickle.dump(saved_info, open(log_file_name, 'wb'))
-                else:
-                    with open(log_file_name, 'w+') as f:
-                        f.write(json.dumps(saved_info, indent=4))
+                # if len(saved_info['obs']) > 0:
+                #     pickle.dump(saved_info, open(log_file_name, 'wb'))
+                # else:
+                #     with open(log_file_name, 'w+') as f:
+                #         f.write(json.dumps(saved_info, indent=4))
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
@@ -668,10 +670,13 @@ def main(cfg: DictConfig):
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
             test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
-            pdb.set_trace()
+            # pdb.set_trace()
+
+        print(test_results)
 
         pickle.dump(
-            test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb')
+            test_results,
+            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
         )
         print(
             'average steps (finishing the tasks):',
@@ -679,7 +684,8 @@ def main(cfg: DictConfig):
         )
         print('failed_tasks:', failed_tasks)
         pickle.dump(
-            test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb')
+            test_results,
+            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
         )
 
 
