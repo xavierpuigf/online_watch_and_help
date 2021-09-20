@@ -105,17 +105,20 @@ def get_edge_class(pred, t, source='pred'):
         to_node_name = pred_nodes[to_id]
         # if object_name in from_node_name or object_name in to_node_name:
         edge_name = pred_edge_names[edge_pred[edge_id]]
-        # if edge_name in ['inside', 'on']:  # disregard room locations + plate
-        # if to_node_name.split('.')[0] in [
-        #     'kitchen',
-        #     'livingroom',
-        #     'bedroom',
-        #     'bathroom',
-        #     'plate',
-        # ]:
-        #     continue
+        if to_node_name.split('.')[1] == '-1':
+            continue
+        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+            if to_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
+            ]:
+                continue
         # if from_node_name.split('.')[0]
-        edge_class = '()_{}_{}'.format(
+
+        edge_class = '{}_{}_{}'.format(
             edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
         )
         # print(from_node_name, to_node_name, edge_name)
@@ -428,17 +431,17 @@ def main(cfg: DictConfig):
                 history_obs = []
                 history_graph = []
                 history_action = []
-                actions, info = arena.get_actions(
+                actions, curr_info = arena.get_actions(
                     obs, length_plan=10, must_replan=[True], agent_id=0
                 )
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
                 prev_graph = infos['graph']
-                history_obs.append(prev_obs[0])
+                history_obs.append([node['id'] for node in curr_info[0]['obs']])
                 history_graph.append(prev_graph)
 
-                actions, info = arena.get_actions(
+                actions, curr_info = arena.get_actions(
                     prev_obs, length_plan=10, must_replan=[True], agent_id=0
                 )
                 prev_action = actions[0]
@@ -452,6 +455,7 @@ def main(cfg: DictConfig):
                 success = False
                 while steps < max_steps:
                     steps += 1
+
                     # predict goal states
                     assert len(history_graph) == len(history_obs)
                     assert len(history_graph) == len(history_action)
@@ -462,6 +466,8 @@ def main(cfg: DictConfig):
                         args_pred,
                         graph_helper,
                     )
+                    history_obs.append([node['id'] for node in curr_info[0]['obs']])
+                    history_graph.append(curr_graph)
                     with torch.no_grad():
                         print("FORWARD")
                         output_func = model(inputs_func)
@@ -496,7 +502,7 @@ def main(cfg: DictConfig):
 
                     # get main agent's action
                     # arena.task_goal = None
-                    selected_actions, info = arena.get_actions(
+                    selected_actions, curr_info = arena.get_actions(
                         curr_obs, length_plan=10, must_replan={0: True}, agent_id=0
                     )
                     # get helper action
@@ -572,9 +578,6 @@ def main(cfg: DictConfig):
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
                     prev_action = selected_actions[0]
-
-                    history_obs.append(curr_obs[0])
-                    history_graph.append(curr_graph)
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
