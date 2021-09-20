@@ -818,7 +818,9 @@ class MCTS_agent_particle_v2:
 
         self.agent_id = agent_id
         self.char_index = char_index
-        self.sim_env = VhGraphEnv()
+
+
+        self.sim_env = VhGraphEnv(n_chars=self.agent_id)
         self.sim_env.pomdp = True
         self.belief = None
 
@@ -1130,13 +1132,13 @@ class MCTS_agent_particle_v2:
             }
             if self.get_plan_states:
                 plan_states = []
-                env = VhGraphEnv()
+                env = self.sim_env
                 env.pomdp = True
                 particle_id = 0
                 vh_state = self.particles[particle_id][0]
                 plan_states.append(vh_state.to_dict())
                 for action_item in plan:
-                    success, vh_state = env.transition(vh_state, {0: action_item})
+                    success, vh_state = env.transition(vh_state, {self.char_index: action_item})
                     plan_states.append(vh_state.to_dict())
                 info['plan_states'] = plan_states
             if self.logging_graphs:

@@ -239,8 +239,11 @@ class VhGraphEnv():
                     observable_object_ids = [node['id'] for node in observable_nodes]
                     assert self._is_action_valid_sim(scripts.get(i), observable_object_ids)
                 
+        next_vh_state = None
         for i in range(self.n_chars):
             script_string = scripts.get(i, "")
+            if len(script_string) == 0:
+                continue
             script = read_script_from_string(script_string)
             touched_objs = vh_state.touched_objs
             if '[touch]' in script_string:
@@ -250,11 +253,18 @@ class VhGraphEnv():
                 obj_id = script.obtain_objects()[0][1]
                 next_vh_state.touch_object(obj_id)
             else:
-                succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
+                try:
+                    succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
+                except:
+                    ipdb.set_trace()
+                if not succeed:
+                    ipdb.set_trace()
                 next_vh_state = init_from_state(next_vh_state, touched_objs)
             if not succeed:
                 return False, next_vh_state
 
+        if next_vh_state is None:
+            ipdb.set_trace()
         # state = next_vh_state.to_dict() 
         return True, next_vh_state
 

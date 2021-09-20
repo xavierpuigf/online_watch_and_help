@@ -80,7 +80,7 @@ class MCTS_particles_v2:
         return count
         
     def run(self, curr_root, t, heuristic_dict, plan, opponent_subgoal):
-        self.env = VhGraphEnv()
+        self.env = VhGraphEnv(n_chars=self.char_index + 1)
         self.env.pomdp = True
         self.env.reset(copy.deepcopy(self.gt_graph))
 
@@ -391,14 +391,14 @@ class MCTS_particles_v2:
                 
                 action_str = self.get_action_str(action)
                 try:
-                    success, next_vh_state, next_vh_state_dict, cost, curr_reward = self.transition(curr_vh_state, {0: action_str}, goal_spec)
+                    success, next_vh_state, next_vh_state_dict, cost, curr_reward = self.transition(curr_vh_state, {self.char_index: action_str}, goal_spec)
                 except:
                     raise Exception
                     #traceback.print_exc() 
                     #ipdb.set_trace()
                 
                 if not success:
-                    # ipdb.set_trace()
+                    ipdb.set_trace()
                     print("Failure in transition")
                     raise Exception
                     #ipdb.set_trace()
@@ -439,9 +439,9 @@ class MCTS_particles_v2:
 
     def transition(self, curr_vh_state, action, goal_spec):
         cost = 0.
-        # graph = curr_vh_state.to_dict()
-        # id2node = {node['id']: node for node in graph['nodes']}
-        if 'walk' in action[0]:
+        # TODO: this assumes a single action in transition, no joint planner
+        action_index = list(action.keys())[0]
+        if 'walk' in action[action_index]:
 
             # measure distance, only between rooms
             objects_close = list(curr_vh_state.get_node_ids_from(1, Relation.CLOSE))
@@ -453,7 +453,7 @@ class MCTS_particles_v2:
                 current_objects = objects_close_in_room
 
 
-            action_object_id = int(action[0].split('(')[1].split(')')[0])
+            action_object_id = int(action[action_index].split('(')[1].split(')')[0])
 
 
             # if the destionation is a room
@@ -491,16 +491,16 @@ class MCTS_particles_v2:
             cost_mult = self.agent_params['walk_cost']
             cost = cost_mult * distance
             
-        elif 'open' in action[0]:
+        elif 'open' in action[action_index]:
             cost = self.agent_params['open_cost']
-        elif 'grab' in action[0]:
+        elif 'grab' in action[action_index]:
             cost = 0.05
-        elif 'put' in action[0]:
+        elif 'put' in action[action_index]:
             cost = 0.05
-        elif 'touch' in action[0]:
+        elif 'touch' in action[action_index]:
             cost = 0.05
         else:
-            print(colored("missing action {}".format(action[0]), "red"))
+            print(colored("missing action {}".format(action[action_index]), "red"))
         # vdict = curr_vh_state.to_dict()
         # print("HANDS", [edge for edge in vdict['edges'] if 'HOLD' in edge['relation_type']])
         success, next_vh_state = self.env.transition(curr_vh_state, action)
@@ -592,7 +592,7 @@ class MCTS_particles_v2:
             # print("New action", actions)
             next_vh_state = copy.deepcopy(next_vh_state)
 
-            success, next_vh_state, next_state_dict, cost, reward = self.transition(next_vh_state, {0: actions}, goal_spec)
+            success, next_vh_state, next_state_dict, cost, reward = self.transition(next_vh_state, {self.char_index: actions}, goal_spec)
             # if 'put' in actions:
             #      print("CLOSE:", [edge for edge in next_state_dict['edges'] if edge['to_id'] == 232 and edge['from_id'] == 1])
             if not success:
