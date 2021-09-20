@@ -199,7 +199,7 @@ class Task:
         for k, v in init_goal_manager.goal_random_agent.items():
 
 
-            num_obj = init_goal_manager.rand.randint(v, init_goal_managerinit_pool_tasks['noise'][k]['env_max_num'] + 1)  # random select objects >= goal
+            num_obj = init_goal_manager.rand.randint(v, init_goal_manager.init_pool_tasks['noise'][k]['env_max_num'] + 1)  # random select objects >= goal
             init_goal_manager.object_id_count, graph, success = init_goal_manager.add_obj(graph, k, num_obj, init_goal_manager.object_id_count,
                                                                 objs_in_room=objs_in_room, except_position=except_position_ids,
                                                                 goal_obj=True)
