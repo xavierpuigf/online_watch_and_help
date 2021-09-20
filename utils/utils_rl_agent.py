@@ -125,7 +125,8 @@ class GraphHelper():
             obj1_id = int(obj1)
             obj2_id = int(obj2)
         except:
-            print("Error getting action {}".format(action_str))
+            print("Error getting action {}, {}".format(action_str, action))
+            ipdb.set_trace()
             raise Exception
         return action_id, obj1_id, obj2_id
 

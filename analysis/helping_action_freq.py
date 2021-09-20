@@ -522,7 +522,7 @@ def main(cfg: DictConfig):
                     for pred_id, pred_graph in enumerate(graph_result):
                         edge_pred_class = get_edge_class(pred_graph, steps - 3)
                         print('pred {}:'.format(pred_id), edge_pred_class)
-                        ipdb.set_trace()
+                        # ipdb.set_trace()
                         if (
                             len(edge_pred_class) > 0
                         ):  # if no edge prediction then None action
@@ -585,6 +585,7 @@ def main(cfg: DictConfig):
                             selected_actions[1] = action
                         print(action, max_freq)
                     print('selected_actions:', selected_actions)
+                    
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
                     prev_action = selected_actions[0]
@@ -597,7 +598,7 @@ def main(cfg: DictConfig):
                     # history_graph.append(curr_graph)
                     history_action.append(selected_actions[0])
 
-                    pdb.set_trace()
+                    # pdb.set_trace()
                     print('success:', infos['finished'])
                     if infos['finished']:
                         success = True

@@ -267,6 +267,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
         > 0
     ):
         # Object has been placed
+        # ipdb.set_trace()
         return [], []
 
     if (
@@ -282,6 +283,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
         > 0
     ):
         # Object has been placed
+        # ipdb.set_trace()
         return [], []
 
     target_node = [node for node in env_graph['nodes'] if node['id'] == target_grab][0]
@@ -760,6 +762,9 @@ def get_plan(
     next_root = None
 
     # ipdb.set_trace()
+    # print('plan', plan)
+    # if 'put' in plan[0]:
+    #     ipdb.set_trace()
     if verbose:
         print('plan', plan)
         print('subgoal', subgoals)
@@ -1130,8 +1135,8 @@ class MCTS_agent_particle_v2:
                 particle_id = 0
                 vh_state = self.particles[particle_id][0]
                 plan_states.append(vh_state.to_dict())
-                for action in plan:
-                    success, vh_state = env.transition(vh_state, {0: action})
+                for action_item in plan:
+                    success, vh_state = env.transition(vh_state, {0: action_item})
                     plan_states.append(vh_state.to_dict())
                 info['plan_states'] = plan_states
             if self.logging_graphs:
@@ -1146,7 +1151,7 @@ class MCTS_agent_particle_v2:
         # print(action)
         time2 = time.time()
         # print("Time: ", time2 - time1)
-        print("Replanning... ", should_replan)
+        print("Replanning... ", should_replan or must_replan)
         return action, info
 
     def reset(

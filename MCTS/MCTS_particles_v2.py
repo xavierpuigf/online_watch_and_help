@@ -309,7 +309,7 @@ class MCTS_particles_v2:
                 
 
             # If you have an object grabbed already reduce the subgoal space search and add the object you already had
-            hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+            hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id]
 
             unsatisfied_aux = unsatisfied.copy()
             subgoals_hand = []
@@ -763,7 +763,7 @@ class MCTS_particles_v2:
 
         # If you have an object grabbed already reduce the subgoal space search and add the object you already had
         curr_state = state
-        hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type']]
+        hands_busy = [edge['to_id'] for edge in curr_state['edges'] if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id]
 
         unsatisfied_aux = unsatisfied.copy()
         subgoals_hand = []
@@ -795,7 +795,6 @@ class MCTS_particles_v2:
         current_action = node.id[-1][-1]
 
 
-        hands_busy = [edge['to_id'] for edge in state_particle[1]['edges'] if 'HOLD' in edge['relation_type']]
         
         if len(hands_busy) == 2:
             subgoals = [subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy]
@@ -805,6 +804,9 @@ class MCTS_particles_v2:
             goal, predicate, aug_predicate = goal_predicate[0], goal_predicate[1], goal_predicate[2] # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
             action_heuristic,  _ = heuristic(self.agent_id, self.char_index, unsatisfied, state, self.env, goal)
+            if len(action_heuristic) == 0:
+                # Maybe the other agent is grabbing the object
+                continue
             act_all.append((action_heuristic, goal))
 
             # TODO(xavier): this crashes sometimes!! Check what is happening
@@ -814,6 +816,7 @@ class MCTS_particles_v2:
             except:
                 if self.add_bp:
                     ipdb.set_trace()
+                ipdb.set_trace()
                 raise Exception
             if self.get_action_str(action_heuristic[0]) not in actions_heuristic:
                 actions_heuristic.append(self.get_action_str(action_heuristic[0]))
@@ -825,9 +828,11 @@ class MCTS_particles_v2:
         #             print(aux_node.id[1][-1])
         #             aux_node = aux_node.parent
                 # ipdb.set_trace()
+
         if len(actions_heuristic) == 0 and node.id[0] is None:
-            print("Error, no actions found", subgoals)
-            raise Exception
+            print("No actions found", subgoals)
+            return node, []
+            # raise Exception
 
         # if node.id[1][-1] == '[open] <fridge> (306)' and len(hands_busy) == 1:
         #     ipdb.set_trace()

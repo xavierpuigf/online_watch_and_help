@@ -57,6 +57,8 @@ CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl.py name_log=pred_las
 export ckpt_excl="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.001-bs.32-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True/"
 
 
+export ckpt_excl="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_pred_30step_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.32-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True_goodaction/"
+
 CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred.py inference=True inference_sample=False model.predict_node_change=True ckpt_load=$ckpt_node"/490.pt"
 
 
