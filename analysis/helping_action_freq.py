@@ -118,9 +118,10 @@ def get_edge_class(pred, t, source='pred'):
                 continue
         # if from_node_name.split('.')[0]
 
-        # TODO: need to infer the correct edge class
-        if 'table' in to_node_name.split('.')[0]:
-            edge_name = 'on'
+        # # TODO: need to infer the correct edge class
+        # if 'table' in to_node_name.split('.')[0]:
+        #     ipdb.set_trace()
+        #     edge_name = 'on'
 
         edge_class = '{}_{}_{}'.format(
             edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]

@@ -422,7 +422,8 @@ def obtain_class_edge(from_id, to_id, obj_names, obj_dict, relation_dict):
     }
     relations = []
     for index in list(to_id):
-        obj_name = obj_names[index]
+        obj_name = obj_names[index].split('.')[0]
+
         obj_class_name = obj_name.split('.')[0]
         if obj_name in info_objects['objects_inside']:
             relation =  relation_dict.get_id('inside')
