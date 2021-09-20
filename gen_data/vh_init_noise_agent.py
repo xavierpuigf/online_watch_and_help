@@ -109,7 +109,10 @@ if __name__ == "__main__":
             # pdb.set_trace()bathroomcounter
 
             # filtering out certain locations
-            for obj, pos_list in obj_position.items():
+            old_obj_position = copy.deepcopy(obj_position)
+            for obj, pos_list in old_obj_position.items():
+                positions = [pos for pos in pos_list if pos[1] != 'kitchencounter']
+                pos_list = positions
                 if obj in ['book', 'remotecontrol']:
                     positions = [pos for pos in pos_list if \
                                  pos[0] == 'INSIDE' and pos[1] in ['kitchencabinet', 'cabinet'] or \
@@ -126,6 +129,7 @@ if __name__ == "__main__":
                                  pos[0] == 'ON' and pos[1] in \
                                  (['cabinet', 'coffeetable', 'bench', 'kitchencounter', 'sofa'] + ['kitchentable'])]
                 obj_position[obj] = positions
+            
 
             num_test = 100000
             count_success = 0
