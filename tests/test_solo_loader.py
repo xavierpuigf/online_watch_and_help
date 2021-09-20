@@ -96,7 +96,11 @@ def main(cfg: DictConfig):
     # How to load the data from a graph
     graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args['model']['max_nodes'], 
                                           toy_dataset=args['model']['reduced_graph'])
-    inputs_func = utils_models_wb.prepare_graph_for_model(graphs[:-1], observations[:-1], program_hist, args, graph_helper)
+    inputs_func = utils_models_wb.prepare_graph_for_model(graphs[:2], observations[:2], program_hist[:2], args, graph_helper)
+    with torch.no_grad():
+        output_func = model(inputs_func)
+
+    inputs_func = utils_models_wb.prepare_graph_for_model(graphs[:1], observations[:1], program_hist[:1], args, graph_helper)
     with torch.no_grad():
         output_func = model(inputs_func)
 
@@ -106,42 +110,42 @@ def main(cfg: DictConfig):
 
     with torch.no_grad():
         output_loader = model(inputs_loader)
-    ipdb.set_trace()
 
     # Compare inputs
-    assert inputs_func['mask_len'].sum() == inputs_loader['mask_len'].sum(), "Different mask lengths"
     mask_len = int(inputs_loader['mask_len'].sum().item())
     # print(mask_len)
+    if False:
+        assert inputs_func['mask_len'].sum() == inputs_loader['mask_len'].sum(), "Different mask lengths"
 
-    for content in ['program', 'graph']:
-        inp_loader = inputs_loader[content]
-        inp_func = inputs_func[content]
-        for key_elem in inp_func.keys():
+        for content in ['program', 'graph']:
+            inp_loader = inputs_loader[content]
+            inp_func = inputs_func[content]
+            for key_elem in inp_func.keys():
 
-            val_loader = inp_loader[key_elem][0,:mask_len]
-            val_func = inp_func[key_elem][0,:mask_len]
+                val_loader = inp_loader[key_elem][0,:mask_len]
+                val_func = inp_func[key_elem][0,:mask_len]
 
-            # print("\n", key_elem,  inp_loader[key_elem].shape, inp_func[key_elem].shape)
-            assert np.all(np.array(val_loader.shape) == np.array(val_func.shape)), f"Shapes from {key_elem} differ"
-            assert np.all(val_loader.numpy() == val_func.numpy()), f"Values from {key_elem} differ"
-            print(key_elem, np.all(val_loader.numpy() == val_func.numpy()), val_loader.shape, val_func.shape)
-            # print('\n')
+                # print("\n", key_elem,  inp_loader[key_elem].shape, inp_func[key_elem].shape)
+                assert np.all(np.array(val_loader.shape) == np.array(val_func.shape)), f"Shapes from {key_elem} differ"
+                assert np.all(val_loader.numpy() == val_func.numpy()), f"Values from {key_elem} differ"
+                print(key_elem, np.all(val_loader.numpy() == val_func.numpy()), val_loader.shape, val_func.shape)
+                # print('\n')
 
-    print('\n#############')
-    print('Compare Results')
-    # Compare outputs
-    for key in output_func.keys():
-        print(key, output_func[key].shape, output_loader[key].shape)
-        # print(key, output_loader[key].shape)
-        val_loader = output_loader[key][0,:mask_len]
-        val_func = output_func[key][0,:mask_len]
-        try:
-            assert np.max(np.abs(val_loader.numpy() - val_func.numpy())) < 0.01, f"values from {key} differ"
-        except:
-            ipdb.set_trace()
+        print('\n#############')
+        print('Compare Results')
+        # Compare outputs
+        for key in output_func.keys():
+            print(key, output_func[key].shape, output_loader[key].shape)
+            # print(key, output_loader[key].shape)
+            val_loader = output_loader[key][0,:mask_len]
+            val_func = output_func[key][0,:mask_len]
+            try:
+                assert np.max(np.abs(val_loader.numpy() - val_func.numpy())) < 0.01, f"values from {key} differ"
+            except:
+                ipdb.set_trace()
 
 
-    print("DONE")
+        print("DONE")
 
     
     # Obtain the graph in a nice format
@@ -159,7 +163,8 @@ def main(cfg: DictConfig):
             nn.functional.softmax(output_func['node_change'], dim=-1).cpu().numpy(),
             torch.nn.functional.one_hot(edge_dict['gt_edges'], n).cpu().numpy(),
         ],
-        inputs_func['mask_len']
+        inputs_func['mask_len'],
+        include_last=False
 
     )
     ipdb.set_trace()

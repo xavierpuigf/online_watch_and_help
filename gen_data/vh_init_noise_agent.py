@@ -262,13 +262,19 @@ if __name__ == "__main__":
 
         goals = utils_goals.convert_goal_spec(task_name, goal, init_graph,
                                               exclude=['cutleryknife'])
+
+        goal_noise = problem_setup['goal']['noise']
+
+        goals_noise = utils_goals.convert_goal_spec('noise', goal_noise, init_graph,
+                                              exclude=['cutleryknife'])
         print('env_id:', env_id)
         print('task_name:', task_name)
         print('goals:', goals)
 
         task_goal = {}
-        for i in range(2):
-            task_goal[i] = goals
+        task_goal[0] = goals
+        task_goal[1] = goals_noise
+
 
         env_task_set.append({'task_id': task_id, 'task_name': task_name, 'env_id': env_id, 'init_graph': init_graph,
                              'task_goal': task_goal,
