@@ -26,6 +26,7 @@ train:
         loss_weighted_edge: False
 test:
         num_iters: 20
+        num_samples: 1
 model:
         exclusive_edge: False # Whether to predict edges or container relations
         predict_last: True

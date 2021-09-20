@@ -71,6 +71,7 @@ class ArenaMP(object):
         length_plan=5,
         must_replan=None,
         agent_id=None,
+        inferred_goal=None,
     ):
         # ipdb.set_trace()
         dict_actions, dict_info = {}, {}
@@ -80,15 +81,18 @@ class ArenaMP(object):
         for it, agent in enumerate(self.agents):
             if agent_id is not None and it != agent_id:
                 continue
-            if self.task_goal is None:
-                goal_spec = self.env.get_goal(
-                    self.env.task_goal[it], self.env.agent_goals[it]
-                )
+            if inferred_goal is None:
+                if self.task_goal is None:
+                    goal_spec = self.env.get_goal(
+                        self.env.task_goal[it], self.env.agent_goals[it]
+                    )
 
+                else:
+                    goal_spec = self.env.get_goal(
+                        self.task_goal[it], self.env.agent_goals[it]
+                    )
             else:
-                goal_spec = self.env.get_goal(
-                    self.task_goal[it], self.env.agent_goals[it]
-                )
+                goal_spec = self.env.get_goal(inferred_goal, self.env.agent_goals[it])
             # ipdb.set_trace()
             if agent.agent_type in ['MCTS', 'Random']:
                 opponent_subgoal = None

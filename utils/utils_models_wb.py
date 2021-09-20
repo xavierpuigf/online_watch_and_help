@@ -310,7 +310,7 @@ def obtain_graph_3(
 
         all_edges, all_from, all_to, all_edges_input, all_from_input, all_to_input = [], [], [], [], [], []
         object_states = state_prob[batch_item, :num_tsteps].numpy()
-        print(num_tsteps)
+        # print(num_tsteps)
         for step in range(num_tsteps):
             result = {}
             mask_object = int(graph['mask_object'][batch_item, step + offset].sum())
