@@ -219,7 +219,7 @@ def main(cfg: DictConfig):
         'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
     }
     # TODO: add num_samples to the argument
-    num_samples = 20
+    num_samples = 1
     args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
@@ -453,7 +453,7 @@ def main(cfg: DictConfig):
                 while steps < max_steps:
                     steps += 1
                     # predict goal states
-                    assert len(history_graph) == len(history_graph)
+                    assert len(history_graph) == len(history_obs)
                     assert len(history_graph) == len(history_action)
                     inputs_func = utils_models_wb.prepare_graph_for_model(
                         history_graph,
@@ -506,7 +506,9 @@ def main(cfg: DictConfig):
                         edge_pred_class = get_edge_class(pred_graph, steps - 2)
                         print('pred {}:'.format(pred_id), edge_pred_class)
                         ipdb.set_trace()
-                        if len(edge_pred_class) > 0:
+                        if (
+                            len(edge_pred_class) > 0
+                        ):  # if no edge prediction then None action
                             # arena.task_goal = {0: edge_pred_class, 1: edge_pred_class}
 
                             # if pred_id == 2:
@@ -546,7 +548,7 @@ def main(cfg: DictConfig):
                                 action_freq[action] += 1
 
                     edge_pred_class_estimated = aggregate_multiple_pred(
-                        pred['pred_graph'], steps, change=True
+                        graph_result, steps - 2, change=True
                     )
                     # for goal_object in goal_objects:
                     print('-------------------------------------')
@@ -558,15 +560,15 @@ def main(cfg: DictConfig):
                             continue
                         print(edge_class, edge_pred_class_estimated[edge_class])
                     print('action freq:')
-                    N_preds = len(pred['pred_graph'])
+                    N_preds = num_samples
                     max_freq = 0
                     for action, count in action_freq.items():
                         curr_freq = count / N_preds
                         if curr_freq > max_freq:
                             max_freq = curr_freq
-                            select_actions[1] = action
+                            selected_actions[1] = action
                         print(action, max_freq)
-                    print('selected_actions:', select_actions)
+                    print('selected_actions:', selected_actions)
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
                     prev_action = selected_actions[0]
