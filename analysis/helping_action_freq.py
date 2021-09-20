@@ -118,6 +118,10 @@ def get_edge_class(pred, t, source='pred'):
                 continue
         # if from_node_name.split('.')[0]
 
+        # TODO: need to infer the correct edge class
+        if 'table' in to_node_name.split('.')[0]:
+            edge_name = 'on'
+
         edge_class = '{}_{}_{}'.format(
             edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
         )
@@ -427,22 +431,20 @@ def main(cfg: DictConfig):
                 #     or edge['to_id'] == 351
                 # )
                 # for t, action in enumerate(actions):
-                steps = 1
+                steps = 2
                 history_obs = []
                 history_graph = []
                 history_action = []
                 actions, curr_info = arena.get_actions(
-                    obs, length_plan=10, must_replan=[True], agent_id=0
+                    obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
                 )
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
                 prev_graph = infos['graph']
-                history_obs.append([node['id'] for node in curr_info[0]['obs']])
-                history_graph.append(prev_graph)
 
                 actions, curr_info = arena.get_actions(
-                    prev_obs, length_plan=10, must_replan=[True], agent_id=0
+                    prev_obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
                 )
                 prev_action = actions[0]
                 history_action.append(prev_action)
@@ -452,11 +454,16 @@ def main(cfg: DictConfig):
                 )
                 curr_graph = infos['graph']
 
+                # history_obs.append([node['id'] for node in curr_info[0]['obs']])
+                # history_graph.append(prev_graph)
+
                 success = False
                 while steps < max_steps:
                     steps += 1
 
                     # predict goal states
+                    history_obs.append([node['id'] for node in curr_info[0]['obs']])
+                    history_graph.append(prev_graph)
                     assert len(history_graph) == len(history_obs)
                     assert len(history_graph) == len(history_action)
                     inputs_func = utils_models_wb.prepare_graph_for_model(
@@ -466,8 +473,6 @@ def main(cfg: DictConfig):
                         args_pred,
                         graph_helper,
                     )
-                    history_obs.append([node['id'] for node in curr_info[0]['obs']])
-                    history_graph.append(curr_graph)
                     with torch.no_grad():
                         print("FORWARD")
                         output_func = model(inputs_func)
@@ -502,14 +507,19 @@ def main(cfg: DictConfig):
 
                     # get main agent's action
                     # arena.task_goal = None
+                    print('planning for the main agent')
                     selected_actions, curr_info = arena.get_actions(
-                        curr_obs, length_plan=10, must_replan={0: True}, agent_id=0
+                        curr_obs,
+                        length_plan=10,
+                        must_replan={0: True, 1: True},
+                        agent_id=0,
                     )
                     # get helper action
+                    print('planning for the helper agent')
                     action_freq = {}
                     # for pred_id, pred_graph in enumerate(pred['pred_graph']):
                     for pred_id, pred_graph in enumerate(graph_result):
-                        edge_pred_class = get_edge_class(pred_graph, steps - 2)
+                        edge_pred_class = get_edge_class(pred_graph, steps - 3)
                         print('pred {}:'.format(pred_id), edge_pred_class)
                         ipdb.set_trace()
                         if (
@@ -524,16 +534,16 @@ def main(cfg: DictConfig):
                             actions, info = arena.get_actions(
                                 curr_obs,
                                 length_plan=10,
-                                must_replan={1: True},
+                                must_replan={0: True, 1: True},
                                 agent_id=1,
                                 inferred_goal=edge_pred_class,
                             )
                             # print('actions:', actions)
                             print('pred {}:'.format(pred_id), edge_pred_class)
-                            print('plan {}:'.format(pred_id), info[0]['plan'])
+                            print('plan {}:'.format(pred_id), info[1]['plan'])
 
                             # Here you can get the intermediate states
-                            plan_states = info[0]['plan_states']
+                            plan_states = info[1]['plan_states']
                             # ipdb.set_trace()
                             # if pred_id == 2:
                             #     ipdb.set_trace()
@@ -543,7 +553,6 @@ def main(cfg: DictConfig):
                             #         action_freq[action] = 1
                             #     else:
                             #         action_freq[action] += 1
-
                             action = actions[1]
                         else:
                             action = None
@@ -554,7 +563,7 @@ def main(cfg: DictConfig):
                                 action_freq[action] += 1
 
                     edge_pred_class_estimated = aggregate_multiple_pred(
-                        graph_result, steps - 2, change=True
+                        graph_result, steps - 3, change=True
                     )
                     # for goal_object in goal_objects:
                     print('-------------------------------------')
