@@ -10,3 +10,5 @@ mode: ""
 record_dir: ""
 base_port: 8080
 use_editor: False
+num_processes: 10
+num_samples: 10

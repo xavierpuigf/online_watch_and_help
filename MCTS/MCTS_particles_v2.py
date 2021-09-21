@@ -490,7 +490,7 @@ class MCTS_particles_v2:
                     # ipdb.set_trace()
 
                 if not success:
-                    ipdb.set_trace()
+                    # ipdb.set_trace()
                     print("Failure in transition")
                     raise Exception
                     # ipdb.set_trace()

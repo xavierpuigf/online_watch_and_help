@@ -11,6 +11,7 @@ import numpy as np
 import pdb
 import ipdb
 import hydra
+import multiprocessing as mp
 from omegaconf import DictConfig, OmegaConf
 from dataloader.dataloader_v2 import AgentTypeDataset
 from dataloader import dataloader_v2 as dataloader_v2
@@ -118,6 +119,14 @@ def get_edge_class(pred, t, source='pred'):
                 continue
         else:
             continue
+        if from_node_name.split('.')[0] not in [
+            'apple',
+            'cupcake',
+            'plate',
+            'waterglass',
+        ]:
+            continue
+
         # if from_node_name.split('.')[0]
 
         # # TODO: need to infer the correct edge class
@@ -177,6 +186,39 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
+def get_helping_plan(
+    process_id,
+    pred_graph,
+    t,
+    get_actions_fn,
+    obs,
+    length_plan,
+    must_replan,
+    agent_id,
+    res,
+):
+    edge_pred_class = get_edge_class(pred_graph, t)
+    print('pred {}:'.format(process_id), edge_pred_class)
+    if len(edge_pred_class) > 0:  # if no edge prediction then None action
+        actions, info = get_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=agent_id,
+            inferred_goal=edge_pred_class,
+        )
+        # print('actions:', actions)
+        print('pred {}:'.format(process_id), edge_pred_class)
+        print('plan {}:'.format(process_id), info[1]['plan'])
+
+        # Here you can get the intermediate states
+        plan_states = info[1]['plan_states']
+        action = actions[1]
+    else:
+        action = None
+    res[process_id] = action
+
+
 @hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
@@ -229,7 +271,8 @@ def main(cfg: DictConfig):
         'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
     }
     # TODO: add num_samples to the argument
-    num_samples = 20
+    num_samples = args.num_samples
+    num_processes = args.num_processes
     args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
@@ -335,20 +378,21 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    for iter_id in range(1, num_tries):
+    for iter_id in range(num_tries):
         # if iter_id > 0:
-        iter_id = 1
+        # iter_id = 1
 
         cnt = 0
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
-            test_results = {}
-        else:
-            test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
-            )
+        test_results = {}
+        # if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
+        #     test_results = {}
+        # else:
+        #     test_results = pickle.load(
+        #         open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
+        #     )
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -438,6 +482,25 @@ def main(cfg: DictConfig):
                 history_obs = []
                 history_graph = []
                 history_action = []
+
+                saved_info = {
+                    'task_id': arena.env.task_id,
+                    'env_id': arena.env.env_id,
+                    'task_name': arena.env.task_name,
+                    'gt_goals': arena.env.task_goal[0],
+                    'goals': arena.task_goal,
+                    'action': {0: [], 1: []},
+                    'plan': {0: [], 1: []},
+                    'finished': None,
+                    'init_unity_graph': arena.env.init_graph,
+                    'goals_finished': [],
+                    'belief': {0: [], 1: []},
+                    'belief_room': {0: [], 1: []},
+                    'belief_graph': {0: [], 1: []},
+                    'graph': [arena.env.init_unity_graph],
+                    'obs': [],
+                }
+
                 actions, curr_info = arena.get_actions(
                     obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
                 )
@@ -445,6 +508,22 @@ def main(cfg: DictConfig):
                     {0: actions[0]}
                 )
                 prev_graph = infos['graph']
+
+                if 'satisfied_goals' in infos:
+                    saved_info['goals_finished'].append(infos['satisfied_goals'])
+                for agent_id, action in actions.items():
+                    saved_info['action'][agent_id].append(action)
+                if 'graph' in infos:
+                    saved_info['graph'].append(infos['graph'])
+                for agent_id, info in curr_info.items():
+                    if 'belief_room' in info:
+                        saved_info['belief_room'][agent_id].append(info['belief_room'])
+                    if 'belief' in info:
+                        saved_info['belief'][agent_id].append(info['belief'])
+                    if 'plan' in info:
+                        saved_info['plan'][agent_id].append(info['plan'][:3])
+                    if 'obs' in info:
+                        saved_info['obs'].append([node['id'] for node in info['obs']])
 
                 actions, curr_info = arena.get_actions(
                     prev_obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
@@ -456,6 +535,22 @@ def main(cfg: DictConfig):
                     {0: actions[0]}
                 )
                 curr_graph = infos['graph']
+
+                if 'satisfied_goals' in infos:
+                    saved_info['goals_finished'].append(infos['satisfied_goals'])
+                for agent_id, action in actions.items():
+                    saved_info['action'][agent_id].append(action)
+                if 'graph' in infos:
+                    saved_info['graph'].append(infos['graph'])
+                for agent_id, info in curr_info.items():
+                    if 'belief_room' in info:
+                        saved_info['belief_room'][agent_id].append(info['belief_room'])
+                    if 'belief' in info:
+                        saved_info['belief'][agent_id].append(info['belief'])
+                    if 'plan' in info:
+                        saved_info['plan'][agent_id].append(info['plan'][:3])
+                    if 'obs' in info:
+                        saved_info['obs'].append([node['id'] for node in info['obs']])
 
                 # history_obs.append([node['id'] for node in curr_info[0]['obs']])
                 # history_graph.append(prev_graph)
@@ -517,48 +612,36 @@ def main(cfg: DictConfig):
                         must_replan={0: True, 1: True},
                         agent_id=0,
                     )
+
                     # get helper action
                     print('planning for the helper agent')
                     action_freq = {}
-                    # for pred_id, pred_graph in enumerate(pred['pred_graph']):
-                    for pred_id, pred_graph in enumerate(graph_result):
-                        edge_pred_class = get_edge_class(pred_graph, steps - 3)
-                        print('pred {}:'.format(pred_id), edge_pred_class)
-                        # ipdb.set_trace()
-                        if (
-                            len(edge_pred_class) > 0
-                        ):  # if no edge prediction then None action
-                            # arena.task_goal = {0: edge_pred_class, 1: edge_pred_class}
-
-                            # if pred_id == 2:
-                            #     arena.agents[0].mcts.verbose = True
-                            #     arena.agents[0].mcts.any_verbose = True
-
-                            actions, info = arena.get_actions(
-                                curr_obs,
-                                length_plan=10,
-                                must_replan={0: True, 1: True},
-                                agent_id=1,
-                                inferred_goal=edge_pred_class,
+                    manager = mp.Manager()
+                    res = manager.dict()
+                    for start_root_id in range(0, num_samples, num_processes):
+                        end_root_id = min(start_root_id + num_processes, num_samples)
+                        jobs = []
+                        for process_id in range(start_root_id, end_root_id):
+                            # print(process_id)
+                            p = mp.Process(
+                                target=get_helping_plan,
+                                args=(
+                                    process_id,
+                                    graph_result[process_id],
+                                    steps - 3,
+                                    arena.get_actions,
+                                    curr_obs,
+                                    10,
+                                    {0: True, 1: True},
+                                    1,
+                                    res,
+                                ),
                             )
-                            # print('actions:', actions)
-                            print('pred {}:'.format(pred_id), edge_pred_class)
-                            print('plan {}:'.format(pred_id), info[1]['plan'])
-
-                            # Here you can get the intermediate states
-                            plan_states = info[1]['plan_states']
-                            # ipdb.set_trace()
-                            # if pred_id == 2:
-                            #     ipdb.set_trace()
-
-                            # for action in info[0]['plan']:
-                            #     if action not in action_freq:
-                            #         action_freq[action] = 1
-                            #     else:
-                            #         action_freq[action] += 1
-                            action = actions[1]
-                        else:
-                            action = None
+                            jobs.append(p)
+                            p.start()
+                        for p in jobs:
+                            p.join()
+                    for pred_id, action in res.items():
                         if action is not None:
                             if action not in action_freq:
                                 action_freq[action] = 1
@@ -600,6 +683,26 @@ def main(cfg: DictConfig):
                     # history_graph.append(curr_graph)
                     history_action.append(selected_actions[0])
 
+                    if 'satisfied_goals' in infos:
+                        saved_info['goals_finished'].append(infos['satisfied_goals'])
+                    for agent_id, action in actions.items():
+                        saved_info['action'][agent_id].append(action)
+                    if 'graph' in infos:
+                        saved_info['graph'].append(infos['graph'])
+                    for agent_id, info in curr_info.items():
+                        if 'belief_room' in info:
+                            saved_info['belief_room'][agent_id].append(
+                                info['belief_room']
+                            )
+                        if 'belief' in info:
+                            saved_info['belief'][agent_id].append(info['belief'])
+                        if 'plan' in info:
+                            saved_info['plan'][agent_id].append(info['plan'][:3])
+                        if 'obs' in info:
+                            saved_info['obs'].append(
+                                [node['id'] for node in info['obs']]
+                            )
+
                     print('success:', infos['finished'])
                     # pdb.set_trace()
                     if infos['finished']:
@@ -616,12 +719,16 @@ def main(cfg: DictConfig):
                     steps_list.append(steps)
                 is_finished = 1 if success else 0
 
+                saved_info['obs'].append([node['id'] for node in curr_obs[0]['nodes']])
+                saved_info['finished'] = success
+
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                # if len(saved_info['obs']) > 0:
-                #     pickle.dump(saved_info, open(log_file_name, 'wb'))
-                # else:
-                #     with open(log_file_name, 'w+') as f:
-                #         f.write(json.dumps(saved_info, indent=4))
+                if len(saved_info['obs']) > 0:
+                    pickle.dump(saved_info, open(log_file_name, 'wb'))
+                else:
+                    with open(log_file_name, 'w+') as f:
+                        f.write(json.dumps(saved_info, indent=4))
+                ipdb.set_trace()
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)

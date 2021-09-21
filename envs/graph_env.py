@@ -257,8 +257,8 @@ class VhGraphEnv():
                     succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
                 except:
                     ipdb.set_trace()
-                if not succeed:
-                    ipdb.set_trace()
+                # if not succeed:
+                #     ipdb.set_trace()
                 next_vh_state = init_from_state(next_vh_state, touched_objs)
             if not succeed:
                 return False, next_vh_state
