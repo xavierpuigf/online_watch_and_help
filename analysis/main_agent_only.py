@@ -404,7 +404,7 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
                 if len(saved_info['obs']) > 0:
