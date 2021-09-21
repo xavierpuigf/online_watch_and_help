@@ -239,7 +239,9 @@ def main(cfg: DictConfig):
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
-    cachedir = f'{rootdir}/dataset_episodes/helping_toy'
+
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy'
+    # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
         ['full', 0, 0.05, False, 0, "uniform"],  # 0
@@ -728,7 +730,7 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
