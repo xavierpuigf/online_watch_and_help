@@ -11,6 +11,7 @@ import numpy as np
 import pdb
 import ipdb
 import hydra
+import time
 import multiprocessing as mp
 from omegaconf import DictConfig, OmegaConf
 from dataloader.dataloader_v2 import AgentTypeDataset
@@ -384,7 +385,6 @@ def main(cfg: DictConfig):
         # if iter_id > 0:
         # iter_id = 1
 
-        cnt = 0
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
@@ -443,7 +443,6 @@ def main(cfg: DictConfig):
 
         for env_task in env_task_set:
 
-            cnt = 0
             steps_list, failed_tasks = [], []
             current_tried = iter_id
 
@@ -799,4 +798,6 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     main()
+    print("running time: %s sec" % (time.time() - start_time))

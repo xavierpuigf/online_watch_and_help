@@ -479,4 +479,6 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     main()
+    print("running time: %s sec" % (time.time() - start_time))
