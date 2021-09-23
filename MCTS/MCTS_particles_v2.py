@@ -306,9 +306,10 @@ class MCTS_particles_v2:
 
             actions_taken, children_visit, next_root = self.select_next_root(curr_root)
             curr_root = next_root
-            plan += [actions_taken]
+            plan += actions_taken
 
-            rewards.append(next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9))
+            # Nasty hack so that we can reuse plans from different predicates
+            rewards += len(actions_taken) * [(next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9)) / len(actions_taken)]
             subgoals.append(next_root.id[0])
 
         # if len(plan) > 0:
@@ -324,6 +325,7 @@ class MCTS_particles_v2:
         #     if self.verbose:
         #         print(plan[0])
         if len(plan) > 0 and plan[0].startswith('[open]'):
+            # TODO: what is this?
             elements = plan[0].split(' ')
             self.last_opened = [elements[1], elements[2]]
 
@@ -444,7 +446,7 @@ class MCTS_particles_v2:
 
             heuristic = self.heuristic_dict[goal_selected.split('_')[0]]
 
-            actions, _ = heuristic(
+            actions, _, action_name = heuristic(
                 self.agent_id,
                 self.char_index,
                 unsatisfied,
@@ -459,22 +461,24 @@ class MCTS_particles_v2:
                 print("Goal Selected: ", goal_selected)
                 print(actions[0])
                 print()
-            # if actions[0][1][1] == 333:
-            #     print("Plan with glass")
-            #     ipdb.set_trace()
+
             if len(hands_busy) == 2:
-                if 'open' in actions[0][0].lower() or 'close' in actions[0][0].lower():
-                    actions = None
-            # print(actions)
+                for action in actions:
+                    if 'open' in action[0].lower() or 'close' in action[0].lower():
+                        actions = None
+                        break
 
             if actions is None or len(actions) == 0:
                 delta_reward = 0
                 action = None
-            else:
-                action = actions[0]
 
-                action_str = self.get_action_str(action)
-                try:
+            else:
+                # action = actions[0]
+                # Check the transitions:
+                total_cost = 0
+                total_reward = 0
+                for action in actions:
+                    action_str = self.get_action_str(action)
                     (
                         success,
                         next_vh_state,
@@ -484,25 +488,24 @@ class MCTS_particles_v2:
                     ) = self.transition(
                         curr_vh_state, {self.char_index: action_str}, goal_spec
                     )
-                except:
-                    raise Exception
-                    # traceback.print_exc()
-                    # ipdb.set_trace()
+                    if not success:
+                        print(f"Failure in transition when executing {action_str}")
+                        raise Exception
+                    curr_vh_state = next_vh_state
+                    total_cost += cost
+                    total_reward += curr_reward
+                    
 
-                if not success:
-                    # ipdb.set_trace()
-                    print("Failure in transition")
-                    raise Exception
-                    # ipdb.set_trace()
-                    # print("Failure", action_str)
                 # print(action_str, cost)
                 curr_vh_state, curr_state = next_vh_state, next_vh_state_dict
-                delta_reward = curr_reward - last_reward - cost
+                delta_reward = total_reward - last_reward - total_cost
 
                 # print(curr_rewward, last_reward)
-                last_reward = curr_reward
+
+                last_reward = total_reward
+            
             rewards.append(delta_reward)
-            actions_l.append(action)
+            actions_l.append(actions)
 
             # print(action_str, curr_reward)
             satisfied, unsatisfied = utils_env.check_progress(curr_state, goal_spec)
@@ -510,11 +513,12 @@ class MCTS_particles_v2:
             # curr_state = next_state
         # ipdb.set_trace()
 
-        if '<fridge> (103)' in leaf_node.id[-1][-1] and self.any_verbose:
-            print("LEAF NODE, rollout")
-            print(actions_l)
-            print('***')
-            # ipdb.set_trace()
+        # if '<fridge> (103)' in leaf_node.id[-1][-1] and self.any_verbose:
+        #     print("LEAF NODE, rollout")
+        #     print(actions_l)
+        #     print('***')
+        #     # ipdb.set_trace()
+
         if len(rewards) > 0:
             sum_reward = rewards[-1]
             for r in reversed(rewards[:-1]):
@@ -677,8 +681,8 @@ class MCTS_particles_v2:
         # 'grab' in curr_node.id[-1][-1] or
         prev_verbose = False
         if (
-            curr_node.id[-1][-1] == []
-            or curr_node.id[-1][-1] == '[walk] <cupcake> (369)'
+            curr_node.plan == []
+            or curr_node.plan == '[walk] <cupcake> (369)'
         ) and self.any_verbose:
             self.verbose = True
 
@@ -706,25 +710,25 @@ class MCTS_particles_v2:
         # for it, pc in enumerate(possible_children):
         #     print('{}: {}'.format(pc, scores[it]))
 
-        goal_spec, _, actions = selected_child.id[1]
-        # print("selected", actions)
-        # print('------\n')
+        goal_spec, _, heuristic_name = selected_child.id[1]
+        actions = selected_child.plan
 
-        # print("Selecting child,..", actions)
-
+        
         next_vh_state = curr_state[0]
-        # print("\nSelect child")
-        # print(actions)
-        # print([edge for edge in curr_state[1]['edges'] if edge['from_id'] == 1 and edge['to_id'] == 457])
-        # print('.....')
         if selected_child.state is None:
 
             # print("New action", actions)
             next_vh_state = copy.deepcopy(next_vh_state)
 
-            success, next_vh_state, next_state_dict, cost, reward = self.transition(
-                next_vh_state, {self.char_index: actions}, goal_spec
-            )
+            total_cost = 0
+            total_reward = 0
+            for action_str in actions:
+                success, next_vh_state, next_state_dict, cost, reward = self.transition(
+                    next_vh_state, {self.char_index: action_str}, goal_spec
+                )
+                total_cost += cost
+                total_reward += reward
+
             # if 'put' in actions:
             #      print("CLOSE:", [edge for edge in next_state_dict['edges'] if edge['to_id'] == 232 and edge['from_id'] == 1])
             if not success:
@@ -736,14 +740,10 @@ class MCTS_particles_v2:
             next_state = (final_vh_state, final_state, satisfied, unsatisfied)
 
             selected_child.state = next_state
-            selected_child.cost = cost
-            selected_child.reward = reward
+            selected_child.cost = total_cost
+            selected_child.reward = total_reward
         else:
-            # success, next_vh_state, cost, reward = self.transition(next_vh_state, {0: actions}, goal_spec)
-            # final_state = next_vh_state.to_dict()
-            # satisfied, unsatisfied = utils_env.check_progress(final_state, goal_spec)
-            # print("CACHE", actions)
-            # print("reuse")
+
             cost = selected_child.cost
             reward = selected_child.reward
             next_state = selected_child.state
@@ -803,11 +803,16 @@ class MCTS_particles_v2:
         curr_value = value
 
         full_backup_actions = [cnode.id[-1][-1] for cnode in node_list]
-        backup_actions = [
-            cnode.id[-1][-1].split()[0][1:-1]
-            for cnode in node_list
-            if isinstance(cnode.id[-1][-1], str)
-        ]
+        try:
+            backup_actions = [
+                cnode.id[-1][-1]
+                for cnode in node_list
+                if isinstance(cnode.id[-1][-1], str)
+            ]
+        except:
+            print(full_backup_actions)
+            # ipdb.set_trace()
+            raise Exception
         # if ('grab' in backup_actions or '[walk] <cupcake> (369)' in full_backup_actions) and self.any_verbose:
         #     self.verbose = True
         # else:
@@ -859,7 +864,7 @@ class MCTS_particles_v2:
         # print(list([c.id.keys() for c in curr_root.children]))
         maxIndex = np.argwhere(children_visit == np.max(children_visit)).flatten()
         selected_child_index = random.choice(maxIndex)
-        actions = curr_root.children[selected_child_index].id[1][-1]
+        actions = curr_root.children[selected_child_index].plan
         if self.verbose:
             print(
                 'children_ids:',
@@ -967,13 +972,14 @@ class MCTS_particles_v2:
                 goal_predicate[2],
             )  # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
-            action_heuristic, _ = heuristic(
+            action_heuristic, _, action_heuristic_name = heuristic(
                 self.agent_id, self.char_index, unsatisfied, state, self.env, goal
             )
             if action_heuristic is None or len(action_heuristic) == 0:
                 # Maybe the other agent is grabbing the object
                 continue
-            act_all.append((action_heuristic, goal))
+            
+            
 
             # TODO(xavier): this crashes sometimes!! Check what is happening
             try:
@@ -987,9 +993,11 @@ class MCTS_particles_v2:
                     ipdb.set_trace()
                 ipdb.set_trace()
                 raise Exception
-            if self.get_action_str(action_heuristic[0]) not in actions_heuristic:
-                actions_heuristic.append(self.get_action_str(action_heuristic[0]))
+            if action_heuristic_name not in actions_heuristic:
+                actions_heuristic.append(action_heuristic_name)
+                act_all.append((action_heuristic, goal))
 
+        # self.get_action_str(action_heuristic[0])
         # if len(hands_bsusy) == 1:
         #     if 'put' in node.id[1][-1]:
         #         aux_node = node
@@ -1006,7 +1014,7 @@ class MCTS_particles_v2:
         # if node.id[1][-1] == '[open] <fridge> (306)' and len(hands_busy) == 1:
         #     ipdb.set_trace()
 
-        for action in actions_heuristic:
+        for action, info_action in zip(actions_heuristic, act_all):
 
             # If I already expanded this child, no need to re-expand
             action_str = action
@@ -1027,9 +1035,11 @@ class MCTS_particles_v2:
             # next_unsatisfied[predicate] -= 1
             # belief_states = [next_vh_state, next_vh_state.to_dict(), next_satisfied, next_unsatisfied]
 
+            action_list = [self.get_action_str(action_item) for action_item in info_action[0]]
             new_node = Node(
                 parent=node,
                 id=("Child", [goal_spec, len(actions_heuristic), action_str]),
+                plan=action_list,
                 state=None,
                 num_visited=0,
                 sum_value=0,

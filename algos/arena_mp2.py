@@ -24,6 +24,7 @@ class ArenaMP(object):
 
         print("Init Env")
         self.env = environment_fn(arena_id)
+        assert self.env.num_agents == len(agent_fn), "The number of agents defined and the ones in the env defined mismatch"
         for agent_type_fn in agent_fn:
             self.agents.append(agent_type_fn(arena_id, self.env))
 
