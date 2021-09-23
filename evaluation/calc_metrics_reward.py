@@ -65,7 +65,7 @@ def get_metrics_reward(alice_results, test_results, episode_ids):
                 S_B = test_results[episode_id]['S'][seed_bob]
                 L_B = test_results[episode_id]['L'][seed_bob]
                 if L_B == 250:
-                    S_B = 0.
+                    S_B = 0.0
             except:
                 pdb.set_trace()
 
@@ -78,7 +78,7 @@ def get_metrics_reward(alice_results, test_results, episode_ids):
         if len(Ls) > 0:
             # if len([t for t in Ss if t == 0.]) > 0:
             #     pdb.set_trace()
-            SWSs.append(np.mean([-ls * 1./250 + sb for ls, sb in zip(Ls, Ss)]))
+            SWSs.append(np.mean([-ls * 1.0 / 250 + sb for ls, sb in zip(Ls, Ss)]))
             # mSwS.append(SWSs)
             # if SWSs > 0:
             #     cont_better += 1
@@ -95,7 +95,14 @@ def get_metrics_reward(alice_results, test_results, episode_ids):
 
     ns = np.sqrt(len(mS))
     nw = np.sqrt(len(mSwS))
-    return np.mean(mS), np.mean(mL), np.mean(mSwS), np.std(mS)/ns, np.std(mL)/ns,  np.std(mSwS)/nw
+    return (
+        np.mean(mS),
+        np.mean(mL),
+        np.mean(mSwS),
+        np.std(mS) / ns,
+        np.std(mL) / ns,
+        np.std(mSwS) / nw,
+    )
 
 
 parser = argparse.ArgumentParser()
@@ -103,17 +110,18 @@ parser = argparse.ArgumentParser()
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    print (' ' * 26 + 'Options')
+    print(' ' * 26 + 'Options')
     for k, v in vars(args).items():
-            print(' ' * 26 + k + ': ' + str(v))
+        print(' ' * 26 + k + ': ' + str(v))
     env_task_set = pickle.load(open('../dataset/test_env_set_help.pik', 'rb'))
-    
-    args.record_dir_alice = '../test_results/multiAlice_env_task_set_20_hp'
-    alice_results = pickle.load(open(args.record_dir_alice + '/results.pkl'.format(0), 'rb'))
 
+    args.record_dir_alice = '../test_results/multiAlice_env_task_set_20_hp'
+    alice_results = pickle.load(
+        open(args.record_dir_alice + '/results.pkl'.format(0), 'rb')
+    )
 
     record_dirs = [
-            '../test_results/multiBob_env_task_set_20_random_action',
+        '../test_results/multiBob_env_task_set_20_random_action',
         '../test_results/multiBob_env_task_set_20_hp_randomgoal',
         '../test_results/multiBob_env_task_set_20_hp_predgoal',  ###
         '../test_results/multiBob_env_task_set_20_hp_truegoal',
@@ -122,9 +130,14 @@ if __name__ == '__main__':
         '../test_results/multiBob_env_task_set_20_hrl_truegoal',  #
         '../test_results/multiBob_env_task_set_20_hrl_predgoal',  #
         '../test_results/multiAlice_env_task_set_20_hp',
-
     ]
-    task_names = ['setup_table', 'put_fridge', 'prepare_food', 'put_dishwasher', 'read_book']
+    task_names = [
+        'setup_table',
+        'put_fridge',
+        'prepare_food',
+        'put_dishwasher',
+        'read_book',
+    ]
     final_results = {'S': {}, 'SWS': {}, 'L': {}, 'classes': task_names}
     for record_dir in record_dirs:
         test_results = pickle.load(open(record_dir + '/results.pkl', 'rb'))
@@ -137,15 +150,21 @@ if __name__ == '__main__':
         episode_ids = list(range(len(env_task_set)))
         S = [0] * len(episode_ids)
         L = [200] * len(episode_ids)
-        SRO, ALO, SWSO, stdRO, stdLO, stdSO = get_metrics_3(alice_results, test_results, episode_ids)
-        #print('overall:', SRO, ALO, SWSO)
-
-
+        SRO, ALO, SWSO, stdRO, stdLO, stdSO = get_metrics_3(
+            alice_results, test_results, episode_ids
+        )
+        # print('overall:', SRO, ALO, SWSO)
 
         sr_list, al_list, sws_list = [], [], []
         for task_name in task_names:
-            episode_ids_task = [episode_id for episode_id in episode_ids if env_task_set[episode_id]['task_name'] == task_name]
-            SR, AL, SWS, stdR, stdL, stdS = get_metrics_3(alice_results, test_results, episode_ids_task)
+            episode_ids_task = [
+                episode_id
+                for episode_id in episode_ids
+                if env_task_set[episode_id]['task_name'] == task_name
+            ]
+            SR, AL, SWS, stdR, stdL, stdS = get_metrics_3(
+                alice_results, test_results, episode_ids_task
+            )
             sr_list.append(str(SR))
             al_list.append(str(AL))
             sws_list.append(str(SWS))
@@ -156,8 +175,6 @@ if __name__ == '__main__':
             final_results['S'][method_name][1].append(stdR)
             final_results['SWS'][method_name][1].append(stdS)
             final_results['L'][method_name][1].append(stdL)
-
-
 
             # print('{}:'.format(task_name), SR, AL, SWS)
         final_results['S'][method_name][0].append(SRO)

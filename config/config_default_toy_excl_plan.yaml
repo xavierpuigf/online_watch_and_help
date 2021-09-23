@@ -2,7 +2,7 @@ defaults:
         - agent_pred_graph: config_default_toy_excl
 
 executable_file: ""
-max_episode_length: 250
+max_episode_length: 100
 num_per_apartment: 20
 dataset_path: ""
 obs_type: "full"
