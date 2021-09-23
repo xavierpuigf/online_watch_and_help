@@ -120,7 +120,7 @@ def touch_heuristic(
     cost = [0.05]
 
     if len(agent_close) > 0 and target_id in observed_ids:
-        return target_action, cost,  f'touch_{target_id}'
+        return target_action, cost, f'touch_{target_id}'
     else:
         find_actions, find_costs, _ = find_heuristic(
             agent_id, char_index, unsatisfied, env_graph, simulator, object_target
@@ -205,7 +205,7 @@ def turnOn_heuristic(
         find_actions, find_costs = find_heuristic(
             agent_id, char_index, unsatisfied, env_graph, simulator, object_target
         )
-        return find_actions + target_action, find_costs + cost,  f'turnon_{target_id}'
+        return find_actions + target_action, find_costs + cost, f'turnon_{target_id}'
 
 
 def sit_heuristic(
@@ -268,7 +268,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
     ):
         # Object has been placed
         # ipdb.set_trace()
-        return [], []
+        return [], 0, []
 
     if (
         sum(
@@ -284,7 +284,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
     ):
         # Object has been placed
         # ipdb.set_trace()
-        return [], []
+        return [], 0, []
 
     target_node = [node for node in env_graph['nodes'] if node['id'] == target_grab][0]
     target_node2 = [node for node in env_graph['nodes'] if node['id'] == target_put][0]
@@ -341,7 +341,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
     ]
     cost = [0.05]
     res = grab_obj1 + find_obj2 + action
-    cost_list = cost_grab_obj1 + cost_find_obj2 + cost 
+    cost_list = cost_grab_obj1 + cost_find_obj2 + cost
     # print(res, target)
     return res, cost_list, f'put_{target_grab}_{target_put}'
 
@@ -415,7 +415,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
                     object_diff_room = id_room
 
         return grab_obj1, cost_grab_obj1, heuristic_name
-        
+
     else:
         grab_obj1 = []
         cost_grab_obj1 = []
@@ -456,7 +456,9 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
 
         if 'CLOSED' in target_put_state or 'OPEN' not in target_put_state:
             res = grab_obj1 + find_obj2 + action_open + action_put + action_close
-            cost_list = cost_grab_obj1 + cost_find_obj2 + cost_open + cost_put + cost_close
+            cost_list = (
+                cost_grab_obj1 + cost_find_obj2 + cost_open + cost_put + cost_close
+            )
         else:
             res = grab_obj1 + find_obj2 + action_put + action_close
             cost_list = cost_grab_obj1 + cost_find_obj2 + cost_put + cost_close
@@ -646,7 +648,6 @@ def get_plan(
         print("No root nodes")
         raise Exception
     if num_process > 0:
-        
 
         manager = mp.Manager()
         res = manager.dict()
@@ -805,7 +806,6 @@ class MCTS_agent_particle_v2:
 
         self.agent_id = agent_id
         self.char_index = char_index
-
 
         self.sim_env = VhGraphEnv(n_chars=self.agent_id)
         self.sim_env.pomdp = True
@@ -1058,6 +1058,7 @@ class MCTS_agent_particle_v2:
 
         time1 = time.time()
 
+        print('-------- {} --------'.format('replan' if should_replan else 'no replan'))
         if should_replan or must_replan:
             # ipdb.set_trace()
             for particle_id, particle in enumerate(self.particles):
@@ -1097,7 +1098,7 @@ class MCTS_agent_particle_v2:
                 num_process=self.num_processes,
             )
 
-            print(colored(plan[:min(len(plan), 10)], 'cyan'))
+            print(colored(plan[: min(len(plan), 10)], 'cyan'))
             # ipdb.set_trace()
         else:
             subgoals = [[None, None, None], [None, None, None]]
@@ -1126,7 +1127,9 @@ class MCTS_agent_particle_v2:
                 vh_state = self.particles[particle_id][0]
                 plan_states.append(vh_state.to_dict())
                 for action_item in plan:
-                    success, vh_state = env.transition(vh_state, {self.char_index: action_item})
+                    success, vh_state = env.transition(
+                        vh_state, {self.char_index: action_item}
+                    )
                     plan_states.append(vh_state.to_dict())
                 info['plan_states'] = plan_states
             if self.logging_graphs:

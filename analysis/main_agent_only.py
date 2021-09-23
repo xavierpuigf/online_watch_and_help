@@ -95,7 +95,7 @@ def main(cfg: DictConfig):
         'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
     }
     # TODO: add num_samples to the argument
-    args.mode = '{}_'.format(agent_id + 1)
+    # args.mode = '{}_'.format(agent_id + 1)
     # args.mode += 'v9_particles_v2'
 
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -121,8 +121,8 @@ def main(cfg: DictConfig):
             if node['class_name'] == 'cutleryfork':
                 node['obj_transform']['position'][1] += 0.1
 
-    args.record_dir = '{}/{}/{}'.format(cachedir, datafile, args.mode)
-    error_dir = '{}/logging/{}_{}'.format(cachedir, datafile, args.mode)
+    args.record_dir = '{}/{}/'.format(cachedir, datafile)
+    error_dir = '{}/logging/{}'.format(cachedir, datafile)
     if not os.path.exists(args.record_dir):
         os.makedirs(args.record_dir)
 
@@ -193,9 +193,9 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    for iter_id in range(1, num_tries):
+    for iter_id in range(0, num_tries):
         # if iter_id > 0:
-        iter_id = 1
+        # iter_id = 1
 
         cnt = 0
         steps_list, failed_tasks = [], []
@@ -223,7 +223,7 @@ def main(cfg: DictConfig):
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
 
-        max_steps = 30
+        max_steps = args.max_episode_length
 
         for env_task in env_task_set:
 
@@ -235,6 +235,10 @@ def main(cfg: DictConfig):
             print('gt goal:', gt_goal)
 
             episode_id = env_task['task_id']
+
+            # if episode_id != 6:
+            #     continue
+
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id
             )
@@ -285,7 +289,7 @@ def main(cfg: DictConfig):
 
                 steps = 2
                 actions, curr_info = arena.get_actions(
-                    obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
+                    obs, length_plan=10, must_replan={0: False, 1: False}, agent_id=0
                 )
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
@@ -309,7 +313,10 @@ def main(cfg: DictConfig):
                         saved_info['obs'].append([node['id'] for node in info['obs']])
 
                 actions, curr_info = arena.get_actions(
-                    prev_obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
+                    prev_obs,
+                    length_plan=10,
+                    must_replan={0: False, 1: False},
+                    agent_id=0,
                 )
                 prev_action = actions[0]
 
@@ -344,13 +351,23 @@ def main(cfg: DictConfig):
                     selected_actions, curr_info = arena.get_actions(
                         curr_obs,
                         length_plan=10,
-                        must_replan={0: True, 1: True},
+                        must_replan={0: False, 1: False},
                         agent_id=0,
                     )
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
                     )
+
+                    print("agents' positions")
+                    print(
+                        [
+                            (node['id'], node['bounding_box']['center'])
+                            for node in curr_obs[0]['nodes']
+                            if node['id'] < 3
+                        ]
+                    )
+
                     curr_graph = infos['graph']
 
                     if 'satisfied_goals' in infos:

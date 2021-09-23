@@ -309,7 +309,10 @@ class MCTS_particles_v2:
             plan += actions_taken
 
             # Nasty hack so that we can reuse plans from different predicates
-            rewards += len(actions_taken) * [(next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9)) / len(actions_taken)]
+            rewards += len(actions_taken) * [
+                (next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9))
+                / len(actions_taken)
+            ]
             subgoals.append(next_root.id[0])
 
         # if len(plan) > 0:
@@ -494,7 +497,6 @@ class MCTS_particles_v2:
                     curr_vh_state = next_vh_state
                     total_cost += cost
                     total_reward += curr_reward
-                    
 
                 # print(action_str, cost)
                 curr_vh_state, curr_state = next_vh_state, next_vh_state_dict
@@ -503,7 +505,7 @@ class MCTS_particles_v2:
                 # print(curr_rewward, last_reward)
 
                 last_reward = total_reward
-            
+
             rewards.append(delta_reward)
             actions_l.append(actions)
 
@@ -681,8 +683,7 @@ class MCTS_particles_v2:
         # 'grab' in curr_node.id[-1][-1] or
         prev_verbose = False
         if (
-            curr_node.plan == []
-            or curr_node.plan == '[walk] <cupcake> (369)'
+            curr_node.plan == [] or curr_node.plan == '[walk] <cupcake> (369)'
         ) and self.any_verbose:
             self.verbose = True
 
@@ -713,7 +714,6 @@ class MCTS_particles_v2:
         goal_spec, _, heuristic_name = selected_child.id[1]
         actions = selected_child.plan
 
-        
         next_vh_state = curr_state[0]
         if selected_child.state is None:
 
@@ -972,14 +972,16 @@ class MCTS_particles_v2:
                 goal_predicate[2],
             )  # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
-            action_heuristic, _, action_heuristic_name = heuristic(
-                self.agent_id, self.char_index, unsatisfied, state, self.env, goal
-            )
+            try:
+                action_heuristic, _, action_heuristic_name = heuristic(
+                    self.agent_id, self.char_index, unsatisfied, state, self.env, goal
+                )
+            except:
+                print(goal)
+                ipdb.set_trace()
             if action_heuristic is None or len(action_heuristic) == 0:
                 # Maybe the other agent is grabbing the object
                 continue
-            
-            
 
             # TODO(xavier): this crashes sometimes!! Check what is happening
             try:
@@ -1035,7 +1037,9 @@ class MCTS_particles_v2:
             # next_unsatisfied[predicate] -= 1
             # belief_states = [next_vh_state, next_vh_state.to_dict(), next_satisfied, next_unsatisfied]
 
-            action_list = [self.get_action_str(action_item) for action_item in info_action[0]]
+            action_list = [
+                self.get_action_str(action_item) for action_item in info_action[0]
+            ]
             new_node = Node(
                 parent=node,
                 id=("Child", [goal_spec, len(actions_heuristic), action_str]),
