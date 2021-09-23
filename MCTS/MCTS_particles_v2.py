@@ -310,7 +310,7 @@ class MCTS_particles_v2:
 
             # Nasty hack so that we can reuse plans from different predicates
             rewards += len(actions_taken) * [(next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9)) / len(actions_taken)]
-            subgoals.append(next_root.id[0])
+            subgoals.append(next_root.id[1][-1])
 
         # if len(plan) > 0:
         #     elements = plan[0].split(' ')

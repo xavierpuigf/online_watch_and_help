@@ -686,11 +686,12 @@ def get_plan(
         print("Plan Done")
     rewards_all = [inf[-1] for inf in info]
     plans_all = [inf[1] for inf in info]
+    goals_all = [inf[-2] for inf in info]
     index_action = 0
     # length_plan = 5
     prev_index_particles = list(range(len(info)))
 
-    final_actions = []
+    final_actions, final_goals = [], []
     lambd = 0.5
     # ipdb.set_trace()
     while index_action < length_plan:
@@ -698,6 +699,7 @@ def get_plan(
         max_score = None
         action_count_dict = {}
         action_reward_dict = {}
+        action_goal_dict = {}
         # Which particles we select now
         index_particles = [
             p_id for p_id in prev_index_particles if len(plans_all[p_id]) > index_action
@@ -712,13 +714,16 @@ def get_plan(
                 continue
             try:
                 reward = rewards_all[ind][index_action]
+                goal = goals_all[ind][index_action]
             except:
                 ipdb.set_trace()
             if not action in action_count_dict:
                 action_count_dict[action] = []
+                action_goal_dict[action] = []
                 action_reward_dict[action] = 0
             action_count_dict[action].append(ind)
             action_reward_dict[action] += reward
+            action_goal_dict[action].append(goal)
 
         for action in action_count_dict:
             # Average reward of this action
@@ -728,15 +733,18 @@ def get_plan(
             # Average proportion of particles
             average_visit = len(action_count_dict[action]) * 1.0 / len(index_particles)
             score = average_reward * lambd + average_visit
+            goal = action_goal_dict[action] 
 
             if max_score is None or max_score < score:
                 max_score = score
                 max_action = action
+                max_goal = goal
 
         index_action += 1
         prev_index_particles = action_count_dict[max_action]
         # print(max_action, prev_index_particles)
         final_actions.append(max_action)
+        final_goals.append(max_goal)
 
     # If there is no action predicted but there were goals missing...
     if len(final_actions) == 0:
@@ -744,7 +752,10 @@ def get_plan(
         # ipdb.set_trace()
 
     plan = final_actions
-    subgoals = [[None, None, None], [None, None, None]]
+    subgoals = final_goals
+
+    # ipdb.set_trace()
+    # subgoals = [[None, None, None], [None, None, None]]
     # next_root, plan, subgoals = mp_run_mcts(root_nodes[0])
     next_root = None
 
