@@ -309,9 +309,11 @@ class MCTS_particles_v2:
             plan += actions_taken
 
             # Nasty hack so that we can reuse plans from different predicates
-            rewards += len(actions_taken) * [(next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9)) / len(actions_taken)]
+            rewards += len(actions_taken) * [
+                (next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9))
+                / len(actions_taken)
+            ]
             subgoals += len(actions_taken) * [(next_root.id[1][-1])]
-
 
         # if len(plan) > 0:
         #     elements = plan[0].split(' ')
@@ -997,7 +999,10 @@ class MCTS_particles_v2:
                     ipdb.set_trace()
                 ipdb.set_trace()
                 raise Exception
-            if action_heuristic_name not in actions_heuristic:
+            if (
+                action_heuristic_name not in actions_heuristic
+                and action_heuristic_name != self.opponent_subgoal
+            ):
                 actions_heuristic.append(action_heuristic_name)
                 act_all.append((action_heuristic, goal))
 
@@ -1115,23 +1120,23 @@ class MCTS_particles_v2:
 
         opponent_predicate_1 = None
         opponent_predicate_2 = None
-        if opponent_subgoal is not None:
-            elements = opponent_subgoal.split('_')
-            if elements[0] in ['put', 'putIn']:
-                obj1_class = None
-                for node in state['nodes']:
-                    if node['id'] == int(elements[1]):
-                        obj1_class = node['class_name']
-                        break
-                # if obj1_class is None:
-                #     opponent_subgoal = None
-                # else:
-                opponent_predicate_1 = '{}_{}_{}'.format(
-                    'on' if elements[0] == 'put' else 'inside', obj1_class, elements[2]
-                )
-                opponent_predicate_2 = '{}_{}_{}'.format(
-                    'on' if elements[0] == 'put' else 'inside', elements[1], elements[2]
-                )
+        # if opponent_subgoal is not None:
+        #     elements = opponent_subgoal.split('_')
+        #     if elements[0] in ['put', 'putIn']:
+        #         obj1_class = None
+        #         for node in state['nodes']:
+        #             if node['id'] == int(elements[1]):
+        #                 obj1_class = node['class_name']
+        #                 break
+        #         # if obj1_class is None:
+        #         #     opponent_subgoal = None
+        #         # else:
+        #         opponent_predicate_1 = '{}_{}_{}'.format(
+        #             'on' if elements[0] == 'put' else 'inside', obj1_class, elements[2]
+        #         )
+        #         opponent_predicate_2 = '{}_{}_{}'.format(
+        #             'on' if elements[0] == 'put' else 'inside', elements[1], elements[2]
+        #         )
 
         subgoal_space, obsed_subgoal_space, overlapped_subgoal_space = [], [], []
         # ipdb.set_trace()

@@ -16,6 +16,7 @@ import atexit
 class ArenaMP(object):
     def __init__(self, max_number_steps, arena_id, environment_fn, agent_fn):
         self.agents = []
+        self.sim_agents = []
         self.env_fn = environment_fn
         self.agent_fn = agent_fn
         self.arena_id = arena_id
@@ -24,9 +25,12 @@ class ArenaMP(object):
 
         print("Init Env")
         self.env = environment_fn(arena_id)
-        assert self.env.num_agents == len(agent_fn), "The number of agents defined and the ones in the env defined mismatch"
+        assert self.env.num_agents == len(
+            agent_fn
+        ), "The number of agents defined and the ones in the env defined mismatch"
         for agent_type_fn in agent_fn:
             self.agents.append(agent_type_fn(arena_id, self.env))
+            self.sim_agents.append(agent_type_fn(arena_id, self.env))
 
         self.max_episode_length = self.env.max_episode_length
         self.max_number_steps = max_number_steps
@@ -54,8 +58,15 @@ class ArenaMP(object):
                 agent.reset(
                     ob[it], self.env.full_graph, self.env.task_goal, seed=agent.seed
                 )
+                self.sim_agents[it].reset(
+                    ob[it],
+                    self.env.full_graph,
+                    self.env.task_goal,
+                    seed=self.agents[1 - it].seed,
+                )
             else:
                 agent.reset(self.env.full_graph)
+                self.sim_agents.reset(self.env.full_graph)
         return ob
 
     def set_weigths(self, epsilon, weights):
@@ -73,6 +84,7 @@ class ArenaMP(object):
         must_replan=None,
         agent_id=None,
         inferred_goal=None,
+        opponent_subgoal=None,
     ):
         # ipdb.set_trace()
         dict_actions, dict_info = {}, {}
@@ -96,9 +108,77 @@ class ArenaMP(object):
                 goal_spec = self.env.get_goal(inferred_goal, self.env.agent_goals[it])
             # ipdb.set_trace()
             if agent.agent_type in ['MCTS', 'Random']:
-                opponent_subgoal = None
-                if agent.recursive:
-                    opponent_subgoal = self.agents[1 - it].last_subgoal
+                # opponent_subgoal = None
+                # if agent.recursive:
+                #     opponent_subgoal = self.agents[1 - it].last_subgoal
+
+                dict_actions[it], dict_info[it] = agent.get_action(
+                    obs[it],
+                    goal_spec,
+                    opponent_subgoal,
+                    length_plan=length_plan,
+                    must_replan=False if must_replan is None else must_replan[it],
+                )
+
+            elif 'RL' in agent.agent_type:
+                if 'MCTS' in agent.agent_type or 'Random' in agent.agent_type:
+                    if true_graph:
+                        full_graph = self.env.get_graph()
+                    else:
+                        full_graph = None
+                    dict_actions[it], dict_info[it] = agent.get_action(
+                        obs[it],
+                        goal_spec,
+                        action_space_ids=action_space[it],
+                        full_graph=full_graph,
+                    )
+
+                else:
+                    # RL_RL agemt
+                    dict_actions[it], dict_info[it] = agent.get_action(
+                        obs[it], self.task_goal, action_space_ids=action_space[it]
+                    )
+        return dict_actions, dict_info
+
+    def pred_actions(
+        self,
+        obs,
+        action_space=None,
+        true_graph=False,
+        length_plan=5,
+        must_replan=None,
+        agent_id=None,
+        inferred_goal=None,
+        opponent_subgoal=None,
+    ):
+        # ipdb.set_trace()
+        dict_actions, dict_info = {}, {}
+        op_subgoal = {0: None, 1: None}
+        # pdb.set_trace()
+
+        for it, agent in enumerate(self.sim_agents):
+            if agent_id is not None and it != agent_id:
+                continue
+            if inferred_goal is None:
+                if self.task_goal is None:
+                    goal_spec = self.env.get_goal(
+                        self.env.task_goal[it], self.env.agent_goals[it]
+                    )
+
+                else:
+                    goal_spec = self.env.get_goal(
+                        self.task_goal[it], self.env.agent_goals[it]
+                    )
+            else:
+                goal_spec = self.env.get_goal(inferred_goal, self.env.agent_goals[it])
+            # ipdb.set_trace()
+            if agent.agent_type in ['MCTS', 'Random']:
+                # opponent_subgoal = None
+                # if agent.recursive:
+                #     opponent_subgoal = self.agents[1 - it].last_subgoal
+
+                # agent.last_subgoal = None#[self.agents[it].last_subgoal[0]]
+                # agent.last_plan = None#[self.agents[it].last_plan[0]]
 
                 dict_actions[it], dict_info[it] = agent.get_action(
                     obs[it],

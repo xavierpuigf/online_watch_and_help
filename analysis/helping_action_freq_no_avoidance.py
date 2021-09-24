@@ -202,14 +202,14 @@ def get_helping_plan(
     edge_pred_class = get_edge_class(pred_graph, t)
     print('pred {}:'.format(process_id), edge_pred_class)
     if len(edge_pred_class) > 0:  # if no edge prediction then None action
-        opponent_actions, opponent_info = get_actions_fn(
-            obs,
-            length_plan=length_plan,
-            must_replan=must_replan,
-            agent_id=1 - agent_id,
-            inferred_goal=edge_pred_class,
-        )
-        opponent_subgoal = opponent_info[0]['subgoals'][0][0]
+        # opponent_actions, opponent_info = get_actions_fn(
+        #     obs,
+        #     length_plan=length_plan,
+        #     must_replan=must_replan,
+        #     agent_id=1 - agent_id,
+        #     inferred_goal=edge_pred_class,
+        # )
+        opponent_subgoal = None  # opponent_info[0]['subgoals'][0][0]
         actions, info = get_actions_fn(
             obs,
             length_plan=length_plan,
@@ -251,7 +251,7 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_no_avoidance'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -760,7 +760,7 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
