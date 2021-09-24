@@ -294,6 +294,8 @@ def main(cfg: DictConfig):
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
+                print(curr_info[0]['subgoals'])
+                ipdb.set_trace()
                 prev_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -324,6 +326,8 @@ def main(cfg: DictConfig):
                     {0: actions[0]}
                 )
                 curr_graph = infos['graph']
+                print(curr_info[0]['subgoals'])
+                ipdb.set_trace()
 
                 if 'satisfied_goals' in infos:
                     saved_info['goals_finished'].append(infos['satisfied_goals'])
@@ -354,7 +358,8 @@ def main(cfg: DictConfig):
                         must_replan={0: False, 1: False},
                         agent_id=0,
                     )
-
+                    print(curr_info[0]['subgoals'])
+                    ipdb.set_trace()
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
                     )

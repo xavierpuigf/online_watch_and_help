@@ -734,7 +734,7 @@ def get_plan(
             # Average proportion of particles
             average_visit = len(action_count_dict[action]) * 1.0 / len(index_particles)
             score = average_reward * lambd + average_visit
-            goal = action_goal_dict[action] 
+            goal = action_goal_dict[action]
 
             if max_score is None or max_score < score:
                 max_score = score
@@ -1112,8 +1112,8 @@ class MCTS_agent_particle_v2:
 
             print(colored(plan[: min(len(plan), 10)], 'cyan'))
             # ipdb.set_trace()
-        else:
-            subgoals = [[None, None, None], [None, None, None]]
+        # else:
+        #     subgoals = [[None, None, None], [None, None, None]]
         if len(plan) == 0 and not must_replan:
             ipdb.set_trace()
             print("Plan empty")
@@ -1147,7 +1147,7 @@ class MCTS_agent_particle_v2:
             if self.logging_graphs:
                 info.update({'obs': obs['nodes'].copy()})
         else:
-            info = {}
+            info = {'plan': plan, 'subgoals': subgoals}
 
         self.last_action = action
         # self.last_subgoal = subgoals[0] if len(subgoals) > 0 else None
