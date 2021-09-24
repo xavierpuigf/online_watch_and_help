@@ -187,38 +187,11 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
-def pred_main_agent_plan(
-    process_id,
-    pred_graph,
-    t,
-    pred_actions_fn,
-    obs,
-    length_plan,
-    must_replan,
-    agent_id,
-    res,
-):
-    edge_pred_class = get_edge_class(pred_graph, t)
-    print('pred {}:'.format(process_id), edge_pred_class)
-    plan_states, opponent_subgoal = None, None
-    if len(edge_pred_class) > 0:  # if no edge prediction then None action
-        opponent_actions, opponent_info = pred_actions_fn(
-            obs,
-            length_plan=length_plan,
-            must_replan=must_replan,
-            agent_id=1 - agent_id,
-            inferred_goal=edge_pred_class,
-        )
-        plan_states = opponent_info[1 - agent_id]['plan_states']
-        opponent_subgoal = opponent_info[1 - agent_id]['subgoals'][0][0]
-    res[process_id] = (opponent_subgoal, plan_states)
-
-
 def get_helping_plan(
     process_id,
     pred_graph,
     t,
-    opponent_subgoal,
+    pred_actions_fn,
     get_actions_fn,
     obs,
     length_plan,
@@ -228,8 +201,15 @@ def get_helping_plan(
 ):
     edge_pred_class = get_edge_class(pred_graph, t)
     print('pred {}:'.format(process_id), edge_pred_class)
-    subgoal, action = None, None
     if len(edge_pred_class) > 0:  # if no edge prediction then None action
+        opponent_actions, opponent_info = get_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=1 - agent_id,
+            inferred_goal=edge_pred_class,
+        )
+        opponent_subgoal = opponent_info[0]['subgoals'][0][0]
         actions, info = get_actions_fn(
             obs,
             length_plan=length_plan,
@@ -243,12 +223,11 @@ def get_helping_plan(
         print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
 
         # Here you can get the intermediate states
-        plan_states = info[agent_id]['plan_states']
-        action = actions[agent_id]
-        subgoal = info[agent_id]['subgoals'][0][0]
+        plan_states = info[1]['plan_states']
+        action = actions[1]
     else:
         action = None
-    res[process_id] = (subgoal, action)
+    res[process_id] = action
 
 
 @hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
@@ -272,7 +251,7 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_ind'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -412,8 +391,6 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
-
     for iter_id in range(num_tries):
         # if iter_id > 0:
         # iter_id = 1
@@ -473,6 +450,8 @@ def main(cfg: DictConfig):
         # ipdb.set_trace()
 
         max_steps = args.max_episode_length
+
+        episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
 
         for env_task in env_task_set:
 
@@ -674,50 +653,7 @@ def main(cfg: DictConfig):
                     # get helper action
                     print('planning for the helper agent')
                     action_freq = {}
-                    opponent_subgoal_freq = {}
                     manager = mp.Manager()
-
-                    res = manager.dict()
-                    for start_root_id in range(0, num_samples, num_processes):
-                        end_root_id = min(start_root_id + num_processes, num_samples)
-                        jobs = []
-                        for process_id in range(start_root_id, end_root_id):
-                            # print(process_id)
-                            p = mp.Process(
-                                target=pred_main_agent_plan,
-                                args=(
-                                    process_id,
-                                    graph_result[process_id],
-                                    steps - 3,
-                                    arena.pred_actions,
-                                    curr_obs,
-                                    10,
-                                    {0: True, 1: True},
-                                    1,
-                                    res,
-                                ),
-                            )
-                            jobs.append(p)
-                            p.start()
-                        for p in jobs:
-                            p.join()
-                    for pred_id, (subgoal, plan_states) in res.items():
-                        if subgoal is not None:
-                            if subgoal not in opponent_subgoal_freq:
-                                opponent_subgoal_freq[subgoal] = 1
-                            else:
-                                opponent_subgoal_freq[subgoal] += 1
-                    max_freq = 0
-                    opponent_subgoal = None
-                    for subgoal, count in opponent_subgoal_freq.items():
-                        if count > max_freq:
-                            max_freq = count
-                            opponent_subgoal = subgoal
-                        print(subgoal, count / num_samples)
-                    print('predicted main\'s subgoal:', opponent_subgoal)
-                    # ipdb.set_trace()
-                    del res
-
                     res = manager.dict()
                     for start_root_id in range(0, num_samples, num_processes):
                         end_root_id = min(start_root_id + num_processes, num_samples)
@@ -730,7 +666,7 @@ def main(cfg: DictConfig):
                                     process_id,
                                     graph_result[process_id],
                                     steps - 3,
-                                    opponent_subgoal,
+                                    arena.pred_actions,
                                     arena.get_actions,
                                     curr_obs,
                                     10,
@@ -743,7 +679,7 @@ def main(cfg: DictConfig):
                             p.start()
                         for p in jobs:
                             p.join()
-                    for pred_id, (subgoal, action) in res.items():
+                    for pred_id, action in res.items():
                         if action is not None:
                             if action not in action_freq:
                                 action_freq[action] = 1
