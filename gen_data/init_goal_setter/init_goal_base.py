@@ -3,6 +3,7 @@ import pdb
 import sys
 import os
 import random
+from termcolor import colored
 import json
 import ipdb
 import numpy as np
@@ -15,7 +16,8 @@ curr_dir = os.path.dirname(os.path.abspath(__file__))
 
 class SetInitialGoal:
     def __init__(self, obj_position, class_name_size, init_pool_tasks, 
-                 task_name, same_room=True, goal_template=None, rand=None, set_random_goal=False):
+                 task_name, same_room=True, goal_template=None, rand=None, set_curr_goal=True,
+                 set_random_goal=False):
         self.task_name = task_name
         self.init_pool_tasks = init_pool_tasks
         self.obj_position = obj_position
@@ -26,10 +28,11 @@ class SetInitialGoal:
         self.max_num_place = 50
         self.goal_template = goal_template
 
-        self.min_num_other_object = 0  # 15
-        self.max_num_other_object = 0  # 45
+        self.min_num_other_object = 15  # 15
+        self.max_num_other_object = 25  # 45
         self.set_random_goal =  set_random_goal
         self.add_goal_obj_success = True
+        self.set_curr_goal = set_curr_goal
         if rand is not None:
             self.rand = rand
         else:
@@ -93,32 +96,33 @@ class SetInitialGoal:
             for k,v in self.goal.items():
                 count+=v
         '''
-        if self.goal_template is not None:
-            self.goal = {}
-            for predicate, count in self.goal_template.items():
-                elements = predicate.split('_')
-                for e in elements:
-                    if e in self.init_pool:
-                        self.goal[e] = count
-            print(self.goal_template)
-            print(self.goal)
-        else:
-            while 1:
+        if self.set_curr_goal:
+            if self.goal_template is not None:
                 self.goal = {}
-                for k, v in self.init_pool.items():
-                    self.goal[k] = self.rand.randint(v['min_num'], v['max_num'])
+                for predicate, count in self.goal_template.items():
+                    elements = predicate.split('_')
+                    for e in elements:
+                        if e in self.init_pool:
+                            self.goal[e] = count
+                print(self.goal_template)
+                print(self.goal)
+            else:
+                while 1:
+                    self.goal = {}
+                    for k, v in self.init_pool.items():
+                        self.goal[k] = self.rand.randint(v['min_num'], v['max_num'])
 
-                # break
+                    # break
 
-                count = 0
-                for k, v in self.goal.items():
-                    count += v
+                    count = 0
+                    for k, v in self.goal.items():
+                        count += v
 
-                if self.task_name == 'read_book' and 2 <= count <= 4 or self.task_name == 'watch_tv' and 2 <= count <= 4:
-                    break
+                    if self.task_name == 'read_book' and 2 <= count <= 4 or self.task_name == 'watch_tv' and 2 <= count <= 4:
+                        break
 
-                if 2 <= count <= 6 and self.task_name not in ['clean_table', 'unload_dishwasher'] or 3 <= count <= 6:
-                    break
+                    if 2 <= count <= 6 and self.task_name not in ['clean_table', 'unload_dishwasher'] or 3 <= count <= 6:
+                        break
 
         # Select goals for random agent
         if self.set_random_goal:
@@ -347,6 +351,8 @@ class SetInitialGoal:
 
         candidates = [(obj_rel_name[0], obj_rel_name[1]) for obj_rel_name in self.obj_position[obj_name] if
                       obj_rel_name[1] in ids_class.keys()]
+        init_candidates = [(obj_rel_name[0], obj_rel_name[1]) for obj_rel_name in self.obj_position[obj_name] if
+                      obj_rel_name[1] in ids_class.keys()]
         # print(candidates)
         print("Placing: {}. Candidates: {}".format(obj_name, candidates))
         id2node = {node['id']: node for node in graph['nodes']}
@@ -464,17 +470,29 @@ class SetInitialGoal:
         return object_id, graph, True
 
     def setup_other_objs(self, graph, object_id, objs_in_room=None, except_position=None):
-        new_object_pool = [tem for tem in self.obj_position.keys() if
+        new_object_pool = [tem for tem in self.init_pool_tasks['obj_random'] if
                            tem not in list(self.goal.keys())]  # remove objects in goal
 
-        self.num_other_obj = self.rand.choice(list(range(self.min_num_other_object, self.max_num_other_object + 1)))
+        self.num_other_obj = self.rand.randint(self.min_num_other_object, self.max_num_other_object)
+        obj_in_graph = [node['class_name'] for node in graph['nodes']]  # if the object already in env, skip
+            
+        # print(self)
+        added_objects, failed_objects = [], []
         for i in range(self.num_other_obj):
             obj_name = self.rand.choice(new_object_pool)
-            obj_in_graph = [node for node in graph['nodes'] if
-                            node['class_name'] == obj_name]  # if the object already in env, skip
-            object_id, graph = self.add_obj(graph, obj_name, 1, object_id, objs_in_room=objs_in_room,
+            if obj_name in obj_in_graph:
+                continue
+            
+            object_id, graph, success = self.add_obj(graph, obj_name, 1, object_id, objs_in_room=objs_in_room,
                                             only_position=None, except_position=except_position)
 
+            if success:
+                added_objects.append(obj_name)
+
+        # ipdb.set_trace()
+        print("Adding objects:")
+        print(colored(added_objects, "green"))
+        print(colored(failed_objects, "red"))
         return object_id, graph
 
     def set_tv_off(self, graph, tv_id):

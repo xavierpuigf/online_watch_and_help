@@ -19,7 +19,7 @@ sys.path.insert(0, f'{curr_dir}/..')
 from simulation.unity_simulator import comm_unity
 print(comm_unity.__file__)
 from init_goal_setter.init_goal_base import SetInitialGoal
-from init_goal_setter.tasks_noise import Task
+from init_goal_setter.tasks_structured import Task
 
 
 from utils import utils_goals
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         rand = random.Random(args.seed)
 
 
-    with open(f'{curr_dir}/data/init_pool_noise.json') as file:
+    with open(f'{curr_dir}/data/init_pool_structured.json') as file:
         init_pool = json.load(file)
     # comm = comm_unity.UnityCommunication()
     if args.use_editor:
@@ -70,27 +70,29 @@ if __name__ == "__main__":
     ## gen graph
     ## -------------------------------------------------------------
     task_names = {
-        1: ["setup_table", "put_fridge", "prepare_food"],
-        2: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"],
-        3: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"],
-        4: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"],
-        5: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"],
+        1: ["setup_table", "put_fridge", "prepare_food", "watch_tv"],
+        2: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
+        3: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
+        4: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
+        5: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
         6: ["setup_table", "put_fridge", "prepare_food"],
-        7: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"]
+        7: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"]
     }
 
     bad_containers = {
         '1': ['dishwasher'],
-        '6': ['dishwasher']
+        '6': ['dishwasher'],
+        '4': ['coffeetable']
     }
 
     success_init_graph = []
 
     apartment_ids = [int(apt_id) for apt_id in args.apt_str.split(',')]
     if args.task == 'all':
-        tasks =  ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"]
+        tasks = ["setup_table", "prepare_food", "watch_tv"]
+        # tasks =  ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"]
     else:
-        raise Exception
+        tasks = [args.task]
 
     num_per_apartment = args.num_per_apartment
 
@@ -117,11 +119,8 @@ if __name__ == "__main__":
                     positions = [pos for pos in pos_list if \
                                  pos[0] == 'INSIDE' and pos[1] in ['kitchencabinet', 'cabinet'] or \
                                  pos[0] == 'ON' and pos[1] in \
-                                 (['cabinet', 'bench', 'nightstand'] + ([] if apartment == 2 else ['kitchentable']))]
-                elif obj == 'remotecontrol':
-                    # TODO: we never get here
-                    positions = [pos for pos in pos_list if pos[0] == 'ON' and pos[1] in \
-                                 ['tvstand']]
+                                 (['cabinet', 'bench', 'nightstand', 'coffeetable'] + ([] if apartment == 2 else ['kitchentable']))]
+
                 else:
                     positions = [pos for pos in pos_list if \
                                  pos[0] == 'INSIDE' and pos[1] in ['fridge', 'kitchencabinet', 'cabinet', 'microwave',
@@ -148,7 +147,7 @@ if __name__ == "__main__":
                 ## setup goal based on currect environment
                 ## -------------------------------------------------------------
                 set_init_goal = SetInitialGoal(obj_position, class_name_size, init_pool, 
-                                               task_name, same_room=False, rand=rand, set_random_goal=True)
+                                               task_name, same_room=False, rand=rand, set_random_goal=False, set_curr_goal=False)
                 
 
                 task_name_red = task_name
@@ -185,7 +184,7 @@ if __name__ == "__main__":
                             print("Objects unplaced")
                             print([id2node[edge['to_id']]['class_name'] for edge in init_graph['edges'] if
                                    edge['from_id'] == obj_id])
-                            ipdb.set_trace()
+                            # ipdb.set_trace()
                         if task_name != 'read_book' and task_name != 'watch_tv':
                             intersection = set(obj_names) & set(goal_names)
                         else:
@@ -296,7 +295,7 @@ if __name__ == "__main__":
                              'task_goal': task_goal,
                              'level': 0, 'init_rooms': rand.sample(['kitchen', 'bedroom', 'livingroom', 'bathroom'], 2)})
 
-    pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/third_agent/{args.split}_env_task_set_{args.num_per_apartment}_{args.mode}.pik', 'wb'))
+    pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/structured_agent/{args.split}_env_task_set_{args.num_per_apartment}_{args.mode}_task.{args.task}.pik', 'wb'))
 
 
 

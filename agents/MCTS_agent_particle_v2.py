@@ -465,7 +465,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
 
         # print(res, target)
         grab_node = target_node['id']
-        place_node = target2_node['id']
+        place_node = target_node2['id']
         return res, cost_list, f'putin_{grab_node}_{place_node}'
 
 
