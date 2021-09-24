@@ -236,7 +236,7 @@ def main(cfg: DictConfig):
 
             episode_id = env_task['task_id']
 
-            # if episode_id != 6:
+            # if episode_id != 12:
             #     continue
 
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
@@ -294,6 +294,9 @@ def main(cfg: DictConfig):
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
+                print(curr_info[0]['subgoals'])
+                print(curr_info[0]['plan'])
+                ipdb.set_trace()
                 prev_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -324,6 +327,9 @@ def main(cfg: DictConfig):
                     {0: actions[0]}
                 )
                 curr_graph = infos['graph']
+                print(curr_info[0]['subgoals'])
+                print(curr_info[0]['plan'])
+                ipdb.set_trace()
 
                 if 'satisfied_goals' in infos:
                     saved_info['goals_finished'].append(infos['satisfied_goals'])
@@ -354,6 +360,8 @@ def main(cfg: DictConfig):
                         must_replan={0: False, 1: False},
                         agent_id=0,
                     )
+                    print(curr_info[0]['subgoals'])
+                    print(curr_info[0]['plan'])
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
@@ -367,6 +375,7 @@ def main(cfg: DictConfig):
                             if node['id'] < 3
                         ]
                     )
+                    ipdb.set_trace()
 
                     curr_graph = infos['graph']
 
@@ -421,7 +430,7 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                # ipdb.set_trace()
+                ipdb.set_trace()
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
                 if len(saved_info['obs']) > 0:

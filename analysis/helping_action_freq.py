@@ -191,6 +191,7 @@ def get_helping_plan(
     process_id,
     pred_graph,
     t,
+    pred_actions_fn,
     get_actions_fn,
     obs,
     length_plan,
@@ -201,16 +202,25 @@ def get_helping_plan(
     edge_pred_class = get_edge_class(pred_graph, t)
     print('pred {}:'.format(process_id), edge_pred_class)
     if len(edge_pred_class) > 0:  # if no edge prediction then None action
+        opponent_actions, opponent_info = get_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=1 - agent_id,
+            inferred_goal=edge_pred_class,
+        )
+        opponent_subgoal = opponent_info[0]['subgoals'][0][0]
         actions, info = get_actions_fn(
             obs,
             length_plan=length_plan,
             must_replan=must_replan,
             agent_id=agent_id,
             inferred_goal=edge_pred_class,
+            opponent_subgoal=opponent_subgoal,
         )
         # print('actions:', actions)
         print('pred {}:'.format(process_id), edge_pred_class)
-        print('plan {}:'.format(process_id), info[1]['plan'])
+        print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
 
         # Here you can get the intermediate states
         plan_states = info[1]['plan_states']
@@ -302,8 +312,8 @@ def main(cfg: DictConfig):
             if node['class_name'] == 'cutleryfork':
                 node['obj_transform']['position'][1] += 0.1
 
-    args.record_dir = '{}/{}/{}'.format(cachedir, datafile, args.mode)
-    error_dir = '{}/logging/{}_{}'.format(cachedir, datafile, args.mode)
+    args.record_dir = '{}/{}'.format(cachedir, datafile)
+    error_dir = '{}/logging/{}'.format(cachedir, datafile)
     if not os.path.exists(args.record_dir):
         os.makedirs(args.record_dir)
 
@@ -504,7 +514,7 @@ def main(cfg: DictConfig):
                 }
 
                 actions, curr_info = arena.get_actions(
-                    obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
+                    obs, length_plan=10, must_replan={0: False, 1: True}, agent_id=0
                 )
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
@@ -528,7 +538,10 @@ def main(cfg: DictConfig):
                         saved_info['obs'].append([node['id'] for node in info['obs']])
 
                 actions, curr_info = arena.get_actions(
-                    prev_obs, length_plan=10, must_replan={0: True, 1: True}, agent_id=0
+                    prev_obs,
+                    length_plan=10,
+                    must_replan={0: False, 1: True},
+                    agent_id=0,
                 )
                 prev_action = actions[0]
                 history_action.append(prev_action)
@@ -538,14 +551,14 @@ def main(cfg: DictConfig):
                 )
 
                 print("agents' positions")
-                    print(
-                        [
-                            (node['id'], node['bounding_box']['center'])
-                            for node in curr_obs[0]['nodes']
-                            if node['id'] < 3
-                        ]
-                    )
-                
+                print(
+                    [
+                        (node['id'], node['bounding_box']['center'])
+                        for node in curr_obs[0]['nodes']
+                        if node['id'] < 3
+                    ]
+                )
+
                 curr_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -625,9 +638,11 @@ def main(cfg: DictConfig):
                     selected_actions, curr_info = arena.get_actions(
                         curr_obs,
                         length_plan=10,
-                        must_replan={0: True, 1: True},
+                        must_replan={0: False, 1: True},
                         agent_id=0,
                     )
+                    print('main agent subgoal:', curr_info[0]['subgoals'])
+                    # ipdb.set_trace()
 
                     # get helper action
                     print('planning for the helper agent')
@@ -645,6 +660,7 @@ def main(cfg: DictConfig):
                                     process_id,
                                     graph_result[process_id],
                                     steps - 3,
+                                    arena.pred_actions,
                                     arena.get_actions,
                                     curr_obs,
                                     10,
@@ -744,7 +760,7 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                # ipdb.set_trace()
+                ipdb.set_trace()
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)

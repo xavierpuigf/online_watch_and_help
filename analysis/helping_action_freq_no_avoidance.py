@@ -187,6 +187,49 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
+def get_helping_plan(
+    process_id,
+    pred_graph,
+    t,
+    pred_actions_fn,
+    get_actions_fn,
+    obs,
+    length_plan,
+    must_replan,
+    agent_id,
+    res,
+):
+    edge_pred_class = get_edge_class(pred_graph, t)
+    print('pred {}:'.format(process_id), edge_pred_class)
+    if len(edge_pred_class) > 0:  # if no edge prediction then None action
+        # opponent_actions, opponent_info = get_actions_fn(
+        #     obs,
+        #     length_plan=length_plan,
+        #     must_replan=must_replan,
+        #     agent_id=1 - agent_id,
+        #     inferred_goal=edge_pred_class,
+        # )
+        opponent_subgoal = None  # opponent_info[0]['subgoals'][0][0]
+        actions, info = get_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=agent_id,
+            inferred_goal=edge_pred_class,
+            opponent_subgoal=opponent_subgoal,
+        )
+        # print('actions:', actions)
+        print('pred {}:'.format(process_id), edge_pred_class)
+        print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
+
+        # Here you can get the intermediate states
+        plan_states = info[1]['plan_states']
+        action = actions[1]
+    else:
+        action = None
+    res[process_id] = action
+
+
 @hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
@@ -208,7 +251,7 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_no_avoidance'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -243,7 +286,7 @@ def main(cfg: DictConfig):
     # TODO: add num_samples to the argument
     num_samples = args.num_samples
     num_processes = args.num_processes
-    # args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
+    args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -378,25 +421,45 @@ def main(cfg: DictConfig):
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
 
+        model = agent_pref_policy.GraphPredNetwork(args_pred)
+        state_dict = torch.load(args_pred.ckpt_load)['model']
+        state_dict_new = {}
+
+        for param_name, param_value in state_dict.items():
+            state_dict_new[param_name.replace('module.', '')] = param_value
+
+        model.load_state_dict(state_dict_new)
+        model.eval()
+
+        curr_file = (
+            '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah'
+        )
+        # dataset_test = AgentTypeDataset(
+        #     path_init='{}/agent_preferences/dataset/{}'.format(
+        #         curr_file, args_pred['data']['test_data']
+        #     ),
+        #     args_config=args_pred,
+        # )
+        graph_helper = utils_rl_agent.GraphHelper(
+            max_num_objects=args_pred['model']['max_nodes'],
+            toy_dataset=args_pred['model']['reduced_graph'],
+        )
+
         num_episodes = 0
         # gt_p = [gp for gp in gt_p if 'logs_episode.26_iter.2.pik_result.pkl' in gp]
         # ipdb.set_trace()
 
         max_steps = args.max_episode_length
-        steps_list, failed_tasks = [], []
 
         for env_task in env_task_set:
 
+            steps_list, failed_tasks = [], []
             current_tried = iter_id
 
             gt_goal = env_task['task_goal'][0]
             print('gt goal:', gt_goal)
 
             episode_id = env_task['task_id']
-
-            # if episode_id != 6:
-            #     continue
-
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id
             )
@@ -447,12 +510,15 @@ def main(cfg: DictConfig):
                     'belief_graph': {0: [], 1: []},
                     'graph': [arena.env.init_unity_graph],
                     'obs': [],
+                    'graph_results': [],
                 }
 
                 actions, curr_info = arena.get_actions(
-                    obs, length_plan=10, must_replan={0: False, 1: False}
+                    obs, length_plan=10, must_replan={0: False, 1: True}, agent_id=0
                 )
-                (prev_obs, reward, done, infos) = arena.step_given_action(actions)
+                (prev_obs, reward, done, infos) = arena.step_given_action(
+                    {0: actions[0]}
+                )
                 prev_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -472,12 +538,27 @@ def main(cfg: DictConfig):
                         saved_info['obs'].append([node['id'] for node in info['obs']])
 
                 actions, curr_info = arena.get_actions(
-                    prev_obs, length_plan=10, must_replan={0: False, 1: False}
+                    prev_obs,
+                    length_plan=10,
+                    must_replan={0: False, 1: True},
+                    agent_id=0,
                 )
                 prev_action = actions[0]
                 history_action.append(prev_action)
 
-                (curr_obs, reward, done, infos) = arena.step_given_action(actions)
+                (curr_obs, reward, done, infos) = arena.step_given_action(
+                    {0: actions[0]}
+                )
+
+                print("agents' positions")
+                print(
+                    [
+                        (node['id'], node['bounding_box']['center'])
+                        for node in curr_obs[0]['nodes']
+                        if node['id'] < 3
+                    ]
+                )
+
                 curr_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -503,14 +584,123 @@ def main(cfg: DictConfig):
                 while steps < max_steps:
                     steps += 1
 
+                    # predict goal states
+                    history_obs.append([node['id'] for node in curr_info[0]['obs']])
+                    history_graph.append(prev_graph)
+                    assert len(history_graph) == len(history_obs)
+                    assert len(history_graph) == len(history_action)
+                    if history_action[-1] is not None:
+                        inputs_func = utils_models_wb.prepare_graph_for_model(
+                            history_graph,
+                            history_obs,
+                            history_action,
+                            args_pred,
+                            graph_helper,
+                        )
+                        with torch.no_grad():
+                            print("FORWARD")
+                            output_func = model(inputs_func)
+
+                        edge_dict = utils_models_wb.build_gt_edge(
+                            inputs_func['graph'], graph_helper, exclusive_edge=True
+                        )
+                        b, t, n = inputs_func['graph']['mask_obs_node'].shape
+                        pred_edge = output_func['edges'].reshape([b, t, n, n])
+                        graph_result = utils_models_wb.obtain_graph_3(
+                            graph_helper,
+                            inputs_func['graph'],
+                            torch.nn.functional.softmax(pred_edge, dim=-1)
+                            .cpu()
+                            .numpy(),
+                            output_func['states'].cpu(),
+                            inputs_func['graph']['mask_obs_node'],
+                            [
+                                torch.nn.functional.softmax(
+                                    output_func['node_change'], dim=-1
+                                )
+                                .cpu()
+                                .numpy(),
+                                torch.nn.functional.one_hot(edge_dict['gt_edges'], n)
+                                .cpu()
+                                .numpy(),
+                            ],
+                            inputs_func['mask_len'],
+                            include_last=False,
+                            samples=num_samples,
+                        )
+                    saved_info['graph_results'].append(graph_result)
+
                     # ipdb.set_trace()
 
-                    # get two agents' action
+                    # get main agent's action
                     # arena.task_goal = None
                     print('planning for the main agent')
                     selected_actions, curr_info = arena.get_actions(
-                        curr_obs, length_plan=10, must_replan={0: False, 1: False}
+                        curr_obs,
+                        length_plan=10,
+                        must_replan={0: False, 1: True},
+                        agent_id=0,
                     )
+                    print('main agent subgoal:', curr_info[0]['subgoals'])
+                    # ipdb.set_trace()
+
+                    # get helper action
+                    print('planning for the helper agent')
+                    action_freq = {}
+                    manager = mp.Manager()
+                    res = manager.dict()
+                    for start_root_id in range(0, num_samples, num_processes):
+                        end_root_id = min(start_root_id + num_processes, num_samples)
+                        jobs = []
+                        for process_id in range(start_root_id, end_root_id):
+                            # print(process_id)
+                            p = mp.Process(
+                                target=get_helping_plan,
+                                args=(
+                                    process_id,
+                                    graph_result[process_id],
+                                    steps - 3,
+                                    arena.pred_actions,
+                                    arena.get_actions,
+                                    curr_obs,
+                                    10,
+                                    {0: True, 1: True},
+                                    1,
+                                    res,
+                                ),
+                            )
+                            jobs.append(p)
+                            p.start()
+                        for p in jobs:
+                            p.join()
+                    for pred_id, action in res.items():
+                        if action is not None:
+                            if action not in action_freq:
+                                action_freq[action] = 1
+                            else:
+                                action_freq[action] += 1
+
+                    edge_pred_class_estimated = aggregate_multiple_pred(
+                        graph_result, steps - 3, change=True
+                    )
+                    # for goal_object in goal_objects:
+                    print('-------------------------------------')
+                    for edge_class, count in edge_pred_class_estimated.items():
+                        if (
+                            edge_pred_class_estimated[edge_class][0] < 1e-6
+                            and edge_pred_class_estimated[edge_class][1] < 1e-6
+                        ):
+                            continue
+                        print(edge_class, edge_pred_class_estimated[edge_class])
+                    print('action freq:')
+                    N_preds = num_samples
+                    max_freq = 0
+                    for action, count in action_freq.items():
+                        curr_freq = count / N_preds
+                        if curr_freq > max_freq:
+                            max_freq = curr_freq
+                            selected_actions[1] = action
+                        print(action, curr_freq)
                     print('selected_actions:', selected_actions)
 
                     prev_obs = copy.deepcopy(curr_obs)
@@ -519,14 +709,6 @@ def main(cfg: DictConfig):
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
-                    )
-                    print("agents' positions")
-                    print(
-                        [
-                            (node['id'], node['bounding_box']['center'])
-                            for node in curr_obs[0]['nodes']
-                            if node['id'] < 3
-                        ]
                     )
                     curr_graph = infos['graph']
                     # history_obs.append(curr_obs[0])
@@ -588,7 +770,7 @@ def main(cfg: DictConfig):
 
                 print("Unity exception")
                 arena.reset_env()
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 continue
 
             except utils_exception.ManyFailureException as e:
