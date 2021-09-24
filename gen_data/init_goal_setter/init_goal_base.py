@@ -464,7 +464,7 @@ class SetInitialGoal:
             # print(success_add, num_obj)
             if success_add != num_obj:
                 # print(obj_name)
-                # ipdb.set_trace()
+                ipdb.set_trace()
                 return None, None, False
 
         return object_id, graph, True

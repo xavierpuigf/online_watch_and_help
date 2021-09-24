@@ -31,18 +31,18 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 10
+    num_proc = 0
 
     num_tries = 1
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
+    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
-    args.dataset_path = f'{rootdir}/dataset/third_agent/train_env_task_set_2_full.pik'
+    args.dataset_path = f'{rootdir}/dataset/structured_agent/train_env_task_set_2_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
-    cachedir = f'{rootdir}/dataset_episodes/small_data_third_agent'
+    cachedir = f'{rootdir}/dataset_episodes/data_structured'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
@@ -119,7 +119,7 @@ if __name__ == '__main__':
         #episode_ids = [episode_ids[0]]
      
         def env_fn(env_id):
-            return UnityEnvironment(num_agents=2,
+            return UnityEnvironment(num_agents=1,
                                     max_episode_length=args.max_episode_length,
                                     port_id=env_id,
                                     env_task_set=env_task_set,
@@ -148,7 +148,8 @@ if __name__ == '__main__':
         args_agent1 = {'agent_id': 1, 'char_index': 0}
         args_agent1.update(args_common)
         args_agent1['agent_params'] = agent_args
-        agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1), lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
+        agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
+
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
         
         # # episode_ids = [20] #episode_ids

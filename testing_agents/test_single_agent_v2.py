@@ -136,6 +136,7 @@ if __name__ == '__main__':
         episode_ids = sorted(episode_ids)
         random_start.shuffle(episode_ids)
         # episode_ids = episode_ids[10:]
+        episode_ids = [39]
 
         S = [[] for _ in range(len(episode_ids))]
         L = [[] for _ in range(len(episode_ids))]

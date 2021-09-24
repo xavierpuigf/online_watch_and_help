@@ -31,7 +31,7 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 5
+    num_proc = 0
 
     num_tries = 5
     args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
@@ -57,7 +57,7 @@ if __name__ == '__main__':
             ['partial', -5, 0.05, False, 0.2, "uniform"], # 7
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
     ]
-    random_start = random.Random()
+    random_start = random.Random(0)
     agent_types_index = [0]
 
     #random.shuffle(agent_types_index)
@@ -112,7 +112,8 @@ if __name__ == '__main__':
         episode_ids = list(range(len(env_task_set)))
         episode_ids = sorted(episode_ids)
         random_start.shuffle(episode_ids)
-        # episode_ids = episode_ids[10:]
+        #episode_ids = episode_ids[10:]
+        episode_ids = [39]
 
         S = [[] for _ in range(len(episode_ids))]
         L = [[] for _ in range(len(episode_ids))]
@@ -190,7 +191,7 @@ if __name__ == '__main__':
 
                 if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
                     print(log_file_name)
-                    continue
+                    # continue
                 if os.path.isfile(failure_file):
                     os.remove(failure_file)
                 fileh = logging.FileHandler(failure_file, 'a')

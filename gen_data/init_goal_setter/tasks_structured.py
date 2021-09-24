@@ -417,6 +417,7 @@ class Task:
         except_position_ids += container_ids + container_ids_random
 
         # place objects and random objects
+        init_graph = graph
         for k, v in init_goal_manager.goal.items():
             # obj_ids = [node['id'] for node in graph['nodes'] if k in node['class_name']]
             # graph = init_goal_manager.remove_obj(graph, obj_ids)

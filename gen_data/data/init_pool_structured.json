@@ -8,7 +8,8 @@
         "cutleryfork",
         "cupcake",
         "salmon",
-        "apple"
+        "apple",
+        "chips"
     ],
     "setup_table": 
     {   
@@ -22,6 +23,17 @@
         }
     },
 
+    "watch_tv": 
+    {   
+        "counts": {"max": 1, "min": 1},
+        "candidates": [["coffeetable", "on"]],
+        "objects":
+        {
+            "chips": {"env_max_num": 3, "on": ["kitchentable"], "in": []},
+            "remotecontrol": {"env_max_num": 1, "on": ["kitchentable"], "in": []},
+            "condimentbottle": {"env_max_num": 3, "on": ["kitchentable"], "in": []}
+        }
+    },
 
 
     "put_dishwasher":

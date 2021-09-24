@@ -74,15 +74,15 @@ if __name__ == "__main__":
         2: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
         3: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
         4: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
-        5: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"],
-        6: ["setup_table", "put_fridge", "prepare_food"],
+        5: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher"],
+        6: ["setup_table", "put_fridge", "prepare_food", "watch_tv"],
         7: ["setup_table", "put_fridge", "prepare_food", "put_dishwasher", "watch_tv"]
     }
 
     bad_containers = {
         '1': ['dishwasher'],
         '6': ['dishwasher'],
-        '4': ['coffeetable']
+        '5': ['coffeetable']
     }
 
     success_init_graph = []
@@ -119,7 +119,7 @@ if __name__ == "__main__":
                     positions = [pos for pos in pos_list if \
                                  pos[0] == 'INSIDE' and pos[1] in ['kitchencabinet', 'cabinet'] or \
                                  pos[0] == 'ON' and pos[1] in \
-                                 (['cabinet', 'bench', 'nightstand', 'coffeetable'] + ([] if apartment == 2 else ['kitchentable']))]
+                                 (['cabinet', 'bench', 'nightstand', 'coffeetable', 'sofa'] + ([] if apartment == 2 else ['kitchentable']))]
 
                 else:
                     positions = [pos for pos in pos_list if \
@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
                 init_graph, env_goal, success_setup = getattr(Task, task_name_red)(set_init_goal, graph)
                 env_goal_key = list(env_goal[task_name][0].keys())[0]
-                
+            
 
                 # ipdb.set_trace()
                 # if env_goal is None:
