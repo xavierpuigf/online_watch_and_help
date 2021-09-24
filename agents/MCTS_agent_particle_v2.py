@@ -943,7 +943,8 @@ class MCTS_agent_particle_v2:
         # self.sim_env.reset(self.previous_belief_graph, {0: goal_spec, 1: goal_spec})
 
         last_action = self.last_action
-        last_subgoal = self.last_subgoal
+        last_subgoal = self.last_subgoal[0] if self.last_subgoal is not None else None
+        subgoals = self.last_subgoal
         last_plan = self.last_plan
 
         # TODO: is this correct?
@@ -973,7 +974,6 @@ class MCTS_agent_particle_v2:
         ]
         plan = []
 
-        subgoals = self.last_subgoal
         if last_plan is not None and len(last_plan) > 0:
             should_replan = False
 
@@ -1030,7 +1030,7 @@ class MCTS_agent_particle_v2:
                         should_replan = True
                     else:
                         curr_plan = last_plan[1:]
-
+                        subgoals = subgoals[1:]
                 if (
                     'open' in curr_plan[0]
                     or 'close' in curr_plan[0]
@@ -1058,6 +1058,7 @@ class MCTS_agent_particle_v2:
                                 next_action = False
                             else:
                                 curr_plan = curr_plan[1:]
+                                subgoals = subgoals[1:]
 
                         else:
                             # Keep with previous action
@@ -1114,11 +1115,10 @@ class MCTS_agent_particle_v2:
             # ipdb.set_trace()
         # else:
         #     subgoals = [[None, None, None], [None, None, None]]
-        if len(plan) == 0 and not must_replan:
-            ipdb.set_trace()
-            print("Plan empty")
-            raise Exception
-
+        # if len(plan) == 0 and not must_replan:
+        #     ipdb.set_trace()
+        #     print("Plan empty")
+        #     raise Exception
         if len(plan) > 0:
             action = plan[0]
             action = action.replace('[walk]', '[walktowards]')
@@ -1150,7 +1150,7 @@ class MCTS_agent_particle_v2:
             info = {'plan': plan, 'subgoals': subgoals}
 
         self.last_action = action
-        # self.last_subgoal = subgoals[0] if len(subgoals) > 0 else None
+        self.last_subgoal = subgoals if len(subgoals) > 0 else None
         self.last_plan = plan
         # print(info['subgoals'])
         # print(action)

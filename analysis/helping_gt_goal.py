@@ -394,8 +394,8 @@ def main(cfg: DictConfig):
 
             episode_id = env_task['task_id']
 
-            if episode_id != 6:
-                continue
+            # if episode_id != 6:
+            #     continue
 
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id

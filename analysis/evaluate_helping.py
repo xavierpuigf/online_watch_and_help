@@ -309,8 +309,8 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
     cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only'
 
     agent_types = [
@@ -371,11 +371,9 @@ def main(cfg: DictConfig):
             if node['class_name'] == 'cutleryfork':
                 node['obj_transform']['position'][1] += 0.1
 
-    args.record_dir = '{}/{}/{}'.format(cachedir, datafile, args.mode)
-    record_dir_main = '{}/{}/{}'.format(
-        cachedir_main, datafile, '{}_'.format(agent_id + 1)
-    )
-    error_dir = '{}/logging/{}_{}'.format(cachedir, datafile, args.mode)
+    args.record_dir = '{}/{}'.format(cachedir, datafile)
+    record_dir_main = '{}/{}'.format(cachedir_main, datafile)
+    error_dir = '{}/logging/{}'.format(cachedir, datafile)
     if not os.path.exists(args.record_dir):
         os.makedirs(args.record_dir)
 
@@ -439,7 +437,7 @@ def main(cfg: DictConfig):
     print(help_results)
 
     SR, AL, SP, SWS, stdR, stdL, stdSP, stdS = get_metrics_reward(
-        main_results, help_results, episode_ids
+        main_results, help_results, episode_ids, time_limit=args.max_episode_length
     )
     print(SR, AL, SP, SWS, stdR, stdL, stdSP, stdS)
 
