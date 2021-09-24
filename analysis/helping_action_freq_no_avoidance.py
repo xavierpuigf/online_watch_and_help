@@ -451,6 +451,8 @@ def main(cfg: DictConfig):
 
         max_steps = args.max_episode_length
 
+        episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+
         for env_task in env_task_set:
 
             steps_list, failed_tasks = [], []
@@ -460,6 +462,10 @@ def main(cfg: DictConfig):
             print('gt goal:', gt_goal)
 
             episode_id = env_task['task_id']
+
+            if episode_id not in episode_ids:
+                continue
+
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id
             )
