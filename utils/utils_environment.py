@@ -205,4 +205,6 @@ def check_progress(state, goal_spec):
                     satisfied[key].append(predicate)
                     unsatisfied[key] -= 1
     # ipdb.set_trace()
+    if len(satisfied) == 0 and len(unsatisfied) == 0:
+        ipdb.set_trace()
     return satisfied, unsatisfied

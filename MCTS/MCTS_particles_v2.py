@@ -310,7 +310,7 @@ class MCTS_particles_v2:
 
             # Nasty hack so that we can reuse plans from different predicates
             rewards += len(actions_taken) * [(next_root.sum_value * 1.0 / (next_root.num_visited + 1e-9)) / len(actions_taken)]
-            subgoals.append(next_root.id[1][-1])
+            subgoals += len(actions_taken) * [(next_root.id[1][-1])]
 
 
         # if len(plan) > 0:
@@ -948,6 +948,8 @@ class MCTS_particles_v2:
         subgoals += subgoals_hand
 
         if len(subgoals) == 0:
+            if node.parent is None:
+                ipdb.set_trace()
             return None, []
 
         goals_expanded = 0
@@ -963,6 +965,8 @@ class MCTS_particles_v2:
             ]
 
         act_all = []
+        if node.parent is None and self.verbose:
+            print(colored(subgoals, 'red'))
         for goal_predicate in subgoals:
             goal, predicate, aug_predicate = (
                 goal_predicate[0],

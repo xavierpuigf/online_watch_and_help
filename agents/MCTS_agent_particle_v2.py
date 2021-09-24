@@ -931,7 +931,8 @@ class MCTS_agent_particle_v2:
     def get_action(
         self, obs, goal_spec, opponent_subgoal=None, length_plan=5, must_replan=False
     ):
-        # ipdb.set_trace()
+        if len(goal_spec) == 0:
+            ipdb.set_trace()
 
         # Create the particles
         # pdb.set_trace()
