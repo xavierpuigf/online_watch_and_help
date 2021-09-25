@@ -1,13 +1,3 @@
-# Learn to reason what to help: identifying assistant goals from future state prediction
-
-# Setup
-The task is now always to bring either:
-1. A few apples and cupcakes into the table
-2. A few glasses and plates into the table
-
-The agent has full observability in the environment
-
-# Instructions to run
 Copy the folder: `/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/`
 
 
