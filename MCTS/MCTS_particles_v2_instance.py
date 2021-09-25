@@ -625,8 +625,11 @@ class MCTS_particles_v2_instance:
             cost = 0.05
         elif 'put' in action[action_index]:
             cost = 0.05
+        elif 'close' in action[action_index]:
+            cost = self.agent_params['open_cost']
         elif 'touch' in action[action_index]:
             cost = 0.05
+        
         else:
             print(colored("missing action {}".format(action[action_index]), "red"))
         # vdict = curr_vh_state.to_dict()

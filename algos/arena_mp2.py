@@ -14,9 +14,10 @@ import atexit
 
 # @ray.remote
 class ArenaMP(object):
-    def __init__(self, max_number_steps, arena_id, environment_fn, agent_fn, use_sim_agent=False):
+    def __init__(self, max_number_steps, arena_id, environment_fn, agent_fn, use_sim_agent=False, save_belief=True):
         self.agents = []
         self.sim_agents = []
+        self.save_belief = save_belief
         self.env_fn = environment_fn
         self.agent_fn = agent_fn
         self.arena_id = arena_id
@@ -625,6 +626,7 @@ class ArenaMP(object):
         prev_action = None
         self.saved_info = saved_info
         step = 0
+        prev_agent_position = np.array([0,0,0]).astype(np.float32)
         while True:
             if save_img is not None:
                 img_info = {'image_width': 224, 'image_height': 224}
@@ -633,17 +635,22 @@ class ArenaMP(object):
             step += 1
             (obs, reward, done, infos), actions, agent_info = self.step()
             # ipdb.set_trace()
+            new_agent_position = np.array(list(infos['graph']['nodes'][0]['bounding_box']['center'])).astype(np.float32)
+            distance = np.linalg.norm(new_agent_position - prev_agent_position)
             step_failed = infos['failed_exec']
             if actions[0] == prev_action:
                 num_repeated += 1
+                if distance < 0.3:
+                    num_nomove += 1
             else:
                 prev_action = actions[0]
                 num_repeated = 0
+                num_nomove = 0
             if step_failed:
                 num_failed += 1
             else:
                 num_failed = 0
-            if num_failed > 10 or num_repeated > 25:
+            if num_failed > 10 or num_repeated > 20 or num_nomove > 5:
                 print("Many failures", num_failed, num_repeated)
                 # logging.info("Many failures")
                 raise utils_exception.ManyFailureException
@@ -651,7 +658,8 @@ class ArenaMP(object):
             print("\nAgent Step:")
             print("----------")
             # print("Goals:", self.env.task_goal)
-            print("Action: ", actions, infos['graph']['nodes'][0]['bounding_box'])
+            print("Action: ", actions, new_agent_position)
+            prev_agent_position = new_agent_position
             logging.info(' | '.join(actions.values()))
             print("Plan:", agent_info[0]['plan'][:4])
             print("----------")
@@ -667,10 +675,11 @@ class ArenaMP(object):
             for agent_id, info in agent_info.items():
                 # if 'belief_graph' in info:
                 #    saved_info['belief_graph'][agent_id].append(info['belief_graph'])
-                if 'belief_room' in info:
-                    saved_info['belief_room'][agent_id].append(info['belief_room'])
-                if 'belief' in info:
-                    saved_info['belief'][agent_id].append(info['belief'])
+                if self.save_belief:
+                    if 'belief_room' in info:
+                        saved_info['belief_room'][agent_id].append(info['belief_room'])
+                    if 'belief' in info:
+                        saved_info['belief'][agent_id].append(info['belief'])
                 if 'plan' in info:
                     saved_info['plan'][agent_id].append(info['plan'][:3])
                 if 'obs' in info:
