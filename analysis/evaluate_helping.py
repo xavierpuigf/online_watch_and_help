@@ -312,7 +312,9 @@ def main(cfg: DictConfig):
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_no_avoidance'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_ind'
     cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only'
 
     agent_types = [
@@ -397,7 +399,7 @@ def main(cfg: DictConfig):
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
-    # episode_ids = [0]
+    # episode_ids = [1]
     # ndict = {'on_book_329': 1}
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
@@ -405,7 +407,7 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
-    num_tries = 1
+    num_tries = 5
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
