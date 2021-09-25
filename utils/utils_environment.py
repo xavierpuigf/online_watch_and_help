@@ -2,6 +2,33 @@ import ipdb
 import copy
 import random
 
+
+def convert_goal(task_goal, init_graph):
+    new_task_goal = {}
+    ids_from_class = {}
+
+    for node in init_graph['nodes']:
+        if node['class_name'] not in ids_from_class:
+            ids_from_class[node['class_name']] = []
+        ids_from_class[node['class_name']].append(node['id'])
+
+
+    newgoals = {}
+    for goal_name, count in task_goal.items():
+        if type(count) == int:
+            cont_id = int(goal_name.split('_')[-1])
+            class_name = goal_name.split('_')[1]
+            obj_grab = ids_from_class[class_name]
+            newgoals[goal_name] = {
+                'count': count,
+                'grab_obj_ids': obj_grab,
+                'container_ids': [cont_id]
+
+            }
+        else:
+            newgoals[goal_name] = count
+    return newgoals
+
 def clean_house_obj(graph):
     house_obj = ['window', 'door', 'floor', 'ceiling', 'wall']
     ids = [node['id'] for node in graph['nodes'] if node['class_name'].lower() in house_obj]
@@ -145,6 +172,9 @@ def separate_new_ids_graph(graph, max_id):
             edge['to_id'] = edge['to_id'] - max_id + 1000
     return new_graph
 
+
+
+
 def check_progress(state, goal_spec):
     """TODO: add more predicate checkers; currently only ON"""
     unsatisfied = {}
@@ -208,3 +238,72 @@ def check_progress(state, goal_spec):
     if len(satisfied) == 0 and len(unsatisfied) == 0:
         ipdb.set_trace()
     return satisfied, unsatisfied
+
+
+
+def check_progress2(state, goal_spec):
+    """TODO: add more predicate checkers; currently only ON"""
+    unsatisfied = {}
+    satisfied = {}
+    reward = 0.
+    id2node = {node['id']: node for node in state['nodes']}
+    class2id = {}
+    for node in state['nodes']:
+        if node['class_name'] not in class2id:
+            class2id[node['class_name']] = []
+        class2id[node['class_name']].append(node['id'])
+
+    for key, value in goal_spec.items():
+
+        elements = key.split('_')
+        unsatisfied[key] = value
+        
+        unsatisfied[key].update({'count': value['count']} if elements[0] not in ['offOn', 'offInside'] else {'count': 0})
+        satisfied[key] = [None] * 2
+        satisfied[key]
+        satisfied[key] = []
+        for edge in state['edges']:
+            if elements[0] in 'close':
+                if edge['relation_type'].lower().startswith('close') and id2node[edge['to_id']]['class_name'] == elements[1] and edge['from_id'] == int(elements[2]):
+                    predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
+                    satisfied[key].append(predicate)
+                    unsatisfied[key]['count'] -= 1
+            if elements[0] in ['on', 'inside']:
+                if edge['relation_type'].lower() == elements[0] and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
+                    predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
+                    satisfied[key].append(predicate)
+                    unsatisfied[key]['count'] -= 1
+            elif elements[0] == 'offOn':
+                if edge['relation_type'].lower() == 'on' and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
+                    predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
+                    unsatisfied[key]['count'] += 1
+            elif elements[0] == 'offInside':
+                if edge['relation_type'].lower() == 'inside' and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
+                    predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
+                    unsatisfied[key]['count'] += 1
+            elif elements[0] == 'holds':
+                if edge['relation_type'].lower().startswith('holds') and id2node[edge['to_id']]['class_name'] == elements[1] and edge['from_id'] == int(elements[2]):
+                    predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
+                    satisfied[key].append(predicate)
+                    unsatisfied[key]['count'] -= 1
+            elif elements[0] == 'sit':
+                if edge['relation_type'].lower().startswith('sit') and edge['to_id'] == int(elements[2]) and edge['from_id'] == int(elements[1]):
+                    predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
+                    satisfied[key].append(predicate)
+                    unsatisfied[key]['count'] -= 1
+        if elements[0] == 'turnOn':
+            if 'ON' in id2node[int(elements[1])]['states']:
+                predicate = '{}_{}_{}'.format(elements[0], elements[1], 1)
+                satisfied[key].append(predicate)
+                unsatisfied[key]['count'] -= 1
+        if elements[0] == 'touch':
+            for id_touch in class2id[elements[1]]:
+                if 'TOUCHED' in [st.upper() for st in id2node[id_touch]['states']]:
+                    predicate = '{}_{}_{}'.format(elements[0], id_touch, 1)
+                    satisfied[key].append(predicate)
+                    unsatisfied[key]['count'] -= 1
+    # ipdb.set_trace()
+    if len(satisfied) == 0 and len(unsatisfied) == 0:
+        ipdb.set_trace()
+    return satisfied, unsatisfied
+

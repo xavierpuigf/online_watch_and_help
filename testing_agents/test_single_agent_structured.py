@@ -12,11 +12,12 @@ import numpy as np
 from pathlib import Path
 
 from envs.unity_environment import UnityEnvironment
-from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
+from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle, MCTS_agent_particle_v2_instance
 from arguments import get_args
 from algos.arena_mp2 import ArenaMP
 from utils import utils_goals
 from utils import utils_exception
+from utils import utils_environment as utils_env
 
 
 
@@ -31,6 +32,8 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
+
+    save_data = False
     num_proc = 0
 
     num_tries = 1
@@ -40,9 +43,9 @@ if __name__ == '__main__':
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
-    args.dataset_path = f'{rootdir}/dataset/structured_agent/train_env_task_set_2_full.pik'
+    args.dataset_path = f'{rootdir}/dataset/structured_agent/train_env_task_set_150_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
-    cachedir = f'{rootdir}/dataset_episodes/data_structured'
+    cachedir = f'{rootdir}/dataset_episodes/data_structured/'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
@@ -122,8 +125,9 @@ if __name__ == '__main__':
             return UnityEnvironment(num_agents=1,
                                     max_episode_length=args.max_episode_length,
                                     port_id=env_id,
+                                    convert_goal=True,
                                     env_task_set=env_task_set,
-                                    observation_types=[args.obs_type, args.obs_type],
+                                    observation_types=[args.obs_type],
                                     use_editor=args.use_editor,
                                     executable_args=executable_args,
                                     base_port=args.base_port)
@@ -148,7 +152,7 @@ if __name__ == '__main__':
         args_agent1 = {'agent_id': 1, 'char_index': 0}
         args_agent1.update(args_common)
         args_agent1['agent_params'] = agent_args
-        agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
+        agents = [lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1)]
 
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
         
@@ -207,7 +211,8 @@ if __name__ == '__main__':
                     arena.reset(episode_id)
                     env_task = env_task_set[episode_id]
                     # ipdb.set_trace()
-                    agent_goal, noise_goal = env_task['task_goal'][0], env_task['task_goal'][1]
+                    agent_goal = utils_env.convert_goal(env_task['task_goal'][0], env_task['init_graph'])
+                    noise_goal = None
                     
 
                     print("Agent Goal", agent_goal)
@@ -218,7 +223,7 @@ if __name__ == '__main__':
                     for ct in container:
                         print(id2node[ct]['class_name'])
                     print('========s')
-                    success, steps, saved_info = arena.run(pred_goal={0: agent_goal, 1: noise_goal})
+                    success, steps, saved_info = arena.run(pred_goal={0: agent_goal})
 
                     print('-------------------------------------')
                     print('success' if success else 'failure')
@@ -231,11 +236,12 @@ if __name__ == '__main__':
                     is_finished = 1 if success else 0
 
                     Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                    if len(saved_info['obs']) > 0:
+                    if len(saved_info['obs']) > 0 and save_data:
                         pickle.dump(saved_info, open(log_file_name, 'wb'))
                     else:
-                        with open(log_file_name, 'w+') as f:
-                            f.write(json.dumps(saved_info, indent=4))
+                        if save_data:
+                            with open(log_file_name, 'w+') as f:
+                                f.write(json.dumps(saved_info, indent=4))
 
                     logger.removeHandler(logger.handlers[0])
                     os.remove(failure_file)
@@ -286,8 +292,9 @@ if __name__ == '__main__':
                 test_results[episode_id] = {'S': S[episode_id],
                                             'L': L[episode_id]}
                                             
-            pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
+            # pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
             print('average steps (finishing the tasks):', np.array(steps_list).mean() if len(steps_list) > 0 else None)
             print('failed_tasks:', failed_tasks)
-            pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
+            if save_data:
+                pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
 
