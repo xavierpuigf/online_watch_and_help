@@ -365,7 +365,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
         > 0
     ):
         # Object has been placed
-        return [], []
+        return [], 0, []
 
     if (
         sum(
@@ -380,7 +380,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
         > 0
     ):
         # Object has been placed
-        return None, None
+        return None, 0, None
 
     target_node = [node for node in env_graph['nodes'] if node['id'] == target_grab][0]
     target_node2 = [node for node in env_graph['nodes'] if node['id'] == target_put][0]
@@ -1030,7 +1030,11 @@ class MCTS_agent_particle_v2:
                         should_replan = True
                     else:
                         curr_plan = last_plan[1:]
-                        subgoals = subgoals[1:]
+                        subgoals = (
+                            self.last_subgoal[1:]
+                            if self.last_subgoal is not None
+                            else None
+                        )
                 if (
                     'open' in curr_plan[0]
                     or 'close' in curr_plan[0]
@@ -1058,7 +1062,9 @@ class MCTS_agent_particle_v2:
                                 next_action = False
                             else:
                                 curr_plan = curr_plan[1:]
-                                subgoals = subgoals[1:]
+                                subgoals = (
+                                    subgoals[1:] if subgoals is not None else None
+                                )
 
                         else:
                             # Keep with previous action
@@ -1150,7 +1156,9 @@ class MCTS_agent_particle_v2:
             info = {'plan': plan, 'subgoals': subgoals}
 
         self.last_action = action
-        self.last_subgoal = subgoals if len(subgoals) > 0 else None
+        self.last_subgoal = (
+            subgoals if subgoals is not None and len(subgoals) > 0 else None
+        )
         self.last_plan = plan
         # print(info['subgoals'])
         # print(action)
