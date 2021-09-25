@@ -209,7 +209,13 @@ def get_helping_plan(
             agent_id=1 - agent_id,
             inferred_goal=edge_pred_class,
         )
-        opponent_subgoal = opponent_info[0]['subgoals'][0][0]
+        if (
+            opponent_info[0]['subgoals'] is not None
+            and len(opponent_info[0]['subgoals']) > 0
+        ):
+            opponent_subgoal = opponent_info[0]['subgoals'][0][0]
+        else:
+            opponent_subgoal = None
         actions, info = get_actions_fn(
             obs,
             length_plan=length_plan,
@@ -240,7 +246,7 @@ def main(cfg: DictConfig):
     num_proc = 0
 
     num_tries = 5
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
+    # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
@@ -399,12 +405,12 @@ def main(cfg: DictConfig):
         current_tried = iter_id
 
         test_results = {}
-        # if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
-        #     test_results = {}
-        # else:
-        #     test_results = pickle.load(
-        #         open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
-        #     )
+        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id - 1)):
+            test_results = {}
+        else:
+            test_results = pickle.load(
+                open(args.record_dir + '/results_{}.pik'.format(iter_id - 1), 'rb')
+            )
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -451,7 +457,8 @@ def main(cfg: DictConfig):
 
         max_steps = args.max_episode_length
 
-        episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+        # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+        episode_ids = [1]
 
         for env_task in env_task_set:
 
@@ -815,14 +822,14 @@ def main(cfg: DictConfig):
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
             test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
-            # pdb.set_trace()
 
-        print(test_results)
+            print(test_results)
+            ipdb.set_trace()
+            pickle.dump(
+                test_results,
+                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+            )
 
-        pickle.dump(
-            test_results,
-            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-        )
         print(
             'average steps (finishing the tasks):',
             np.array(steps_list).mean() if len(steps_list) > 0 else None,

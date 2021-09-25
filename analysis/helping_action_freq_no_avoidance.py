@@ -240,7 +240,7 @@ def main(cfg: DictConfig):
     num_proc = 0
 
     num_tries = 5
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
+    # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
@@ -742,7 +742,7 @@ def main(cfg: DictConfig):
                             )
 
                     print('success:', infos['finished'])
-                    # pdb.set_trace()
+                    pdb.set_trace()
                     if infos['finished']:
                         success = True
                         break

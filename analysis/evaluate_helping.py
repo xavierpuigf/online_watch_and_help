@@ -188,23 +188,25 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
-def get_metrics_reward(alice_results, test_results, episode_ids, time_limit=30):
+def get_metrics_reward(
+    alice_results, test_results, episode_ids, num_tries, time_limit=30
+):
     mS = []
     mL = []
     mSP = []
     mSwS = []
     # pdb.set_trace()
-    for seed in range(5):
+    for seed in range(num_tries):
 
         alice_S = []
         alice_L = []
-    normalized_by_suc = True
+    normalized_by_suc = False
     for episode_id in episode_ids:
         Ls = []
         Ss = []
         SWSs = []
         L_A_seeds = []
-        for seed_alice in range(5):
+        for seed_alice in range(num_tries):
             if episode_id not in alice_results:
                 S_A, L_A = 0, time_limit
                 pdb.set_trace()
@@ -226,7 +228,7 @@ def get_metrics_reward(alice_results, test_results, episode_ids, time_limit=30):
 
         Ls = []
         Ss = []
-        for seed_bob in range(5):
+        for seed_bob in range(num_tries):
             if seed_bob >= len(test_results[episode_id]['S']):
                 continue
             try:
@@ -309,8 +311,8 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
     cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only'
 
     agent_types = [
@@ -403,6 +405,7 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
+    num_tries = 1
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
@@ -421,7 +424,7 @@ def main(cfg: DictConfig):
             )
             help_results = dict(test_results)
 
-        # print(test_results)
+        print(iter_id, test_results)
 
         if not os.path.isfile(record_dir_main + '/results_{}.pik'.format(iter_id)):
             test_results = {}
@@ -437,7 +440,11 @@ def main(cfg: DictConfig):
     print(help_results)
 
     SR, AL, SP, SWS, stdR, stdL, stdSP, stdS = get_metrics_reward(
-        main_results, help_results, episode_ids, time_limit=args.max_episode_length
+        main_results,
+        help_results,
+        episode_ids,
+        num_tries,
+        time_limit=args.max_episode_length,
     )
     print(SR, AL, SP, SWS, stdR, stdL, stdSP, stdS)
 
