@@ -14,7 +14,7 @@ import atexit
 
 # @ray.remote
 class ArenaMP(object):
-    def __init__(self, max_number_steps, arena_id, environment_fn, agent_fn):
+    def __init__(self, max_number_steps, arena_id, environment_fn, agent_fn, use_sim_agent=False):
         self.agents = []
         self.sim_agents = []
         self.env_fn = environment_fn
@@ -22,7 +22,7 @@ class ArenaMP(object):
         self.arena_id = arena_id
         self.num_agents = len(agent_fn)
         self.task_goal = None
-
+        self.use_sim_agent = use_sim_agent
         print("Init Env")
         self.env = environment_fn(arena_id)
         assert self.env.num_agents == len(
@@ -30,7 +30,8 @@ class ArenaMP(object):
         ), "The number of agents defined and the ones in the env defined mismatch"
         for agent_type_fn in agent_fn:
             self.agents.append(agent_type_fn(arena_id, self.env))
-            self.sim_agents.append(agent_type_fn(arena_id, self.env))
+            if self.use_sim_agent:
+                self.sim_agents.append(agent_type_fn(arena_id, self.env))
 
         self.max_episode_length = self.env.max_episode_length
         self.max_number_steps = max_number_steps
@@ -58,15 +59,17 @@ class ArenaMP(object):
                 agent.reset(
                     ob[it], self.env.full_graph, self.env.task_goal, seed=agent.seed
                 )
-                self.sim_agents[it].reset(
-                    ob[it],
-                    self.env.full_graph,
-                    self.env.task_goal,
-                    seed=self.agents[1 - it].seed,
-                )
+                if self.use_sim_agent:
+                    self.sim_agents[it].reset(
+                        ob[it],
+                        self.env.full_graph,
+                        self.env.task_goal,
+                        seed=self.agents[1 - it].seed,
+                    )
             else:
                 agent.reset(self.env.full_graph)
-                self.sim_agents.reset(self.env.full_graph)
+                if self.use_sim_agent:
+                    self.sim_agents.reset(self.env.full_graph)
         return ob
 
     def set_weigths(self, epsilon, weights):
@@ -96,16 +99,16 @@ class ArenaMP(object):
                 continue
             if inferred_goal is None:
                 if self.task_goal is None:
-                    goal_spec = self.env.get_goal(
+                    goal_spec = self.env.get_goal2(
                         self.env.task_goal[it], self.env.agent_goals[it]
                     )
 
                 else:
-                    goal_spec = self.env.get_goal(
+                    goal_spec = self.env.get_goal2(
                         self.task_goal[it], self.env.agent_goals[it]
                     )
             else:
-                goal_spec = self.env.get_goal(inferred_goal, self.env.agent_goals[it])
+                goal_spec = self.env.get_goal2(inferred_goal, self.env.agent_goals[it])
             # ipdb.set_trace()
             if agent.agent_type in ['MCTS', 'Random']:
                 # opponent_subgoal = None
@@ -161,16 +164,16 @@ class ArenaMP(object):
                 continue
             if inferred_goal is None:
                 if self.task_goal is None:
-                    goal_spec = self.env.get_goal(
+                    goal_spec = self.env.get_goal2(
                         self.env.task_goal[it], self.env.agent_goals[it]
                     )
 
                 else:
-                    goal_spec = self.env.get_goal(
+                    goal_spec = self.env.get_goal2(
                         self.task_goal[it], self.env.agent_goals[it]
                     )
             else:
-                goal_spec = self.env.get_goal(inferred_goal, self.env.agent_goals[it])
+                goal_spec = self.env.get_goal2(inferred_goal, self.env.agent_goals[it])
             # ipdb.set_trace()
             if agent.agent_type in ['MCTS', 'Random']:
                 # opponent_subgoal = None

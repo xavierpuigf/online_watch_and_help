@@ -4,9 +4,11 @@ import sys
 import os
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(f'{curr_dir}/../../virtualhome/simulation/')
+sys.path.append(f'{curr_dir}/..')
 
 from environment.unity_environment import UnityEnvironment as BaseUnityEnvironment
 from evolving_graph import utils as utils_env
+from utils import utils_environment as utils_env2
 import pdb
 import traceback
 import numpy as np
@@ -26,6 +28,7 @@ class UnityEnvironment(BaseUnityEnvironment):
                  agent_goals=None,
                  use_editor=False,
                  base_port=8080,
+                 convert_goal=False,
                  port_id=0,
                  executable_args={},
                  recording_options={'recording': False, 
@@ -40,6 +43,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         else:
             self.agent_goals = ['full' for _ in range(num_agents)]
         
+        self.convert_goal = convert_goal
         self.task_goal, self.goal_spec = {0: {}, 1: {}}, {0: {}, 1: {}}
         self.env_task_set = env_task_set
         self.agent_object_touched = []
@@ -70,21 +74,68 @@ class UnityEnvironment(BaseUnityEnvironment):
         reward = 0.
         done = True
         # print(self.goal_spec)
-        satisfied, unsatisfied = utils.check_progress(self.get_graph(), self.goal_spec[0])
+        if self.convert_goal:
+            satisfied, unsatisfied = utils.check_progress2(self.get_graph(), self.goal_spec[0])
+    
+        else:
+            satisfied, unsatisfied = utils.check_progress(self.get_graph(), self.goal_spec[0])
         for key, value in satisfied.items():
-            preds_needed, mandatory, reward_per_pred = self.goal_spec[0][key]
+            if self.convert_goal:
+                resp = self.goal_spec[0][key]
+                preds_needed, mandatory, reward_per_pred = resp['count'], resp['final'], resp['reward']
+            else:
+                preds_needed, mandatory, reward_per_pred = self.goal_spec[0][key]
             # How many predicates achieved
             value_pred = min(len(value), preds_needed)
             reward += value_pred * reward_per_pred
-
-            if mandatory and unsatisfied[key] > 0:
-                done = False
+            if self.convert_goal:
+                if mandatory and unsatisfied[key]['count'] > 0:
+                    done = False
+            else:
+               if mandatory and unsatisfied[key] > 0:
+                    done = False
 
         self.prev_reward = reward
         return reward, done, {'satisfied_goals': satisfied}
 
 
+    def get_goal2(self, task_spec, agent_goal):
+        if agent_goal == 'full':
+            # pred = [x for x, y in task_spec.items() if y['count'] > 0 and x.split('_')[0] in ['on', 'inside']]
+            # object_grab = [pr.split('_')[1] for pr in pred]
+            # predicates_grab = {'holds_{}_1'.format(obj_gr): [1, False, 2] for obj_gr in object_grab}
+            res_dict = {
+                goal_k: goal_c
+                for goal_k, goal_c in task_spec.items() if goal_c['count'] > 0
+            }
+            for goal_k, goal_dict in res_dict.items():
+                goal_dict.update({'final': True, 'reward': 2})
+            # res_dict.update(predicates_grab)
+            return res_dict
+        elif agent_goal == 'grab':
+            candidates = [x.split('_')[1] for x,y in task_spec.items() if y > 0 and x.split('_')[0] in ['on', 'inside']]
+            object_grab = self.rnd.choice(candidates)
+            # print('GOAL', candidates, object_grab)
+            return {
+                'holds_'+object_grab+'_'+'1': {'count': 1, 'final': True, 'reward': 10,
+                                               'grab_obj_ids': object_grab, 'container_ids': [1]}, 
+                'close_'+object_grab+'_'+'1': {'count': 1, 'final': False, 'reward': 0.1,
+                                               'grab_obj_ids': object_grab, 'container_ids': [1]}
+            }
+        elif agent_goal == 'put':
+            pred = self.rnd.choice([(x,y) for x, y in task_spec.items() if y['count'] > 0 and x.split('_')[0] in ['on', 'inside']])
+            object_grab = [pred[0].split('_')[1]]
+            ctid = pred[1]['container_ids']
+            return {
+                pred: {'count': 1, 'final': True, 'reward': 60, 'grab_obj_ids': object_grab, 'container_ids': ctid},
+                'holds_' + object_grab + '_' + '1': {'count': 1, 'final': False, 'reward': 2,
+                                                     'grab_obj_ids': object_grab, 'container_ids': [1]},
+                'close_' + object_grab + '_' + '1': {'count': 1, 'final': False, 'reward': 0.05,
+                                                     'grab_obj_ids': object_grab, 'container_ids': [1]}
 
+            }
+        else:
+            raise NotImplementedError
 
     def get_goal(self, task_spec, agent_goal):
         if agent_goal == 'full':
@@ -111,6 +162,8 @@ class UnityEnvironment(BaseUnityEnvironment):
         else:
             raise NotImplementedError
 
+
+
     def reset(self, environment_graph=None, task_id=None):
 
         # Make sure that characters are out of graph, and ids are ok
@@ -125,7 +178,13 @@ class UnityEnvironment(BaseUnityEnvironment):
         self.init_graph = copy.deepcopy(env_task['init_graph'])
         self.init_rooms = env_task['init_rooms']
         self.task_goal = env_task['task_goal']
-
+            
+        if self.convert_goal:
+            self.task_goal = {
+                agent_id: utils_env2.convert_goal(task_goal, self.init_graph)
+                for agent_id, task_goal in self.task_goal.items()
+            }
+        # ipdb.set_trace()
         # TODO: remove
         self.task_name = env_task['task_name']
 
@@ -134,9 +193,14 @@ class UnityEnvironment(BaseUnityEnvironment):
         print("Resetting... Envid: {}. Taskid: {}. Index: {}".format(self.env_id, self.task_id, task_id))
 
         # TODO: in the future we may want different goals
-        self.goal_spec = {agent_id: self.get_goal(self.task_goal[agent_id], self.agent_goals[agent_id])
-                          for agent_id in range(self.num_agents)}
+        if self.convert_goal:
+            self.goal_spec = {agent_id: self.get_goal2(self.task_goal[agent_id], self.agent_goals[agent_id])
+                              for agent_id in range(self.num_agents)}
         
+        else:
+            self.goal_spec = {agent_id: self.get_goal2(self.task_goal[agent_id], self.agent_goals[agent_id])
+                              for agent_id in range(self.num_agents)}
+
         if False: # old_env_id == self.env_id:
             print("Fast reset")
             self.comm.fast_reset()

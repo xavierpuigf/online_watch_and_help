@@ -15,7 +15,7 @@ from evolving_graph.environment import Relation
 from utils import utils_exception
 
 
-class MCTS_particles_v2:
+class MCTS_particles_v2_instance:
     def __init__(
         self,
         gt_graph,
@@ -377,7 +377,7 @@ class MCTS_particles_v2:
                 if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
             ]
 
-            unsatisfied_aux = unsatisfied.copy()
+            unsatisfied_aux = copy.deepcopy(unsatisfied)
             subgoals_hand = []
             for hand_busy in hands_busy:
                 hand_class_name = self.id2node_env[hand_busy]['class_name']
@@ -385,13 +385,13 @@ class MCTS_particles_v2:
                 for missing_pred, count_pred in unsatisfied_aux.items():
                     if pred_name_selected is None:
                         if (
-                            count_pred > 0
-                            and missing_pred.split('_')[1] == hand_class_name
+                            count_pred['count'] > 0
+                            and hand_busy in count_pred['grab_obj_ids']
                         ):
                             pred_name_selected = missing_pred
 
                 if pred_name_selected is not None:
-                    unsatisfied_aux[pred_name_selected] -= 1
+                    unsatisfied_aux[pred_name_selected]['count'] -= 1
                     pred_name_split = pred_name_selected.split('_')
                     verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
                     subgoals_hand.append(
@@ -510,7 +510,7 @@ class MCTS_particles_v2:
             actions_l.append(actions)
 
             # print(action_str, curr_reward)
-            satisfied, unsatisfied = utils_env.check_progress(curr_state, goal_spec)
+            satisfied, unsatisfied = utils_env.check_progress2(curr_state, goal_spec)
 
             # curr_state = next_state
         # ipdb.set_trace()
@@ -736,7 +736,7 @@ class MCTS_particles_v2:
             # final_vh_state = copy.deepcopy(next_vh_state)
             final_vh_state = next_vh_state
             final_state = next_state_dict
-            satisfied, unsatisfied = utils_env.check_progress(final_state, goal_spec)
+            satisfied, unsatisfied = utils_env.check_progress2(final_state, goal_spec)
             next_state = (final_vh_state, final_state, satisfied, unsatisfied)
 
             selected_child.state = next_state
@@ -920,18 +920,18 @@ class MCTS_particles_v2:
             if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
         ]
 
-        unsatisfied_aux = unsatisfied.copy()
+        unsatisfied_aux = copy.deepcopy(unsatisfied)
         subgoals_hand = []
         for hand_busy in hands_busy:
             hand_class_name = self.id2node_env[hand_busy]['class_name']
             pred_name_selected = None
             for missing_pred, count_pred in unsatisfied_aux.items():
                 if pred_name_selected is None:
-                    if count_pred > 0 and missing_pred.split('_')[1] == hand_class_name:
+                    if count_pred['count'] > 0 and hand_busy in count_pred['grab_obj_ids']:
                         pred_name_selected = missing_pred
 
             if pred_name_selected is not None:
-                unsatisfied_aux[pred_name_selected] -= 1
+                unsatisfied_aux[pred_name_selected]['count'] -= 1
                 pred_name_split = pred_name_selected.split('_')
                 verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
                 subgoals_hand.append(
@@ -1086,7 +1086,7 @@ class MCTS_particles_v2:
         """TODO: add more subgoal heuristics; currently only have (put x y)"""
         # print('get subgoal space, state:\n', state['nodes'])
 
-        ipdb.set_trace()
+        # ipdb.set_trace()
         obs = self.env._mask_state(state, self.char_index)
         obsed_objs = [node["id"] for node in obs["nodes"]]
 
@@ -1138,8 +1138,10 @@ class MCTS_particles_v2:
 
         subgoal_space, obsed_subgoal_space, overlapped_subgoal_space = [], [], []
         # ipdb.set_trace()
-        for predicate, count in unsatisfied.items():
+        for predicate, unsatisfied_val in unsatisfied.items():
             obj_grabbed = False
+            count = unsatisfied_val['count']
+            container_id = unsatisfied_val['container_ids'][0]
             if (
                 count > 1
                 or count > 0
@@ -1150,79 +1152,76 @@ class MCTS_particles_v2:
                 if elements[0] == 'on':
                     subgoal_type = 'put'
                     obj = elements[1]
-                    surface = elements[2]  # assuming it is a graph node id
-                    for node in state['nodes']:
-                        if node['class_name'] == obj or str(node['id']) == obj:
-                            # print(node)
-                            # if verbose:
-                            #     print(node)
-                            tmp_predicate = 'on_{}_{}'.format(node['id'], surface)
-                            if tmp_predicate not in satisfied[predicate]:
-                                tmp_subgoal = '{}_{}_{}'.format(
-                                    subgoal_type, node['id'], surface
+                    surface = container_id  # assuming it is a graph node id
+                    for node_id in unsatisfied_val['grab_obj_ids']:
+                        
+                        tmp_predicate = 'on_{}_{}'.format(node_id, surface)
+                        if tmp_predicate not in satisfied[predicate]:
+                            tmp_subgoal = '{}_{}_{}'.format(
+                                subgoal_type, node_id, surface
+                            )
+                            if tmp_subgoal != opponent_subgoal:
+                                subgoal_space.append(
+                                    [
+                                        '{}_{}_{}'.format(
+                                            subgoal_type, node_id, surface
+                                        ),
+                                        predicate,
+                                        tmp_predicate,
+                                    ]
                                 )
-                                if tmp_subgoal != opponent_subgoal:
-                                    subgoal_space.append(
+                                if node_id in obsed_objs:
+                                    obsed_subgoal_space.append(
                                         [
                                             '{}_{}_{}'.format(
-                                                subgoal_type, node['id'], surface
+                                                subgoal_type, node_id, surface
                                             ),
                                             predicate,
                                             tmp_predicate,
                                         ]
                                     )
-                                    if node['id'] in obsed_objs:
-                                        obsed_subgoal_space.append(
-                                            [
-                                                '{}_{}_{}'.format(
-                                                    subgoal_type, node['id'], surface
-                                                ),
-                                                predicate,
-                                                tmp_predicate,
-                                            ]
-                                        )
-                                    if node['id'] in inhand_objects:
-                                        pass
+                                if node_id in inhand_objects:
+                                    pass
                                         # return [subgoal_space[-1]]
                 elif elements[0] == 'inside':
                     subgoal_type = 'putIn'
                     obj = elements[1]
-                    surface = elements[2]  # assuming it is a graph node id
-                    for node in state['nodes']:
-                        if node['class_name'] == obj or str(node['id']) == obj:
-                            # if verbose:
-                            #     print(node)
-                            tmp_predicate = 'inside_{}_{}'.format(node['id'], surface)
-                            if tmp_predicate not in satisfied[predicate]:
-                                tmp_subgoal = '{}_{}_{}'.format(
-                                    subgoal_type, node['id'], surface
+                    surface = container_id  # assuming it is a graph node id
+                    for node_id in unsatisfied_val['grab_obj_ids']:
+                        
+                        tmp_predicate = 'inside_{}_{}'.format(node_id, surface)
+                        if tmp_predicate not in satisfied[predicate]:
+                            tmp_subgoal = '{}_{}_{}'.format(
+                                subgoal_type, node_id, surface
+                            )
+                            if tmp_subgoal != opponent_subgoal:
+                                subgoal_space.append(
+                                    [
+                                        '{}_{}_{}'.format(
+                                            subgoal_type, node_id, surface
+                                        ),
+                                        predicate,
+                                        tmp_predicate,
+                                    ]
                                 )
-                                if tmp_subgoal != opponent_subgoal:
-                                    subgoal_space.append(
+                                if node_id in obsed_objs:
+                                    obsed_subgoal_space.append(
                                         [
                                             '{}_{}_{}'.format(
-                                                subgoal_type, node['id'], surface
+                                                subgoal_type, node_id, surface
                                             ),
                                             predicate,
                                             tmp_predicate,
                                         ]
                                     )
-                                    if node['id'] in obsed_objs:
-                                        obsed_subgoal_space.append(
-                                            [
-                                                '{}_{}_{}'.format(
-                                                    subgoal_type, node['id'], surface
-                                                ),
-                                                predicate,
-                                                tmp_predicate,
-                                            ]
-                                        )
-                                    if node['id'] in inhand_objects:
-                                        obj_grabbed = True
-                                        pass
-                                        # return [subgoal_space[-1]]
+                                if node_id in inhand_objects:
+                                    obj_grabbed = True
+                                    pass
+                                    # return [subgoal_space[-1]]
+                
                 elif elements[0] == 'offOn':
-                    if id2node[elements[2]]['class_name'] in [
+                    # Xavi: What is this for?
+                    if id2node[container_id]['class_name'] in [
                         'dishwasher',
                         'kitchentable',
                     ]:
@@ -1245,8 +1244,8 @@ class MCTS_particles_v2:
                     for edge in state['edges']:
                         if (
                             edge['relation_type'] == 'ON'
-                            and edge['to_id'] == int(elements[2])
-                            and id2node[edge['from_id']]['class_name'] == elements[1]
+                            and edge['to_id'] == container_id
+                            and id2node[edge['from_id']] in unsatisfied_val['grab_obj_ids']
                         ):
                             container = random.choice(containers)
                             predicate = '{}_{}_{}'.format(
@@ -1256,7 +1255,7 @@ class MCTS_particles_v2:
                             )
                             goals[predicate] = 1
                 elif elements[0] == 'offInside':
-                    if id2node[elements[2]]['class_name'] in [
+                    if id2node[container_id]['class_name'] in [
                         'dishwasher',
                         'kitchentable',
                     ]:
@@ -1279,8 +1278,8 @@ class MCTS_particles_v2:
                     for edge in state['edges']:
                         if (
                             edge['relation_type'] == 'INSIDE'
-                            and edge['to_id'] == int(elements[2])
-                            and id2node[edge['from_id']]['class_name'] == elements[1]
+                            and edge['to_id'] == container_id
+                            and edge['from_id'] in unsatisfied_val['grab_obj_ids']
                         ):
                             container = random.choice(containers)
                             predicate = '{}_{}_{}'.format(
@@ -1308,43 +1307,42 @@ class MCTS_particles_v2:
                 if elements[0] == 'on':
                     subgoal_type = 'put'
                     obj = elements[1]
-                    surface = elements[2]  # assuming it is a graph node id
-                    for node in state['nodes']:
-                        if node['class_name'] == obj or str(node['id']) == obj:
-                            tmp_predicate = 'on_{}_{}'.format(node['id'], surface)
-                            if tmp_predicate not in satisfied[predicate]:
-                                tmp_subgoal = '{}_{}_{}'.format(
-                                    subgoal_type, node['id'], surface
-                                )
-                                overlapped_subgoal_space.append(
-                                    [
-                                        '{}_{}_{}'.format(
-                                            subgoal_type, node['id'], surface
-                                        ),
-                                        predicate,
-                                        tmp_predicate,
-                                    ]
-                                )
+                    surface = unsatisfied_val['container_ids'][0]  # assuming it is a graph node id
+                    for node_id in unsatisfied_val['grab_obj_ids']:
+                        tmp_predicate = 'on_{}_{}'.format(node_id, surface)
+                        if tmp_predicate not in satisfied[predicate]:
+                            tmp_subgoal = '{}_{}_{}'.format(
+                                subgoal_type, node_id, surface
+                            )
+                            overlapped_subgoal_space.append(
+                                [
+                                    '{}_{}_{}'.format(
+                                        subgoal_type, node_idz, surface
+                                    ),
+                                    predicate,
+                                    tmp_predicate,
+                                ]
+                            )
                 elif elements[0] == 'inside':
                     subgoal_type = 'putIn'
                     obj = elements[1]
-                    surface = elements[2]  # assuming it is a graph node id
-                    for node in state['nodes']:
-                        if node['class_name'] == obj or str(node['id']) == obj:
-                            tmp_predicate = 'inside_{}_{}'.format(node['id'], surface)
-                            if tmp_predicate not in satisfied[predicate]:
-                                tmp_subgoal = '{}_{}_{}'.format(
-                                    subgoal_type, node['id'], surface
-                                )
-                                overlapped_subgoal_space.append(
-                                    [
-                                        '{}_{}_{}'.format(
-                                            subgoal_type, node['id'], surface
-                                        ),
-                                        predicate,
-                                        tmp_predicate,
-                                    ]
-                                )
+                    surface = unsatisfied_val['container_ids'][0]  # assuming it is a graph node id
+                    for node_id in unsatisfied_val['grab_obj_ids']:
+                        
+                        tmp_predicate = 'inside_{}_{}'.format(node['id'], surface)
+                        if tmp_predicate not in satisfied[predicate]:
+                            tmp_subgoal = '{}_{}_{}'.format(
+                                subgoal_type, node_id, surface
+                            )
+                            overlapped_subgoal_space.append(
+                                [
+                                    '{}_{}_{}'.format(
+                                        subgoal_type, node_id, surface
+                                    ),
+                                    predicate,
+                                    tmp_predicate,
+                                ]
+                            )
 
         if len(obsed_subgoal_space) > 0:
             pass
@@ -1354,71 +1352,64 @@ class MCTS_particles_v2:
             #     ipdb.set_trace()
             if len(overlapped_subgoal_space) > 0:
                 return overlapped_subgoal_space
-            for predicate, count in unsatisfied.items():
+            for predicate, unsatisfied_val in unsatisfied.items():
+                count = unsatisfied_val['count']
                 if count == 1:
                     elements = predicate.split('_')
                     # print(elements)
                     if elements[0] == 'turnOn':
                         subgoal_type = 'turnOn'
                         obj = elements[1]
-                        for node in state['nodes']:
-                            if node['class_name'] == obj or str(node['id']) == obj:
-                                # print(node)
-                                # if verbose:
-                                #     print(node)
-                                tmp_predicate = 'turnOn{}_{}'.format(node['id'], 1)
-                                if tmp_predicate not in satisfied[predicate]:
-                                    subgoal_space.append(
-                                        [
-                                            '{}_{}'.format(subgoal_type, node['id']),
-                                            predicate,
-                                            tmp_predicate,
-                                        ]
-                                    )
+                        for node_id in unsatisfied_val['grab_obj_ids']:
+                            tmp_predicate = 'turnOn{}_{}'.format(node_id, 1)
+                            if tmp_predicate not in satisfied[predicate]:
+                                subgoal_space.append(
+                                    [
+                                        '{}_{}'.format(subgoal_type, node_id),
+                                        predicate,
+                                        tmp_predicate,
+                                    ]
+                                )
         if len(subgoal_space) == 0:
-            for predicate, count in unsatisfied.items():
+            for predicate, unsatisfied_val in unsatisfied.items():
+                count = unsatisfied_val['count']
                 if count == 1:
                     elements = predicate.split('_')
                     # print(elements)
                     if elements[0] == 'holds' and int(elements[2]) == self.agent_id:
                         subgoal_type = 'grab'
                         obj = elements[1]
-                        for node in state['nodes']:
-                            if node['class_name'] == obj or str(node['id']) == obj:
-                                # print(node)
-                                # if verbose:
-                                #     print(node)
-                                tmp_predicate = 'holds_{}_{}'.format(node['id'], 1)
-                                if tmp_predicate not in satisfied[predicate]:
-                                    subgoal_space.append(
-                                        [
-                                            '{}_{}'.format(subgoal_type, node['id']),
-                                            predicate,
-                                            tmp_predicate,
-                                        ]
-                                    )
+                        for node_id in unsatisfied_val['grab_obj_ids']:
+                            tmp_predicate = 'holds_{}_{}'.format(node_id, 1)
+                            if tmp_predicate not in satisfied[predicate]:
+                                subgoal_space.append(
+                                    [
+                                        '{}_{}'.format(subgoal_type, node_id),
+                                        predicate,
+                                        tmp_predicate,
+                                    ]
+                                )
         if len(subgoal_space) == 0:
-            for predicate, count in unsatisfied.items():
+            for predicate, unsatisfied_val in unsatisfied.items():
+                count = unsatisfied_val['count']
+
                 if count == 1:
                     elements = predicate.split('_')
                     # print(elements)
                     if elements[0] == 'sit' and int(elements[1]) == self.agent_id:
                         subgoal_type = 'sit'
                         obj = elements[2]
-                        for node in state['nodes']:
-                            if node['class_name'] == obj or str(node['id']) == obj:
-                                # print(node)
-                                # if verbose:
-                                #     print(node)
-                                tmp_predicate = 'sit_{}_{}'.format(1, node['id'])
-                                if tmp_predicate not in satisfied[predicate]:
-                                    subgoal_space.append(
-                                        [
-                                            '{}_{}'.format(subgoal_type, node['id']),
-                                            predicate,
-                                            tmp_predicate,
-                                        ]
-                                    )
+                        for node_id in unsatisfied_val['container_ids']:
+                            
+                            tmp_predicate = 'sit_{}_{}'.format(1, node_id)
+                            if tmp_predicate not in satisfied[predicate]:
+                                subgoal_space.append(
+                                    [
+                                        '{}_{}'.format(subgoal_type, node_id),
+                                        predicate,
+                                        tmp_predicate,
+                                    ]
+                                )
 
         # if obj_grabbed:
         #     ipdb.set_trace()
