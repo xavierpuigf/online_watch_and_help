@@ -22,7 +22,7 @@ from utils import utils_models_wb, utils_rl_agent
 
 sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
-from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
+from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 
 # from arguments import get_args
 from algos.arena_mp2 import ArenaMP
@@ -40,6 +40,48 @@ def get_class_mode(agent_args):
         agent_args['belief']['forget_rate'],
     )
     return mode_str
+
+
+def get_edge_class0(pred, t, source='pred'):
+    # pred_edge_prob = pred['edge_prob']
+    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
+    pred_edge_names = pred['edge_names']
+    pred_nodes = pred['nodes']
+    pred_from_ids = pred['from_id']  # if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred['to_id']  # if source == 'pred' else pred['to_id_input']
+
+    # edge_prob = pred_edge_prob[t]
+    # edge_pred = np.argmax(edge_prob, 1)
+
+    edge_pred_class = {}
+
+    num_edges = len(edge_pred)
+    for edge_id in range(num_edges):
+        from_id = pred_from_ids[t][edge_id]
+        to_id = pred_to_ids[t][edge_id]
+        from_node_name = pred_nodes[from_id]
+        to_node_name = pred_nodes[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = pred_edge_names[edge_pred[edge_id]]
+        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+            if to_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
+            ]:
+                continue
+            # if from_node_name.split('.')[0]
+            edge_class = '{}_{}_{}'.format(
+                edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+            )
+            # print(from_node_name, to_node_name, edge_name)
+            if edge_class not in edge_pred_class:
+                edge_pred_class[edge_class] = 1
+            else:
+                edge_pred_class[edge_class] += 1
+    return edge_pred_class
 
 
 def get_edge_class(pred, t, source='pred'):
@@ -104,68 +146,6 @@ def get_edge_class(pred, t, source='pred'):
     return edge_pred_class
 
 
-def get_edge_instance(pred, t, source='pred'):
-    # pred_edge_prob = pred['edge_prob']
-    # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
-
-    # edge_prob = pred_edge_prob[t]
-    # edge_pred = np.argmax(edge_prob, 1)
-
-    edge_pred_ins = {}
-
-    num_edges = len(edge_pred)
-    # print(pred_from_ids[t], num_edges)
-    for edge_id in range(num_edges):
-        from_id = pred_from_ids[t][edge_id]
-        to_id = pred_to_ids[t][edge_id]
-        from_node_name = pred_nodes[from_id]
-        to_node_name = pred_nodes[to_id]
-        # if object_name in from_node_name or object_name in to_node_name:
-        edge_name = pred_edge_names[edge_pred[edge_id]]
-        if to_node_name.split('.')[1] == '-1':
-            continue
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
-            if to_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
-            ]:
-                continue
-        else:
-            continue
-        if from_node_name.split('.')[0] not in [
-            'apple',
-            'cupcake',
-            'plate',
-            'waterglass',
-        ]:
-            continue
-
-        edge_class = '{}_{}_{}'.format(
-            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
-        )
-
-        # print(from_node_name, to_node_name, edge_name)
-        if edge_class not in edge_pred_ins:
-            edge_pred_ins[edge_class] = {
-                'count': 0,
-                'grab_obj_ids': [],
-                'container_ids': [int(to_node_name.split('.')[1])],
-            }
-        edge_pred_ins[edge_class]['count'] += 1
-        edge_pred_ins[edge_class]['grab_obj_ids'].append(
-            int(from_node_name.split('.')[1])
-        )
-    return edge_pred_ins
-
-
 def aggregate_multiple_pred(preds, t, change=False):
     edge_classes = []
     edge_pred_class_all = {}
@@ -207,6 +187,33 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
+def pred_main_agent_plan(
+    process_id,
+    pred_graph,
+    t,
+    pred_actions_fn,
+    obs,
+    length_plan,
+    must_replan,
+    agent_id,
+    res,
+):
+    edge_pred_class = get_edge_class(pred_graph, t)
+    print('pred {}:'.format(process_id), edge_pred_class)
+    plan_states, opponent_subgoal = None, None
+    if len(edge_pred_class) > 0:  # if no edge prediction then None action
+        opponent_actions, opponent_info = pred_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=1 - agent_id,
+            inferred_goal=edge_pred_class,
+        )
+        plan_states = opponent_info[1 - agent_id]['plan_states']
+        opponent_subgoal = opponent_info[1 - agent_id]['subgoals'][0][0]
+    res[process_id] = (opponent_subgoal, plan_states)
+
+
 def get_helping_plan(
     process_id,
     pred_graph,
@@ -219,20 +226,20 @@ def get_helping_plan(
     agent_id,
     res,
 ):
-    inferred_goal = get_edge_instance(pred_graph, t)
-    print('pred {}:'.format(process_id), inferred_goal)
+    edge_pred_class = get_edge_class(pred_graph, t)
+    print('pred {}:'.format(process_id), edge_pred_class)
     subgoal, action = None, None
-    if len(inferred_goal) > 0:  # if no edge prediction then None action
+    if len(edge_pred_class) > 0:  # if no edge prediction then None action
         actions, info = get_actions_fn(
             obs,
             length_plan=length_plan,
             must_replan=must_replan,
             agent_id=agent_id,
-            inferred_goal=inferred_goal,
+            inferred_goal=edge_pred_class,
             opponent_subgoal=opponent_subgoal,
         )
         # print('actions:', actions)
-        print('pred {}:'.format(process_id), inferred_goal)
+        print('pred {}:'.format(process_id), edge_pred_class)
         print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
 
         # Here you can get the intermediate states
@@ -363,7 +370,6 @@ def main(cfg: DictConfig):
             use_editor=args.use_editor,
             executable_args=executable_args,
             base_port=args.base_port,
-            convert_goal=True,
         )
 
     args_common = dict(
@@ -394,10 +400,10 @@ def main(cfg: DictConfig):
     args_agent2['agent_params'] = agent_args
 
     agents = [
-        lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1),
-        lambda x, y: MCTS_agent_particle_v2_instance(**args_agent2),
+        lambda x, y: MCTS_agent_particle_v2(**args_agent1),
+        lambda x, y: MCTS_agent_particle_v2(**args_agent2),
     ]
-    arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents, use_sim_agent=True)
+    arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
@@ -415,13 +421,13 @@ def main(cfg: DictConfig):
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
-        # test_results = {}
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id - 1)):
-            test_results = {}
-        else:
-            test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id - 1), 'rb')
-            )
+        test_results = {}
+        # if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
+        #     test_results = {}
+        # else:
+        #     test_results = pickle.load(
+        #         open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
+        #     )
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -474,7 +480,7 @@ def main(cfg: DictConfig):
             current_tried = iter_id
 
             gt_goal = env_task['task_goal'][0]
-            # print('gt goal:', gt_goal)
+            print('gt goal:', gt_goal)
 
             episode_id = env_task['task_id']
 
@@ -678,12 +684,53 @@ def main(cfg: DictConfig):
                         for process_id in range(start_root_id, end_root_id):
                             # print(process_id)
                             p = mp.Process(
+                                target=pred_main_agent_plan,
+                                args=(
+                                    process_id,
+                                    graph_result[process_id],
+                                    steps - 3,
+                                    arena.pred_actions,
+                                    curr_obs,
+                                    10,
+                                    {0: True, 1: True},
+                                    1,
+                                    res,
+                                ),
+                            )
+                            jobs.append(p)
+                            p.start()
+                        for p in jobs:
+                            p.join()
+                    for pred_id, (subgoal, plan_states) in res.items():
+                        if subgoal is not None:
+                            if subgoal not in opponent_subgoal_freq:
+                                opponent_subgoal_freq[subgoal] = 1
+                            else:
+                                opponent_subgoal_freq[subgoal] += 1
+                    max_freq = 0
+                    opponent_subgoal = None
+                    for subgoal, count in opponent_subgoal_freq.items():
+                        if count > max_freq:
+                            max_freq = count
+                            opponent_subgoal = subgoal
+                        print(subgoal, count / num_samples)
+                    print('predicted main\'s subgoal:', opponent_subgoal)
+                    # ipdb.set_trace()
+                    del res
+
+                    res = manager.dict()
+                    for start_root_id in range(0, num_samples, num_processes):
+                        end_root_id = min(start_root_id + num_processes, num_samples)
+                        jobs = []
+                        for process_id in range(start_root_id, end_root_id):
+                            # print(process_id)
+                            p = mp.Process(
                                 target=get_helping_plan,
                                 args=(
                                     process_id,
                                     graph_result[process_id],
                                     steps - 3,
-                                    None,
+                                    opponent_subgoal,
                                     arena.get_actions,
                                     curr_obs,
                                     10,
@@ -708,9 +755,6 @@ def main(cfg: DictConfig):
                     )
                     # for goal_object in goal_objects:
                     print('-------------------------------------')
-                    print('gt goal')
-                    print(gt_goal)
-                    print('pred goal')
                     for edge_class, count in edge_pred_class_estimated.items():
                         if (
                             edge_pred_class_estimated[edge_class][0] < 1e-6
@@ -718,7 +762,6 @@ def main(cfg: DictConfig):
                         ):
                             continue
                         print(edge_class, edge_pred_class_estimated[edge_class])
-                    # print('predicted main\'s subgoal:', opponent_subgoal)
                     print('action freq:')
                     N_preds = num_samples
                     max_freq = 0
@@ -830,18 +873,20 @@ def main(cfg: DictConfig):
                 # exit()
                 arena.reset_env()
                 # ipdb.set_trace()
+                # ipdb.set_trace()
+                # pdb.set_trace()
                 continue
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
             test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
             # pdb.set_trace()
 
-            print(test_results)
-            pickle.dump(
-                test_results,
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-            )
+        print(test_results)
 
+        pickle.dump(
+            test_results,
+            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+        )
         print(
             'average steps (finishing the tasks):',
             np.array(steps_list).mean() if len(steps_list) > 0 else None,

@@ -14,7 +14,15 @@ import atexit
 
 # @ray.remote
 class ArenaMP(object):
-    def __init__(self, max_number_steps, arena_id, environment_fn, agent_fn, use_sim_agent=False, save_belief=True):
+    def __init__(
+        self,
+        max_number_steps,
+        arena_id,
+        environment_fn,
+        agent_fn,
+        use_sim_agent=False,
+        save_belief=True,
+    ):
         self.agents = []
         self.sim_agents = []
         self.save_belief = save_belief
@@ -626,7 +634,7 @@ class ArenaMP(object):
         prev_action = None
         self.saved_info = saved_info
         step = 0
-        prev_agent_position = np.array([0,0,0]).astype(np.float32)
+        prev_agent_position = np.array([0, 0, 0]).astype(np.float32)
         while True:
             if save_img is not None:
                 img_info = {'image_width': 224, 'image_height': 224}
@@ -635,7 +643,9 @@ class ArenaMP(object):
             step += 1
             (obs, reward, done, infos), actions, agent_info = self.step()
             # ipdb.set_trace()
-            new_agent_position = np.array(list(infos['graph']['nodes'][0]['bounding_box']['center'])).astype(np.float32)
+            new_agent_position = np.array(
+                list(infos['graph']['nodes'][0]['bounding_box']['center'])
+            ).astype(np.float32)
             distance = np.linalg.norm(new_agent_position - prev_agent_position)
             step_failed = infos['failed_exec']
             if actions[0] == prev_action:

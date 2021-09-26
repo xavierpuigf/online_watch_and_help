@@ -479,7 +479,7 @@ def clean_graph(state, goal_spec, last_opened):
         elements = predicate.split('_')
         nodes_missing += val_goal['grab_obj_ids']
         nodes_missing += val_goal['container_ids']
-        
+
     nodes_missing += [
         node['id']
         for node in state['nodes']
@@ -954,16 +954,13 @@ class MCTS_agent_particle_v2_instance:
 
         should_replan = True
 
-
         goal_ids_all = []
         for goal_name, goal_val in goal_spec.items():
             if goal_val['count'] > 0:
                 goal_ids_all += goal_val['grab_obj_ids']
 
         goal_ids = [
-            nodeobs['id']
-            for nodeobs in obs['nodes']
-            if nodeobs['id'] in goal_ids_all
+            nodeobs['id'] for nodeobs in obs['nodes'] if nodeobs['id'] in goal_ids_all
         ]
         close_ids = [
             edge['to_id']
@@ -1029,7 +1026,11 @@ class MCTS_agent_particle_v2_instance:
                         should_replan = True
                     else:
                         curr_plan = last_plan[1:]
-                        subgoals = subgoals[1:]
+                        subgoals = (
+                            self.last_subgoal[1:]
+                            if self.last_subgoal is not None
+                            else None
+                        )
                 if (
                     'open' in curr_plan[0]
                     or 'close' in curr_plan[0]
@@ -1057,8 +1058,9 @@ class MCTS_agent_particle_v2_instance:
                                 next_action = False
                             else:
                                 curr_plan = curr_plan[1:]
-                                subgoals = subgoals[1:]
-
+                                subgoals = (
+                                    subgoals[1:] if subgoals is not None else None
+                                )
                         else:
                             # Keep with previous action
                             next_action = False
@@ -1081,9 +1083,12 @@ class MCTS_agent_particle_v2_instance:
                 new_graph = self.belief.update_graph_from_gt_graph(
                     obs, resample_unseen_nodes=True, update_belief=False
                 )
-
+                # print('new_graph:')
+                # print([n['id'] for n in new_graph['nodes']])
                 init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
-                satisfied, unsatisfied = utils_env.check_progress2(init_state, goal_spec)
+                satisfied, unsatisfied = utils_env.check_progress2(
+                    init_state, goal_spec
+                )
                 init_vh_state = self.sim_env.get_vh_state(init_state)
 
                 self.particles[particle_id] = (
@@ -1149,7 +1154,9 @@ class MCTS_agent_particle_v2_instance:
             info = {'plan': plan, 'subgoals': subgoals}
 
         self.last_action = action
-        self.last_subgoal = subgoals if len(subgoals) > 0 else None
+        self.last_subgoal = (
+            subgoals if subgoals is not None and len(subgoals) > 0 else None
+        )
         self.last_plan = plan
         # print(info['subgoals'])
         # print(action)
