@@ -270,7 +270,12 @@ def get_helping_plan(
         # Here you can get the intermediate states
         plan_states = info[agent_id]['plan_states']
         action = actions[agent_id]
-        subgoal = info[agent_id]['subgoals'][0][0]
+        subgoal = (
+            info[agent_id]['subgoals'][0][0]
+            if info[agent_id]['subgoals'] is not None
+            and len(info[agent_id]['subgoals']) > 0
+            else None
+        )
     else:
         action = None
     res[process_id] = (subgoal, action)
