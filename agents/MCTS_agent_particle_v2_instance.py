@@ -365,7 +365,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
         > 0
     ):
         # Object has been placed
-        return [], []
+        return [], 0, []
 
     if (
         sum(
@@ -380,7 +380,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
         > 0
     ):
         # Object has been placed
-        return None, None
+        return None, 0, None
 
     target_node = [node for node in env_graph['nodes'] if node['id'] == target_grab][0]
     target_node2 = [node for node in env_graph['nodes'] if node['id'] == target_put][0]
