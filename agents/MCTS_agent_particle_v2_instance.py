@@ -165,7 +165,7 @@ def grab_heuristic(
         find_actions, find_costs, _ = find_heuristic(
             agent_id, char_index, unsatisfied, env_graph, simulator, object_target
         )
-        return find_actions, find_costs, f'grab_{target_id}'
+        return find_actions+target_action, find_costs+cost, f'grab_{target_id}'
 
 
 def turnOn_heuristic(
@@ -743,6 +743,7 @@ def get_plan(
         final_actions.append(max_action)
         final_goals.append(max_goal)
 
+    # ipdb.set_trace()
     # If there is no action predicted but there were goals missing...
     if len(final_actions) == 0:
         print("No actions")

@@ -464,14 +464,14 @@ class SetInitialGoal:
             # print(success_add, num_obj)
             if success_add != num_obj:
                 # print(obj_name)
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 return None, None, False
 
         return object_id, graph, True
 
-    def setup_other_objs(self, graph, object_id, objs_in_room=None, except_position=None):
+    def setup_other_objs(self, graph, object_id, objs_in_room=None, except_position=None, except_objects=[]):
         new_object_pool = [tem for tem in self.init_pool_tasks['obj_random'] if
-                           tem not in list(self.goal.keys())]  # remove objects in goal
+                           tem not in list(self.goal.keys())+except_objects]  # remove objects in goal
 
         self.num_other_obj = self.rand.randint(self.min_num_other_object, self.max_num_other_object)
         obj_in_graph = [node['class_name'] for node in graph['nodes']]  # if the object already in env, skip

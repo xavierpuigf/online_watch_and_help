@@ -117,7 +117,7 @@ class UnityEnvironment(BaseUnityEnvironment):
             # object_grab = [pr.split('_')[1] for pr in pred]
             # predicates_grab = {'holds_{}_1'.format(obj_gr): [1, False, 2] for obj_gr in object_grab}
             res_dict = {
-                goal_k: goal_c
+                goal_k: copy.deepcopy(goal_c)
                 for goal_k, goal_c in task_spec.items()
                 if goal_c['count'] > 0
             }

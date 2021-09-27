@@ -302,10 +302,12 @@ class MCTS_particles_v2_instance:
         plan = []
         subgoals = []
         rewards = []
+        root_path = [curr_root]
         while curr_root.is_expanded and len(curr_root.children) > 0:
 
             actions_taken, children_visit, next_root = self.select_next_root(curr_root)
             curr_root = next_root
+            root_path.append(curr_root)
             plan += actions_taken
 
             # Nasty hack so that we can reuse plans from different predicates
@@ -347,7 +349,8 @@ class MCTS_particles_v2_instance:
         # print(plan)
         # if len([x for x in plan if 'grab' in x]) > 1:
         #     ipdb.set_trace()
-
+        # import ipdb
+        # ipdb.set_trace()
         return next_root, plan, subgoals, rewards
 
     def rollout(self, leaf_node, t, state_particle, lrw=0.0, verbose=False):
@@ -1047,6 +1050,7 @@ class MCTS_particles_v2_instance:
             action_list = [
                 self.get_action_str(action_item) for action_item in info_action[0]
             ]
+            # ipdb.set_trace()
             new_node = Node(
                 parent=node,
                 id=("Child", [goal_spec, len(actions_heuristic), action_str]),
