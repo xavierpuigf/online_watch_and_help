@@ -198,8 +198,8 @@ def prepare_graph_for_model(graphs, observations, program_hist, args_config, gra
     for it, instr in enumerate(program_hist):
         
         # we want to add an ending action
-        if it >= max_tsteps - 1:
-            break
+        # if it >= max_tsteps - 1:
+        #     break
         instr_item = graph_helper.actionstr2index(instr)
         program_batch['action'].append(instr_item[0])
         program_batch['obj1'].append(instr_item[1])

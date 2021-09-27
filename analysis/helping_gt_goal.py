@@ -22,7 +22,7 @@ from utils import utils_models_wb, utils_rl_agent
 
 sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
-from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
+from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
 
 # from arguments import get_args
 from algos.arena_mp2 import ArenaMP
@@ -40,48 +40,6 @@ def get_class_mode(agent_args):
         agent_args['belief']['forget_rate'],
     )
     return mode_str
-
-
-def get_edge_class0(pred, t, source='pred'):
-    # pred_edge_prob = pred['edge_prob']
-    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id']  # if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id']  # if source == 'pred' else pred['to_id_input']
-
-    # edge_prob = pred_edge_prob[t]
-    # edge_pred = np.argmax(edge_prob, 1)
-
-    edge_pred_class = {}
-
-    num_edges = len(edge_pred)
-    for edge_id in range(num_edges):
-        from_id = pred_from_ids[t][edge_id]
-        to_id = pred_to_ids[t][edge_id]
-        from_node_name = pred_nodes[from_id]
-        to_node_name = pred_nodes[to_id]
-        # if object_name in from_node_name or object_name in to_node_name:
-        edge_name = pred_edge_names[edge_pred[edge_id]]
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
-            if to_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
-            ]:
-                continue
-            # if from_node_name.split('.')[0]
-            edge_class = '{}_{}_{}'.format(
-                edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
-            )
-            # print(from_node_name, to_node_name, edge_name)
-            if edge_class not in edge_pred_class:
-                edge_pred_class[edge_class] = 1
-            else:
-                edge_pred_class[edge_class] += 1
-    return edge_pred_class
 
 
 def get_edge_class(pred, t, source='pred'):
@@ -146,6 +104,68 @@ def get_edge_class(pred, t, source='pred'):
     return edge_pred_class
 
 
+def get_edge_instance(pred, t, source='pred'):
+    # pred_edge_prob = pred['edge_prob']
+    # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
+    pred_edge_names = pred['edge_names']
+    pred_nodes = pred['nodes']
+    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+
+    # edge_prob = pred_edge_prob[t]
+    # edge_pred = np.argmax(edge_prob, 1)
+
+    edge_pred_ins = {}
+
+    num_edges = len(edge_pred)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = pred_from_ids[t][edge_id]
+        to_id = pred_to_ids[t][edge_id]
+        from_node_name = pred_nodes[from_id]
+        to_node_name = pred_nodes[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = pred_edge_names[edge_pred[edge_id]]
+        if to_node_name.split('.')[1] == '-1':
+            continue
+        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+            if to_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
+            ]:
+                continue
+        else:
+            continue
+        if from_node_name.split('.')[0] not in [
+            'apple',
+            'cupcake',
+            'plate',
+            'waterglass',
+        ]:
+            continue
+
+        edge_class = '{}_{}_{}'.format(
+            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+        )
+
+        # print(from_node_name, to_node_name, edge_name)
+        if edge_class not in edge_pred_ins:
+            edge_pred_ins[edge_class] = {
+                'count': 0,
+                'grab_obj_ids': [],
+                'container_ids': [int(to_node_name.split('.')[1])],
+            }
+        edge_pred_ins[edge_class]['count'] += 1
+        edge_pred_ins[edge_class]['grab_obj_ids'].append(
+            int(from_node_name.split('.')[1])
+        )
+    return edge_pred_ins
+
+
 def aggregate_multiple_pred(preds, t, change=False):
     edge_classes = []
     edge_pred_class_all = {}
@@ -187,6 +207,48 @@ def aggregate_multiple_pred(preds, t, change=False):
     return edge_pred_class_estimated
 
 
+def get_helping_plan(
+    process_id,
+    pred_graph,
+    t,
+    opponent_subgoal,
+    get_actions_fn,
+    obs,
+    length_plan,
+    must_replan,
+    agent_id,
+    res,
+):
+    inferred_goal = get_edge_instance(pred_graph, t)
+    print('pred {}:'.format(process_id), inferred_goal)
+    subgoal, action = None, None
+    if len(inferred_goal) > 0:  # if no edge prediction then None action
+        actions, info = get_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=agent_id,
+            inferred_goal=inferred_goal,
+            opponent_subgoal=opponent_subgoal,
+        )
+        # print('actions:', actions)
+        print('pred {}:'.format(process_id), inferred_goal)
+        print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
+
+        # Here you can get the intermediate states
+        plan_states = info[agent_id]['plan_states']
+        action = actions[agent_id]
+        subgoal = (
+            info[agent_id]['subgoals'][0][0]
+            if info[agent_id]['subgoals'] is not None
+            and len(info[agent_id]['subgoals']) > 0
+            else None
+        )
+    else:
+        action = None
+    res[process_id] = (subgoal, action)
+
+
 @hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
@@ -197,7 +259,7 @@ def main(cfg: DictConfig):
     num_proc = 0
 
     num_tries = 5
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
+    # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
@@ -208,7 +270,7 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt_goal'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -243,7 +305,7 @@ def main(cfg: DictConfig):
     # TODO: add num_samples to the argument
     num_samples = args.num_samples
     num_processes = args.num_processes
-    # args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
+    args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
     env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -306,6 +368,7 @@ def main(cfg: DictConfig):
             use_editor=args.use_editor,
             executable_args=executable_args,
             base_port=args.base_port,
+            convert_goal=True,
         )
 
     args_common = dict(
@@ -336,10 +399,10 @@ def main(cfg: DictConfig):
     args_agent2['agent_params'] = agent_args
 
     agents = [
-        lambda x, y: MCTS_agent_particle_v2(**args_agent1),
-        lambda x, y: MCTS_agent_particle_v2(**args_agent2),
+        lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1),
+        lambda x, y: MCTS_agent_particle_v2_instance(**args_agent2),
     ]
-    arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
+    arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents, use_sim_agent=True)
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
@@ -348,6 +411,8 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
+    episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+
     for iter_id in range(num_tries):
         # if iter_id > 0:
         # iter_id = 1
@@ -355,13 +420,13 @@ def main(cfg: DictConfig):
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
-        test_results = {}
-        # if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
-        #     test_results = {}
-        # else:
-        #     test_results = pickle.load(
-        #         open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
-        #     )
+        # test_results = {}
+        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id - 1)):
+            test_results = {}
+        else:
+            test_results = pickle.load(
+                open(args.record_dir + '/results_{}.pik'.format(iter_id - 1), 'rb')
+            )
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -378,24 +443,48 @@ def main(cfg: DictConfig):
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
 
+        model = agent_pref_policy.GraphPredNetwork(args_pred)
+        state_dict = torch.load(args_pred.ckpt_load)['model']
+        state_dict_new = {}
+
+        for param_name, param_value in state_dict.items():
+            state_dict_new[param_name.replace('module.', '')] = param_value
+
+        model.load_state_dict(state_dict_new)
+        model.eval()
+
+        curr_file = (
+            '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah'
+        )
+        # dataset_test = AgentTypeDataset(
+        #     path_init='{}/agent_preferences/dataset/{}'.format(
+        #         curr_file, args_pred['data']['test_data']
+        #     ),
+        #     args_config=args_pred,
+        # )
+        graph_helper = utils_rl_agent.GraphHelper(
+            max_num_objects=args_pred['model']['max_nodes'],
+            toy_dataset=args_pred['model']['reduced_graph'],
+        )
+
         num_episodes = 0
         # gt_p = [gp for gp in gt_p if 'logs_episode.26_iter.2.pik_result.pkl' in gp]
         # ipdb.set_trace()
 
         max_steps = args.max_episode_length
-        steps_list, failed_tasks = [], []
 
         for env_task in env_task_set:
 
+            steps_list, failed_tasks = [], []
             current_tried = iter_id
 
             gt_goal = env_task['task_goal'][0]
-            print('gt goal:', gt_goal)
+            # print('gt goal:', gt_goal)
 
             episode_id = env_task['task_id']
 
-            # if episode_id != 6:
-            #     continue
+            if episode_id not in episode_ids:
+                continue
 
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id
@@ -563,6 +652,8 @@ def main(cfg: DictConfig):
                 print('success' if success else 'failure')
                 print('steps:', steps)
                 print('-------------------------------------')
+                ipdb.set_trace()
+
                 if not success:
                     failed_tasks.append(episode_id)
                 else:
@@ -578,7 +669,6 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                # ipdb.set_trace()
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
@@ -588,7 +678,7 @@ def main(cfg: DictConfig):
 
                 print("Unity exception")
                 arena.reset_env()
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 continue
 
             except utils_exception.ManyFailureException as e:
@@ -621,20 +711,18 @@ def main(cfg: DictConfig):
                 # exit()
                 arena.reset_env()
                 # ipdb.set_trace()
-                # ipdb.set_trace()
-                # pdb.set_trace()
                 continue
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
             test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
             # pdb.set_trace()
 
-        print(test_results)
+            print(test_results)
+            pickle.dump(
+                test_results,
+                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+            )
 
-        pickle.dump(
-            test_results,
-            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-        )
         print(
             'average steps (finishing the tasks):',
             np.array(steps_list).mean() if len(steps_list) > 0 else None,

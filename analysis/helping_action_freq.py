@@ -291,7 +291,7 @@ def main(cfg: DictConfig):
     num_proc = 0
 
     num_tries = 5
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
+    # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
@@ -850,6 +850,8 @@ def main(cfg: DictConfig):
                 print('success' if success else 'failure')
                 print('steps:', steps)
                 print('-------------------------------------')
+                # ipdb.set_trace()
+
                 if not success:
                     failed_tasks.append(episode_id)
                 else:
@@ -865,7 +867,6 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                # ipdb.set_trace()
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
