@@ -36,7 +36,7 @@ parser.add_argument('--display', type=int, default=0, help='Task name')
 parser.add_argument('--mode', type=str, default='full', choices=['simple', 'full'], help='Task name')
 parser.add_argument('--use-editor', action='store_true', default=False, help='Use unity editor')
 parser.add_argument('--exec_file', type=str,
-        default='/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64',
+        default='/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta5/linux_exec.v2.2.5_beta5.x86_64',
                     help='Use unity editor')
 
 
@@ -74,7 +74,8 @@ if __name__ == "__main__":
         nprand = np.random.RandomState(args.seed)
 
     if args.split == 'test':
-        args.apt_str = '3,6'
+        pass
+        # args.apt_str = '3,6'
         #args.num_per_apartment = 20
     else:
         pass
@@ -250,9 +251,11 @@ if __name__ == "__main__":
                         if success:
                             init_graph0 = copy.deepcopy(init_graph)
                             comm.reset(apartment)
-                            add_noise_initgraph(init_graph, original_graph, set_init_goal.nprand)
                             comm.expand_scene(init_graph)
                             s, init_graph = comm.environment_graph()
+
+                            add_noise_initgraph(init_graph, original_graph, set_init_goal.nprand)
+                            
                             print('final s:', s)
                             # ipdb.set_trace()
                             if s:

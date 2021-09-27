@@ -834,6 +834,10 @@
         [
             "ON",
             "pantry"
+        ],
+        [
+            "INSIDE",
+            "cabinet"
         ]
     ],
     "lotionbottle": [],

@@ -621,7 +621,7 @@ def get_plan(
     for particle_id in range(len(particles)):
         root_action = None
         root_node = Node(
-            id=(root_action, [copy.deepcopy(goal_spec), 0, '']),
+            id=(root_action, [goal_spec, 0, '']),
             particle_id=particle_id,
             plan=[],
             state=copy.deepcopy(particles[particle_id]),
@@ -1091,7 +1091,7 @@ class MCTS_agent_particle_v2_instance:
                     init_state, goal_spec
                 )
                 init_vh_state = self.sim_env.get_vh_state(init_state)
-
+                # print(colored(unsatisfied, "yellow"))
                 self.particles[particle_id] = (
                     init_vh_state,
                     init_state,

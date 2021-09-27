@@ -628,6 +628,7 @@ class ArenaMP(object):
             'graph': [self.env.init_unity_graph],
             'obs': [],
         }
+
         success = False
         num_failed = 0
         num_repeated = 0
@@ -700,6 +701,7 @@ class ArenaMP(object):
                 # if len(saved_info['obs']) > 1 and set(saved_info['obs'][0]) != set(saved_info['obs'][1]):
                 #    ipdb.set_trace()
 
+            # ipdb.set_trace()
             if done:
                 break
             self.saved_info = saved_info

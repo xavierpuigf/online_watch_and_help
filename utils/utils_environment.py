@@ -256,52 +256,54 @@ def check_progress2(state, goal_spec):
     for key, value in goal_spec.items():
 
         elements = key.split('_')
-        unsatisfied[key] = value
         
-        unsatisfied[key].update({'count': value['count']} if elements[0] not in ['offOn', 'offInside'] else {'count': 0})
-        satisfied[key] = [None] * 2
-        satisfied[key]
-        satisfied[key] = []
+        preds = []
+        count = value['count'] if elements[0] not in ['offOn', 'offInside'] else 0
         for edge in state['edges']:
             if elements[0] in 'close':
                 if edge['relation_type'].lower().startswith('close') and id2node[edge['to_id']]['class_name'] == elements[1] and edge['from_id'] == int(elements[2]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
-                    satisfied[key].append(predicate)
-                    unsatisfied[key]['count'] -= 1
+                    preds.append(predicate)
+                    count -= 1
             if elements[0] in ['on', 'inside']:
                 if edge['relation_type'].lower() == elements[0] and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
-                    satisfied[key].append(predicate)
-                    unsatisfied[key]['count'] -= 1
+                    preds.append(predicate)
+                    count -= 1
             elif elements[0] == 'offOn':
                 if edge['relation_type'].lower() == 'on' and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
-                    unsatisfied[key]['count'] += 1
+                    count += 1
             elif elements[0] == 'offInside':
                 if edge['relation_type'].lower() == 'inside' and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
-                    unsatisfied[key]['count'] += 1
+                    count += 1
             elif elements[0] == 'holds':
                 if edge['relation_type'].lower().startswith('holds') and id2node[edge['to_id']]['class_name'] == elements[1] and edge['from_id'] == int(elements[2]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
-                    satisfied[key].append(predicate)
-                    unsatisfied[key]['count'] -= 1
+                    preds.append(predicate)
+                    count -= 1
             elif elements[0] == 'sit':
                 if edge['relation_type'].lower().startswith('sit') and edge['to_id'] == int(elements[2]) and edge['from_id'] == int(elements[1]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
-                    satisfied[key].append(predicate)
-                    unsatisfied[key]['count'] -= 1
+                    preds.append(predicate)
+                    count -= 1
         if elements[0] == 'turnOn':
             if 'ON' in id2node[int(elements[1])]['states']:
                 predicate = '{}_{}_{}'.format(elements[0], elements[1], 1)
-                satisfied[key].append(predicate)
-                unsatisfied[key]['count'] -= 1
+                preds.append(predicate)
+                count -= 1
         if elements[0] == 'touch':
             for id_touch in class2id[elements[1]]:
                 if 'TOUCHED' in [st.upper() for st in id2node[id_touch]['states']]:
                     predicate = '{}_{}_{}'.format(elements[0], id_touch, 1)
-                    satisfied[key].append(predicate)
-                    unsatisfied[key]['count'] -= 1
+                    preds.append(predicate)
+                    count -= 1
+        
+        satisfied[key] = preds
+        unsatisfied[key] = count
+        if unsatisfied[key] < 0:
+            ipdb.set_trace()
     # ipdb.set_trace()
     if len(satisfied) == 0 and len(unsatisfied) == 0:
         ipdb.set_trace()

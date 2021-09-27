@@ -102,7 +102,7 @@ class UnityEnvironment(BaseUnityEnvironment):
             value_pred = min(len(value), preds_needed)
             reward += value_pred * reward_per_pred
             if self.convert_goal:
-                if mandatory and unsatisfied[key]['count'] > 0:
+                if mandatory and unsatisfied[key] > 0:
                     done = False
             else:
                 if mandatory and unsatisfied[key] > 0:
@@ -310,6 +310,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
         max_id = self.max_ids[self.env_id]
 
+        # ipdb.set_trace()
         if environment_graph is not None:
             updated_graph = environment_graph
             s, g = self.comm.environment_graph()
@@ -320,6 +321,8 @@ class UnityEnvironment(BaseUnityEnvironment):
             s, g = self.comm.environment_graph()
             updated_graph = utils.separate_new_ids_graph(updated_graph, max_id)
             success, m = self.comm.expand_scene(updated_graph)
+
+
 
         if not success:
             ipdb.set_trace()
