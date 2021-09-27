@@ -1,6 +1,7 @@
 
 import pdb
 import ipdb
+import copy
 
 def get_container_task(init_goal_manager, graph, containers):
 
@@ -36,11 +37,18 @@ def get_container_task(init_goal_manager, graph, containers):
     return container_ids, container_preds, container_id_map
 
 
-def remove_objects_from_ids(init_goal_manager, graph, container_ids):
+def remove_objects_from_ids(init_goal_manager, graph, container_ids, rel_dict):
     # Remove the obejcts inside the index
 
     rels_cont = ['ON', 'INSIDE']
-    ids_in_container = [edge['from_id'] for edge in graph['edges'] if edge['to_id'] in container_ids and edge['relation_type'] in rels_cont]
+    ids_in_container = []
+    for edge in graph['edges']:
+        if edge['to_id'] in container_ids:
+            curr_rel = rel_dict[edge['to_id']]
+            if edge['relation_type'] in curr_rel:
+                ids_in_container.append(edge['from_id'])
+
+    # ids_in_container = [edge['from_id'] for edge in graph['edges'] if edge['to_id'] in container_ids and edge['relation_type'] in rels_cont]
     graph = init_goal_manager.remove_obj(graph, ids_in_container)
     return graph
     
@@ -49,18 +57,29 @@ def cleanup_graph(init_goal_manager, graph, start):
     if not start:
         return graph
 
+    # ipdb.set_trace()
     # Clean the containers where we will place stuff
-    objects_clean = ["kitchentable", "dishwasher", "fridge", "stove", "microwave", "coffeetable"]
+    objects_rel_clean = [("kitchentable", ["ON"]), ("dishwasher", ["INSIDE"]), ("fridge", ["INSIDE"]), 
+                         ("stove", ["INSIDE"]), ("microwave", ["INSIDE"]), ("coffeetable", ["ON"])]
+    objects_clean = [x[0] for x in objects_rel_clean]
+    rel_class_dict = {x[0]: x[1] for x in objects_rel_clean}
+
     objects_grab_clean = list(init_goal_manager.init_pool_tasks['obj_random'])
 
-    container_ids_clean = [node['id'] for node in graph['nodes'] if node['class_name'] in objects_clean]
-    graph = remove_objects_from_ids(init_goal_manager, graph, container_ids_clean)
+
+    container_ids_clean = []
+    rel_dict = {}
+    for node in graph['nodes']:
+        if node['id'] in objects_clean:
+            rel_dict[node['id']] = rel_class_dict[node['class_name']]
+    graph = remove_objects_from_ids(init_goal_manager, graph, container_ids_clean, rel_dict)
 
     # Remove the objects that have to do with the goal
     ids_obj = [node['id'] for node in graph['nodes'] if node['class_name'] in objects_grab_clean]
     graph = init_goal_manager.remove_obj(graph, ids_obj)
     id2node = {node['id']: node for node in graph['nodes']}
     # print(container_ids_clean)
+    # ipdb.set_trace()
     # print(ids_obj)
     # print([id2node[edge['from_id']]['class_name'] for edge in graph['edges'] if edge['to_id'] == 72 and edge['relation_type'] != 'CLOSE'])
     return graph
@@ -94,8 +113,12 @@ class Task:
         candidates = [cand for cand in candidates if cand[0] in class_names]
         container_name, pred_name = init_goal_manager.rand.choice(candidates)
         min_count, max_count = init_goal_manager.init_pool['counts']['min'],  init_goal_manager.init_pool['counts']['max']
+        
+        pr_graph = copy.deepcopy(graph)
         graph = cleanup_graph(init_goal_manager, graph, start)
-
+        print([node['id'] for node in pr_graph['nodes'] if node['class_name'] == 'kitchencounter'])
+        print([node['id'] for node in graph['nodes'] if node['class_name'] == 'kitchencounter'])
+        # ipdb.set_trace()
 
         container_ids, container_pred, container_id_map = get_container_task(init_goal_manager, graph, [(container_name, pred_name)])
 

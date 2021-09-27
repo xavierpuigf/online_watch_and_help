@@ -30,7 +30,7 @@ parser.add_argument('--seed', type=int, default=10, help='Seed for the apartment
 
 parser.add_argument('--split', type=str, default='train', help='split')
 parser.add_argument('--task', type=str, default='all', help='Task name')
-parser.add_argument('--apt_str', type=str, default='0,1,2,4,5', help='The apartments where we will generate the data')
+parser.add_argument('--apt_str', type=str, default='1', help='The apartments where we will generate the data')
 parser.add_argument('--port', type=str, default='8092', help='Task name')
 parser.add_argument('--display', type=int, default=0, help='Task name')
 parser.add_argument('--mode', type=str, default='full', choices=['simple', 'full'], help='Task name')
@@ -62,7 +62,6 @@ def add_noise_initgraph(init_graph, original_graph, random_obj):
             cont += 1
         # ipdb.set_trace()
     return init_graph
-
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -193,7 +192,7 @@ if __name__ == "__main__":
 
                 init_graph, env_goal, success_setup = getattr(Task, task_name_red)(set_init_goal, graph)
                 # env_goal_key = list(env_goal[task_name][0].keys())[0]
-            
+                ipdb.set_trace()
 
                 # ipdb.set_trace()
                 # if env_goal is None:
@@ -250,9 +249,14 @@ if __name__ == "__main__":
                         if success:
                             init_graph0 = copy.deepcopy(init_graph)
                             comm.reset(apartment)
-                            add_noise_initgraph(init_graph, original_graph, set_init_goal.nprand)
+                            
                             comm.expand_scene(init_graph)
                             s, init_graph = comm.environment_graph()
+                            add_noise_initgraph(init_graph, original_graph, set_init_goal.nprand)
+                            comm.expand_scene(init_graph)
+
+                            s, init_graph = comm.environment_graph()
+                            
                             print('final s:', s)
                             # ipdb.set_trace()
                             if s:
@@ -332,7 +336,7 @@ if __name__ == "__main__":
                              'task_goal': task_goal,
                              'level': 0, 'init_rooms': rand.sample(['kitchen', 'bedroom', 'livingroom', 'bathroom'], 2)})
 
-    pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/structured_agent/{args.split}_env_task_set_{args.num_per_apartment}_{args.mode}_task.{args.task}_apts.{args.apt_str}.pik', 'wb'))
+    # pickle.dump(env_task_set, open(f'{curr_dir}/../dataset/structured_agent/{args.split}_env_task_set_{args.num_per_apartment}_{args.mode}_task.{args.task}_apts.{args.apt_str}.pik', 'wb'))
 
 
 
