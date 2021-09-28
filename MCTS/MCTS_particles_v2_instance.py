@@ -272,6 +272,8 @@ class MCTS_particles_v2_instance:
             verbose_roll = False
             # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
             #     verbose_roll = True
+
+
             value, reward_rollout, actions_rollout = self.rollout(
                 leaf_node, tmp_t + it, curr_state, last_reward, verbose=verbose_roll
             )
@@ -302,10 +304,12 @@ class MCTS_particles_v2_instance:
         plan = []
         subgoals = []
         rewards = []
+        root_path = [curr_root]
         while curr_root.is_expanded and len(curr_root.children) > 0:
 
             actions_taken, children_visit, next_root = self.select_next_root(curr_root)
             curr_root = next_root
+            root_path.append(curr_root)
             plan += actions_taken
 
             # Nasty hack so that we can reuse plans from different predicates
@@ -347,7 +351,8 @@ class MCTS_particles_v2_instance:
         # print(plan)
         # if len([x for x in plan if 'grab' in x]) > 1:
         #     ipdb.set_trace()
-
+        # import ipdb
+        # ipdb.set_trace()
         return next_root, plan, subgoals, rewards
 
     def rollout(self, leaf_node, t, state_particle, lrw=0.0, verbose=False):
@@ -376,22 +381,25 @@ class MCTS_particles_v2_instance:
                 for edge in curr_state['edges']
                 if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
             ]
-
+            # print("GOAL SPEC", goal_spec)
             unsatisfied_aux = copy.deepcopy(unsatisfied)
             subgoals_hand = []
             for hand_busy in hands_busy:
                 hand_class_name = self.id2node_env[hand_busy]['class_name']
                 pred_name_selected = None
                 for missing_pred, count_pred in unsatisfied_aux.items():
+                    curr_goal_spec_pred = goal_spec[missing_pred]
                     if pred_name_selected is None:
                         if (
-                            count_pred['count'] > 0
-                            and hand_busy in count_pred['grab_obj_ids']
+                            count_pred > 0
+                            and hand_busy in curr_goal_spec_pred['grab_obj_ids']
                         ):
                             pred_name_selected = missing_pred
 
                 if pred_name_selected is not None:
-                    unsatisfied_aux[pred_name_selected]['count'] -= 1
+                    unsatisfied_aux[pred_name_selected] -= 1
+                    # if unsatisfied_aux[pred_name_selected] < 0:
+                    #     ipdb.set_trace()
                     pred_name_split = pred_name_selected.split('_')
                     verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
                     subgoals_hand.append(
@@ -405,7 +413,7 @@ class MCTS_particles_v2_instance:
                     )
 
             subgoals = self.get_subgoal_space(
-                curr_state, satisfied, unsatisfied_aux, self.opponent_subgoal
+                curr_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
             )
             subgoals += subgoals_hand
 
@@ -435,8 +443,9 @@ class MCTS_particles_v2_instance:
                     subgoals = subgoals_putin
 
             if len(subgoals) == 0:
+
+                ipdb.set_trace()
                 raise Exception
-                # ipdb.set_trace()
 
             subgoal_list = [x[0] for x in subgoals]
             if last_goal is not None and goal_selected in subgoal_list:
@@ -457,6 +466,8 @@ class MCTS_particles_v2_instance:
                 self.env,
                 goal_selected,
             )
+            # if '336' in goal_selected:
+            #     ipdb.set
             if verbose:
                 print(hands_busy)
                 print("Rollout: ", rollout_step)
@@ -929,12 +940,14 @@ class MCTS_particles_v2_instance:
             hand_class_name = self.id2node_env[hand_busy]['class_name']
             pred_name_selected = None
             for missing_pred, count_pred in unsatisfied_aux.items():
+                goal_spec_pred = goal_spec[missing_pred]
                 if pred_name_selected is None:
-                    if count_pred['count'] > 0 and hand_busy in count_pred['grab_obj_ids']:
+                    if count_pred > 0 and hand_busy in goal_spec_pred['grab_obj_ids']:
                         pred_name_selected = missing_pred
 
             if pred_name_selected is not None:
-                unsatisfied_aux[pred_name_selected]['count'] -= 1
+                unsatisfied_aux[pred_name_selected] -= 1
+
                 pred_name_split = pred_name_selected.split('_')
                 verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
                 subgoals_hand.append(
@@ -948,7 +961,7 @@ class MCTS_particles_v2_instance:
                 )
 
         subgoals = self.get_subgoal_space(
-            curr_state, satisfied, unsatisfied_aux, self.opponent_subgoal
+            curr_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
         )
         subgoals += subgoals_hand
 
@@ -1047,6 +1060,7 @@ class MCTS_particles_v2_instance:
             action_list = [
                 self.get_action_str(action_item) for action_item in info_action[0]
             ]
+            # ipdb.set_trace()
             new_node = Node(
                 parent=node,
                 id=("Child", [goal_spec, len(actions_heuristic), action_str]),
@@ -1075,7 +1089,7 @@ class MCTS_particles_v2_instance:
         return '[{}] {}'.format(action_tuple[0], objects_str)
 
     def get_subgoal_space(
-        self, state, satisfied, unsatisfied, opponent_subgoal=None, verbose=0
+        self, state, satisfied, unsatisfied, goal_spec, opponent_subgoal=None, verbose=0
     ):
         """
         Get subgoal space
@@ -1143,8 +1157,9 @@ class MCTS_particles_v2_instance:
         # ipdb.set_trace()
         for predicate, unsatisfied_val in unsatisfied.items():
             obj_grabbed = False
-            count = unsatisfied_val['count']
-            container_id = unsatisfied_val['container_ids'][0]
+            count = unsatisfied_val
+            obj_ids_grab = goal_spec[predicate]['grab_obj_ids']
+            container_id = goal_spec[predicate]['container_ids'][0]
             if (
                 count > 1
                 or count > 0
@@ -1156,7 +1171,7 @@ class MCTS_particles_v2_instance:
                     subgoal_type = 'put'
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
-                    for node_id in unsatisfied_val['grab_obj_ids']:
+                    for node_id in obj_ids_grab:
                         
                         tmp_predicate = 'on_{}_{}'.format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
@@ -1190,7 +1205,7 @@ class MCTS_particles_v2_instance:
                     subgoal_type = 'putIn'
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
-                    for node_id in unsatisfied_val['grab_obj_ids']:
+                    for node_id in obj_ids_grab:
                         
                         tmp_predicate = 'inside_{}_{}'.format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
@@ -1248,7 +1263,7 @@ class MCTS_particles_v2_instance:
                         if (
                             edge['relation_type'] == 'ON'
                             and edge['to_id'] == container_id
-                            and id2node[edge['from_id']] in unsatisfied_val['grab_obj_ids']
+                            and id2node[edge['from_id']] in obj_ids_grab
                         ):
                             container = random.choice(containers)
                             predicate = '{}_{}_{}'.format(
@@ -1282,7 +1297,7 @@ class MCTS_particles_v2_instance:
                         if (
                             edge['relation_type'] == 'INSIDE'
                             and edge['to_id'] == container_id
-                            and edge['from_id'] in unsatisfied_val['grab_obj_ids']
+                            and edge['from_id'] in obj_ids_grab
                         ):
                             container = random.choice(containers)
                             predicate = '{}_{}_{}'.format(
@@ -1310,8 +1325,8 @@ class MCTS_particles_v2_instance:
                 if elements[0] == 'on':
                     subgoal_type = 'put'
                     obj = elements[1]
-                    surface = unsatisfied_val['container_ids'][0]  # assuming it is a graph node id
-                    for node_id in unsatisfied_val['grab_obj_ids']:
+                    surface = container_id  # assuming it is a graph node id
+                    for node_id in obj_ids_grab:
                         tmp_predicate = 'on_{}_{}'.format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
                             tmp_subgoal = '{}_{}_{}'.format(
@@ -1329,8 +1344,8 @@ class MCTS_particles_v2_instance:
                 elif elements[0] == 'inside':
                     subgoal_type = 'putIn'
                     obj = elements[1]
-                    surface = unsatisfied_val['container_ids'][0]  # assuming it is a graph node id
-                    for node_id in unsatisfied_val['grab_obj_ids']:
+                    surface = container_id  # assuming it is a graph node id
+                    for node_id in obj_ids_grab:
                         
                         tmp_predicate = 'inside_{}_{}'.format(node['id'], surface)
                         if tmp_predicate not in satisfied[predicate]:
@@ -1356,14 +1371,15 @@ class MCTS_particles_v2_instance:
             if len(overlapped_subgoal_space) > 0:
                 return overlapped_subgoal_space
             for predicate, unsatisfied_val in unsatisfied.items():
-                count = unsatisfied_val['count']
+                goal_spec_pred = goal_spec[predicate]
+                count = unsatisfied_val
                 if count == 1:
                     elements = predicate.split('_')
                     # print(elements)
                     if elements[0] == 'turnOn':
                         subgoal_type = 'turnOn'
                         obj = elements[1]
-                        for node_id in unsatisfied_val['grab_obj_ids']:
+                        for node_id in goal_spec_pred['grab_obj_ids']:
                             tmp_predicate = 'turnOn{}_{}'.format(node_id, 1)
                             if tmp_predicate not in satisfied[predicate]:
                                 subgoal_space.append(
@@ -1375,14 +1391,16 @@ class MCTS_particles_v2_instance:
                                 )
         if len(subgoal_space) == 0:
             for predicate, unsatisfied_val in unsatisfied.items():
-                count = unsatisfied_val['count']
+                count = unsatisfied_val
+                goal_spec_pred = goal_spec[predicate]
+
                 if count == 1:
                     elements = predicate.split('_')
                     # print(elements)
                     if elements[0] == 'holds' and int(elements[2]) == self.agent_id:
                         subgoal_type = 'grab'
                         obj = elements[1]
-                        for node_id in unsatisfied_val['grab_obj_ids']:
+                        for node_id in goal_spec_pred['grab_obj_ids']:
                             tmp_predicate = 'holds_{}_{}'.format(node_id, 1)
                             if tmp_predicate not in satisfied[predicate]:
                                 subgoal_space.append(
@@ -1394,7 +1412,8 @@ class MCTS_particles_v2_instance:
                                 )
         if len(subgoal_space) == 0:
             for predicate, unsatisfied_val in unsatisfied.items():
-                count = unsatisfied_val['count']
+                count = unsatisfied_val
+                goal_spec_pred = goal_spec[predicate]
 
                 if count == 1:
                     elements = predicate.split('_')
@@ -1402,7 +1421,7 @@ class MCTS_particles_v2_instance:
                     if elements[0] == 'sit' and int(elements[1]) == self.agent_id:
                         subgoal_type = 'sit'
                         obj = elements[2]
-                        for node_id in unsatisfied_val['container_ids']:
+                        for node_id in goal_spec_pred['container_ids']:
                             
                             tmp_predicate = 'sit_{}_{}'.format(1, node_id)
                             if tmp_predicate not in satisfied[predicate]:

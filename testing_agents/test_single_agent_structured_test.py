@@ -36,14 +36,14 @@ if __name__ == '__main__':
 
     save_data = True
     num_proc = 0
-    num_tries = 3
+    num_tries = 1
     args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     args.max_episode_length = 250
     # args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
-    args.dataset_path = f'{rootdir}/dataset/structured_agent/train_env_task_set_150_full_task.all.pik'
+    args.dataset_path = f'{rootdir}/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
     cachedir = f'{rootdir}/dataset_episodes_noscratch/data_structured/'
 
@@ -123,8 +123,6 @@ if __name__ == '__main__':
         test_results = {}
         #episode_ids = [episode_ids[0]]
      
-
-        episode_ids = [253]
         def env_fn(env_id):
             return UnityEnvironment(num_agents=1,
                                     max_episode_length=args.max_episode_length,
@@ -198,14 +196,12 @@ if __name__ == '__main__':
                 log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id)
                 failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
                 process_file = '{}/{}_{}.txt'.format(process_dir, episode_id, iter_id)
-
-
-                # if os.path.isfile(process_file):
-                #     continue
-                # if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
-                #     continue
-                # if os.path.isfile(failure_file):
-                #     continue
+                if os.path.isfile(process_file):
+                    continue
+                if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
+                    continue
+                if os.path.isfile(failure_file):
+                    continue
 
                 with open(process_file, 'w+') as f:
                     f.write("process_started")
@@ -307,8 +303,7 @@ if __name__ == '__main__':
                 L[episode_id].append(steps)
                 test_results[episode_id] = {'S': S[episode_id],
                                             'L': L[episode_id]}
-            
-            ipdb.set_trace()                              
+                                            
             # pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
             print('average steps (finishing the tasks):', np.array(steps_list).mean() if len(steps_list) > 0 else None)
             print('failed_tasks:', failed_tasks)

@@ -16,7 +16,7 @@ curr_dir = os.path.dirname(os.path.abspath(__file__))
 
 class SetInitialGoal:
     def __init__(self, obj_position, class_name_size, init_pool_tasks, 
-                 task_name, same_room=True, goal_template=None, rand=None, set_curr_goal=True,
+                 task_name, same_room=True, goal_template=None, rand=None, nprand=None, set_curr_goal=True,
                  set_random_goal=False):
         self.task_name = task_name
         self.init_pool_tasks = init_pool_tasks
@@ -35,9 +35,15 @@ class SetInitialGoal:
         self.set_curr_goal = set_curr_goal
         if rand is not None:
             self.rand = rand
+            self.nprand = nprand
         else:
             self.rand = random.Random()
-        
+            self.nprand = np.random.RandomState()
+
+        if nprand is not None:
+            self.nprand = nprand
+        else:
+            self.nprand = np.random.RandomState()
         self.set_goal()
 
         self.same_room = same_room
@@ -464,14 +470,14 @@ class SetInitialGoal:
             # print(success_add, num_obj)
             if success_add != num_obj:
                 # print(obj_name)
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 return None, None, False
 
         return object_id, graph, True
 
-    def setup_other_objs(self, graph, object_id, objs_in_room=None, except_position=None):
+    def setup_other_objs(self, graph, object_id, objs_in_room=None, except_position=None, except_objects=[]):
         new_object_pool = [tem for tem in self.init_pool_tasks['obj_random'] if
-                           tem not in list(self.goal.keys())]  # remove objects in goal
+                           tem not in list(self.goal.keys())+except_objects]  # remove objects in goal
 
         self.num_other_obj = self.rand.randint(self.min_num_other_object, self.max_num_other_object)
         obj_in_graph = [node['class_name'] for node in graph['nodes']]  # if the object already in env, skip
