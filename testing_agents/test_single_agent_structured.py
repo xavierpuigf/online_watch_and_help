@@ -124,7 +124,7 @@ if __name__ == '__main__':
         #episode_ids = [episode_ids[0]]
      
 
-        episode_ids = [253]
+        # episode_ids = [253]
         def env_fn(env_id):
             return UnityEnvironment(num_agents=1,
                                     max_episode_length=args.max_episode_length,
@@ -200,12 +200,12 @@ if __name__ == '__main__':
                 process_file = '{}/{}_{}.txt'.format(process_dir, episode_id, iter_id)
 
 
-                # if os.path.isfile(process_file):
-                #     continue
-                # if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
-                #     continue
-                # if os.path.isfile(failure_file):
-                #     continue
+                if os.path.isfile(process_file):
+                    continue
+                if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
+                    continue
+                if os.path.isfile(failure_file):
+                    continue
 
                 with open(process_file, 'w+') as f:
                     f.write("process_started")
@@ -308,7 +308,7 @@ if __name__ == '__main__':
                 test_results[episode_id] = {'S': S[episode_id],
                                             'L': L[episode_id]}
             
-            ipdb.set_trace()                              
+            # ipdb.set_trace()                              
             # pickle.dump(test_results, open(args.record_dir + '/results_{}.pik'.format(0), 'wb'))
             print('average steps (finishing the tasks):', np.array(steps_list).mean() if len(steps_list) > 0 else None)
             print('failed_tasks:', failed_tasks)

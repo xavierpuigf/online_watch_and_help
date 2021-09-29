@@ -200,8 +200,8 @@ if __name__ == '__main__':
                     continue
                 if os.path.isfile(log_file_name):# or os.path.isfile(failure_file):
                     continue
-                if os.path.isfile(failure_file):
-                    continue
+                #if os.path.isfile(failure_file):
+                #    continue
 
                 with open(process_file, 'w+') as f:
                     f.write("process_started")

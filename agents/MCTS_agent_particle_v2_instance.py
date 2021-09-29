@@ -446,7 +446,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
         remained_to_put = 0
         for predicate, count in unsatisfied.items():
             if predicate.startswith('inside'):
-                remained_to_put += count['count']
+                remained_to_put += count
         if remained_to_put == 1:  # or agent_id > 1:
             action_close = []
             cost_close = []
