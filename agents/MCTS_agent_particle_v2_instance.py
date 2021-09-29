@@ -165,7 +165,7 @@ def grab_heuristic(
         find_actions, find_costs, _ = find_heuristic(
             agent_id, char_index, unsatisfied, env_graph, simulator, object_target
         )
-        return find_actions+target_action, find_costs+cost, f'grab_{target_id}'
+        return find_actions + target_action, find_costs + cost, f'grab_{target_id}'
 
 
 def turnOn_heuristic(
@@ -451,8 +451,10 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
             action_close = []
             cost_close = []
         else:
-            action_close = [('close', (target_node2['class_name'], target_put))]
-            cost_close = [0.05]
+            action_close = []
+            cost_close = []
+            #action_close = [('close', (target_node2['class_name'], target_put))]
+            #cost_close = [0.05]
 
         if 'CLOSED' in target_put_state or 'OPEN' not in target_put_state:
             res = grab_obj1 + find_obj2 + action_open + action_put + action_close

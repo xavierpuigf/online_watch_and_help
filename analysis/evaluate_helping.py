@@ -311,9 +311,9 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt_goal'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt_goal'
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_no_avoidance'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
+    cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_ind'
     cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only'
 
