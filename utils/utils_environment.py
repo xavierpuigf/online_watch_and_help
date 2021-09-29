@@ -302,10 +302,10 @@ def check_progress2(state, goal_spec):
         
         satisfied[key] = preds
         unsatisfied[key] = count
-        if unsatisfied[key] < 0:
-            ipdb.set_trace()
+        # if unsatisfied[key] < 0:
+        #     ipdb.set_trace()
     # ipdb.set_trace()
-    if len(satisfied) == 0 and len(unsatisfied) == 0:
-        ipdb.set_trace()
+    # if len(satisfied) == 0 and len(unsatisfied) == 0:
+    #     ipdb.set_trace()
     return satisfied, unsatisfied
 
