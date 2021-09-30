@@ -31,15 +31,30 @@ from utils import utils_exception
 def find_heuristic(
     agent_id, char_index, unsatisfied, env_graph, simulator, object_target
 ):
+    target = int(object_target.split('_')[-1])
     observations = simulator.get_observations(env_graph, char_index=char_index)
     id2node = {node['id']: node for node in env_graph['nodes']}
-    containerdict = {
-        edge['from_id']: edge['to_id']
-        for edge in env_graph['edges']
-        if edge['relation_type'] == 'INSIDE'
-    }
-    target = int(object_target.split('_')[-1])
+    containerdict = {}
+    hold = False
+    for edge in env_graph['edges']:
+        if edge['relation_type'] == 'INSIDE' and edge['from_id'] not in containerdict:
+            containerdict[edge['from_id']] = edge['to_id']
+        elif 'HOLDS' in edge['relation_type'] and agent_id == 1:  # only for main agent
+            containerdict[edge['to_id']] = edge['from_id']
+            if edge['to_id'] == target:
+                hold = True
+
+    # containerdict = {
+    #     edge['from_id']: edge['to_id']
+    #     for edge in env_graph['edges']
+    #     if edge['relation_type'] == 'INSIDE'
+    # }
+
     observation_ids = [x['id'] for x in observations['nodes']]
+
+    if agent_id == 1 and hold:
+        print('container_ids find:', object_target, containerdict)
+
     try:
         room_char = [
             edge['to_id']
@@ -71,11 +86,14 @@ def find_heuristic(
         elif 'CLOSED' in id2node[container]['states'] or (
             'OPEN' not in id2node[container]['states']
         ):
-            action = ('open', (id2node[container]['class_name'], container), None)
-            action_list = [action] + action_list
-            cost_list = [0.05] + cost_list
+            if id2node[container]['class_name'] != 'character':
+                action = ('open', (id2node[container]['class_name'], container), None)
+                action_list = [action] + action_list
+                cost_list = [0.05] + cost_list
 
         target = container
+        if hold:
+            print(target)
 
     ids_character = [
         x['to_id']
@@ -93,6 +111,9 @@ def find_heuristic(
             ('walk', (id2node[target]['class_name'], target), None)
         ] + action_list
         cost_list = [1] + cost_list
+
+    if hold:
+        print(action_list)
 
     return action_list, cost_list, f'find_{target}'
 
@@ -159,12 +180,19 @@ def grab_heuristic(
         target_action = []
         cost = []
 
+    # if agent_id == 1:
+    #     print('observed_ids grab:', target_id, observed_ids)
+
     if len(agent_close) > 0 and target_id in observed_ids:
+        if agent_id == 1 and target_id == 351:
+            print(target_action)
         return target_action, cost, f'grab_{target_id}'
     else:
         find_actions, find_costs, _ = find_heuristic(
             agent_id, char_index, unsatisfied, env_graph, simulator, object_target
         )
+        if agent_id == 1 and target_id == 351:
+            print(find_actions + target_action)
         return find_actions + target_action, find_costs + cost, f'grab_{target_id}'
 
 
@@ -453,8 +481,8 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
         else:
             action_close = []
             cost_close = []
-            #action_close = [('close', (target_node2['class_name'], target_put))]
-            #cost_close = [0.05]
+            # action_close = [('close', (target_node2['class_name'], target_put))]
+            # cost_close = [0.05]
 
         if 'CLOSED' in target_put_state or 'OPEN' not in target_put_state:
             res = grab_obj1 + find_obj2 + action_open + action_put + action_close
@@ -481,6 +509,10 @@ def clean_graph(state, goal_spec, last_opened):
         elements = predicate.split('_')
         nodes_missing += val_goal['grab_obj_ids']
         nodes_missing += val_goal['container_ids']
+    # get all grabbed object ids
+    for edge in state['edges']:
+        if 'HOLD' in edge['relation_type'] and edge['to_id'] not in nodes_missing:
+            nodes_missing += [edge['to_id']]
 
     nodes_missing += [
         node['id']
@@ -1088,6 +1120,19 @@ class MCTS_agent_particle_v2_instance:
                 )
                 # print('new_graph:')
                 # print([n['id'] for n in new_graph['nodes']])
+                # print(
+                #     'obs:',
+                #     [edge for edge in obs['edges'] if 'HOLD' in edge['relation_type']],
+                # )
+
+                print(
+                    'new_graph:',
+                    [
+                        edge
+                        for edge in new_graph['edges']
+                        if 'HOLD' in edge['relation_type']
+                    ],
+                )
                 init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
                 satisfied, unsatisfied = utils_env.check_progress2(
                     init_state, goal_spec
@@ -1099,6 +1144,14 @@ class MCTS_agent_particle_v2_instance:
                     init_state,
                     satisfied,
                     unsatisfied,
+                )
+                print(
+                    'init_state:',
+                    [
+                        edge
+                        for edge in init_state['edges']
+                        if 'HOLD' in edge['relation_type']
+                    ],
                 )
 
                 self.particles_full[particle_id] = new_graph

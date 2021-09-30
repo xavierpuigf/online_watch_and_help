@@ -273,7 +273,6 @@ class MCTS_particles_v2_instance:
             # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
             #     verbose_roll = True
 
-
             value, reward_rollout, actions_rollout = self.rollout(
                 leaf_node, tmp_t + it, curr_state, last_reward, verbose=verbose_roll
             )
@@ -289,9 +288,10 @@ class MCTS_particles_v2_instance:
                 raise Exception
                 # pass
                 # ipdb.set_trace()
-            self.backup(
-                value, node_path, costs, rewards, reward_rollout, actions_rollout
-            )
+            if len(reward_rollout) > 0:
+                self.backup(
+                    value, node_path, costs, rewards, reward_rollout, actions_rollout
+                )
             # print(colored("Finish select", "yellow"))
 
             if explore_step % 198 == 0 and explore_step > 0:
@@ -381,6 +381,7 @@ class MCTS_particles_v2_instance:
                 for edge in curr_state['edges']
                 if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
             ]
+            # print('hands_busy:', len(hands_busy), self.agent_id)
             # print("GOAL SPEC", goal_spec)
             unsatisfied_aux = copy.deepcopy(unsatisfied)
             subgoals_hand = []
@@ -444,8 +445,9 @@ class MCTS_particles_v2_instance:
 
             if len(subgoals) == 0:
 
-                ipdb.set_trace()
-                raise Exception
+                # ipdb.set_trace()
+                # raise Exception
+                return 0, [], []
 
             subgoal_list = [x[0] for x in subgoals]
             if last_goal is not None and goal_selected in subgoal_list:
@@ -640,7 +642,7 @@ class MCTS_particles_v2_instance:
             cost = self.agent_params['open_cost']
         elif 'touch' in action[action_index]:
             cost = 0.05
-        
+
         else:
             print(colored("missing action {}".format(action[action_index]), "red"))
         # vdict = curr_vh_state.to_dict()
@@ -648,6 +650,18 @@ class MCTS_particles_v2_instance:
         success, next_vh_state = self.env.transition(curr_vh_state, action)
         # print(type(next_vh_state), type(curr_vh_state))
         dict_vh_state = next_vh_state.to_dict()
+
+        if 'grab' in action[action_index]:
+            print(
+                'transition',
+                [
+                    edge
+                    for edge in dict_vh_state['edges']
+                    if edge['from_id'] == [351, 352, 353, 354]
+                    or edge['to_id'] in [351, 352, 353, 354]
+                ],
+            )
+
         reward = self.check_progress(dict_vh_state, goal_spec)
 
         return success, next_vh_state, dict_vh_state, cost, reward
@@ -731,8 +745,9 @@ class MCTS_particles_v2_instance:
         next_vh_state = curr_state[0]
         if selected_child.state is None:
 
-            # print("New action", actions)
-            next_vh_state = copy.deepcopy(next_vh_state)
+            if len(actions) > 1 and '(2)' in actions[-2]:
+                print("New action", actions)
+                next_vh_state = copy.deepcopy(next_vh_state)
 
             total_cost = 0
             total_reward = 0
@@ -757,6 +772,17 @@ class MCTS_particles_v2_instance:
             selected_child.cost = total_cost
             selected_child.reward = total_reward
         else:
+            if len(actions) > 1 and '(2)' in actions[-2]:
+                print("Old action", actions)
+                print(
+                    "transition",
+                    [
+                        edge
+                        for edge in selected_child.state[1]['edges']
+                        if edge['from_id'] in [351, 352, 353, 354]
+                        or edge['to_id'] in [351, 352, 353, 354]
+                    ],
+                )
 
             cost = selected_child.cost
             reward = selected_child.reward
@@ -1172,7 +1198,7 @@ class MCTS_particles_v2_instance:
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
-                        
+
                         tmp_predicate = 'on_{}_{}'.format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
                             tmp_subgoal = '{}_{}_{}'.format(
@@ -1200,13 +1226,13 @@ class MCTS_particles_v2_instance:
                                     )
                                 if node_id in inhand_objects:
                                     pass
-                                        # return [subgoal_space[-1]]
+                                    # return [subgoal_space[-1]]
                 elif elements[0] == 'inside':
                     subgoal_type = 'putIn'
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
-                        
+
                         tmp_predicate = 'inside_{}_{}'.format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
                             tmp_subgoal = '{}_{}_{}'.format(
@@ -1236,7 +1262,7 @@ class MCTS_particles_v2_instance:
                                     obj_grabbed = True
                                     pass
                                     # return [subgoal_space[-1]]
-                
+
                 elif elements[0] == 'offOn':
                     # Xavi: What is this for?
                     if id2node[container_id]['class_name'] in [
@@ -1334,9 +1360,7 @@ class MCTS_particles_v2_instance:
                             )
                             overlapped_subgoal_space.append(
                                 [
-                                    '{}_{}_{}'.format(
-                                        subgoal_type, node_idz, surface
-                                    ),
+                                    '{}_{}_{}'.format(subgoal_type, node_idz, surface),
                                     predicate,
                                     tmp_predicate,
                                 ]
@@ -1346,7 +1370,7 @@ class MCTS_particles_v2_instance:
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
-                        
+
                         tmp_predicate = 'inside_{}_{}'.format(node['id'], surface)
                         if tmp_predicate not in satisfied[predicate]:
                             tmp_subgoal = '{}_{}_{}'.format(
@@ -1354,9 +1378,7 @@ class MCTS_particles_v2_instance:
                             )
                             overlapped_subgoal_space.append(
                                 [
-                                    '{}_{}_{}'.format(
-                                        subgoal_type, node_id, surface
-                                    ),
+                                    '{}_{}_{}'.format(subgoal_type, node_id, surface),
                                     predicate,
                                     tmp_predicate,
                                 ]
@@ -1422,7 +1444,7 @@ class MCTS_particles_v2_instance:
                         subgoal_type = 'sit'
                         obj = elements[2]
                         for node_id in goal_spec_pred['container_ids']:
-                            
+
                             tmp_predicate = 'sit_{}_{}'.format(1, node_id)
                             if tmp_predicate not in satisfied[predicate]:
                                 subgoal_space.append(
