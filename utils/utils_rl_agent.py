@@ -6,6 +6,19 @@ import ipdb
 import json
 import pdb
 
+def condense_walking(program):
+    action_split = [instr.split(' ') for instr in program]
+    indices = [0]
+    for i in range(1, len(program)):
+        do_skip = False
+        if action_split[i][0] == '[walktowards]' and action_split[i-1][0] == '[walktowards]' and action_split[i][2] == action_split[i-1][2]:
+            do_skip = True
+        if not do_skip:
+            indices.append(i)
+    # ipdb.set_trace()
+    return indices
+
+
 
 class DictObjId:
     def __init__(self, elements=None, include_other=True):
@@ -240,7 +253,8 @@ class GraphHelper:
         if self.toy_dataset:
             object_info_fname = f'{dir_path}/../dataset/object_info_toy.json'
         else:
-            object_info_fname = f'{dir_path}/../dataset/object_info_small.json'
+            #object_info_fname = f'{dir_path}/../dataset/object_info_small.json'
+            object_info_fname = f'{dir_path}/../dataset/object_info_good.json'
         with open(object_info_fname, 'r') as f:
             content = json.load(f)
         objects = []
@@ -354,14 +368,18 @@ class GraphHelper:
                     'relation_type': edge['relation_type'],
                 }
                 # print(edges[it])
-
+        # print("UNIQUE")
         if unique_from:
-            edges = make_edges_unique(edges, room_ids, id2node)
-
+            try:
+                edges = make_edges_unique(edges, room_ids, id2node)
+            except:
+                "Failure in making edges unique"
+                raise Exception
         # Check if there is more than one edge between two nodes
         edge_tup = [(edge['from_id'], edge['to_id']) for edge in edges]
 
         if unique_from:
+            # print("CHECK")
             repeated = []
             edge_from = [edge['from_id'] for edge in edges]
             if len(set(edge_from)) != len(edge_from):
@@ -371,8 +389,9 @@ class GraphHelper:
                         repeated.append(el)
                 print("Repeated elems: ", repeated)
                 print([edge for edge in edges if edge['from_id'] in repeated])
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 raise Exception
+        # print("DONE")
         try:
             assert len(set(edge_tup)) == len(edge_tup)
         except:
@@ -555,7 +574,8 @@ def make_edges_unique(edges, rooms, id2node):
         if edge['from_id'] not in edge_from_dict:
             edge_from_dict[edge['from_id']] = edge
         else:
-            if edge_from_dict[edge['from_id']]['to_id'] in rooms:
+            curr_edge = edge_from_dict[edge['from_id']]
+            if curr_edge['to_id'] in rooms:
                 # If the object is in a room, forget that it is in the room
                 edge_from_dict[edge['from_id']] = edge
             elif edge['to_id'] in rooms:
@@ -563,14 +583,15 @@ def make_edges_unique(edges, rooms, id2node):
             elif edge['relation_type'] == 'INSIDE':
                 # prioritize inside
                 edge_from_dict[edge['from_id']] = edge
-            else:
-                print('*****')
-                print(edge)
-                print(edge_from_dict[edge['from_id']])
+            elif edge['relation_type'] == 'ON':
+                if curr_edge['relation_type'] != 'INSIDE':
+                    if 'GRABBABLE' in id2node[edge['to_id']]['states']:
+                        edge_from_dict[edge['to_id']] = edge['from_id']
 
-                print('*****')
-                # ipdb.set_trace()
-
+    for edge in edge_from_dict.values():
+        idn = id2node[edge['to_id']]
+        if 'GRABBABLE' in idn['states']:
+            print(idn['class_name'])
     edges = list(edge_from_dict.values())
     return edges
 

@@ -1162,6 +1162,7 @@ class LoggerSteps:
             'predict_graph/train_data.{}-agents{}/'
             'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-'
             'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchange.{}_inputgoal.{}_excledge.{}_goodaction'
+            '{}'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],
@@ -1177,7 +1178,8 @@ class LoggerSteps:
             args['model']['agent_embed'],
             pred_change,
             args['model']['input_goal'],
-            args['model']['exclusive_edge']
+            args['model']['exclusive_edge'],
+            'reduced_walk' if args['model']['condense_walking'] else ''
         )
         if args['model']['gated']:
             experiment_name += '_gated'

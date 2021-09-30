@@ -791,6 +791,7 @@ def train_epoch(
     end = time.time()
 
     for it, data_item in enumerate(data_loader):
+        # ipdb.set_trace()
         metric_dict['data_time'].update(time.time() - end)
 
         (
@@ -817,7 +818,7 @@ def train_epoch(
         }
         # if int(len_mask[0,:].sum()) == 30:
         #     ipdb.set_trace()
-
+        # ipdb.set_trace()
         program_gt = utils_models.decode_program(
             data_loader.dataset.graph_helper, prog_gt
         )
@@ -1282,7 +1283,7 @@ def get_loaders(args):
     return train_loader, test_loader
 
 
-@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_toy_excl")
+@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_large_excl")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
@@ -1355,6 +1356,7 @@ def main(cfg: DictConfig):
         #     criterion_change,
         # )
         for epoch in range(config['train']['epochs']):
+            # ipdb.set_trace()
             train_epoch(
                 train_loader,
                 model,

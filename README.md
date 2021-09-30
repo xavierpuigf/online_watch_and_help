@@ -23,7 +23,7 @@ CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred.py name_log=pred_last_gra
 CUDA_VISIBLE_DEVICES=3,4 python algos/train_graph_pred.py name_log=pred_last_graph model.predict_node_change=True
 CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred.py name_log=pred_last_graph
 
-CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl model.predict_node_change=True model.exclusive_edge=True train.lr=0.001
+CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large model.predict_node_change=True model.exclusive_edge=True train.lr=0.001
 ```
 
 
