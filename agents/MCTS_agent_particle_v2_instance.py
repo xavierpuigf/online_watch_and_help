@@ -798,6 +798,7 @@ class MCTS_agent_particle_v2_instance:
         logging_graphs=False,
         agent_params={},
         get_plan_states=False,
+        get_plan_cost=False,
         seed=None,
     ):
         self.agent_type = 'MCTS'
@@ -832,6 +833,7 @@ class MCTS_agent_particle_v2_instance:
         self.num_processes = num_processes
         self.num_particles = num_particles
         self.get_plan_states = get_plan_states
+        self.get_plan_cost = get_plan_cost
 
         self.previous_belief_graph = None
         self.verbose = False
@@ -1138,19 +1140,28 @@ class MCTS_agent_particle_v2_instance:
                 'belief': copy.deepcopy(self.belief.edge_belief),
                 'belief_room': copy.deepcopy(self.belief.room_node),
             }
-            if self.get_plan_states:
+            if self.get_plan_states or self.get_plan_cost:
                 plan_states = []
+                plan_cost = []
                 env = self.sim_env
                 env.pomdp = True
                 particle_id = 0
                 vh_state = self.particles[particle_id][0]
                 plan_states.append(vh_state.to_dict())
                 for action_item in plan:
+                    
+                    if self.get_plan_cost:
+                        plan_cost.append(env.compute_distance(vh_state, action_item, self.agent_id))
                     success, vh_state = env.transition(
                         vh_state, {self.char_index: action_item}
                     )
                     plan_states.append(vh_state.to_dict())
-                info['plan_states'] = plan_states
+
+                if self.get_plan_states:
+                    info['plan_states'] = plan_states
+                if self.get_plan_cost:
+                    info['plan_cost'] = plan_cost
+
             if self.logging_graphs:
                 info.update({'obs': obs['nodes'].copy()})
         else:
@@ -1166,6 +1177,7 @@ class MCTS_agent_particle_v2_instance:
         time2 = time.time()
         # print("Time: ", time2 - time1)
         print("Replanning... ", should_replan or must_replan)
+
         return action, info
 
     def reset(

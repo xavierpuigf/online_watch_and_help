@@ -123,7 +123,7 @@ class ArenaMP(object):
                 # opponent_subgoal = None
                 # if agent.recursive:
                 #     opponent_subgoal = self.agents[1 - it].last_subgoal
-
+                # ipdb.set_trace()
                 dict_actions[it], dict_info[it] = agent.get_action(
                     obs[it],
                     goal_spec,

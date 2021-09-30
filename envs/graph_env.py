@@ -15,7 +15,7 @@ from evolving_graph.utils import load_graph_dict, load_name_equivalence, graph_d
 from evolving_graph.execution import ScriptExecutor, ExecutionInfo
 from evolving_graph.scripts import read_script_from_string
 
-from evolving_graph.environment import EnvironmentGraph
+from evolving_graph.environment import EnvironmentGraph, Relation
 from evolving_graph.environment import EnvironmentState as EnvironmentStateBase
 
 def init_from_state(env_state: EnvironmentStateBase, touched_objs):
@@ -133,9 +133,177 @@ class VhGraphEnv():
         self.observable_object_ids_n = [None for i in range(self.n_chars)]
         self.pomdp = False
         self.executor_n = [ScriptExecutor(EnvironmentGraph(self.state), self.name_equivalence, i) for i in range(self.n_chars)]
-    
+        self.room_doors = None
 
+    def intermediate_doors(self, door_dict, rooms, doors):
+        # Floyd algo for pairs of distances between rooms
+        for room1 in rooms:
+            for room2 in rooms:
+                for room3 in rooms:
+                    if room1 != room2 and room2 != room3:
+                        d1d3, d1d2, d2d3 = doors, doors, doors
+                        if (room1, room3) in door_dict:
+                            d1d3 = door_dict[(room1, room3)]
+                        if (room1, room2) in door_dict:
+                            d1d2 = door_dict[(room1, room2)]
+                        if (room2, room3) in door_dict:
+                            d2d3 = door_dict[(room2, room3)]
+                        if len(d1d3 + d2d3) < len(d1d2):
+                            door_dict[(room1, room2)] = d1d3 + d2d3 
+                            door_dict[(room2, room1)] = d2d3 + d1d3[::-1] 
+
+        return door_dict
+
+    def build_room_doors(self):
+        door_dict = {}
+
+        doors = sorted([node['id'] for node in self.state['nodes'] if node['category'] == 'Doors'])
+        rooms = sorted([node['id'] for node in self.state['nodes'] if node['category'] == 'Rooms'])
+        if doors == [52, 53, 171, 227, 363, 364]:
+            door_dict[(11, 74)] = 52
+            door_dict[(74, 11)] = 52
+            door_dict[(11, 336)] = 363
+            door_dict[(336, 11)] = 363 # DC
+            door_dict[(74, 207)] = 227
+            door_dict[(207, 74)] = 227
+
+        elif doors == [46, 47, 69, 70, 212, 329, 330]:
+            door_dict[(11, 50)] = 47
+            door_dict[(50, 11)] = 47
+            door_dict[(185, 50)] = 69
+            door_dict[(50, 185)] = 69
+            door_dict[(262, 50)] = 70
+            door_dict[(50, 262)] = 70
+
+        elif doors == [46, 47, 48, 204, 254, 304, 305, 374]:
+            door_dict[(11, 346)] = 47
+            door_dict[(346, 11)] = 47
+            door_dict[(184, 241)] = 254
+            door_dict[(241, 184)] = 254
+            door_dict[(346, 285)] = 305 
+            door_dict[(285, 346)] = 305
+                
+        elif doors == [41, 249,364, 365]:
+            door_dict[(11, 172)] = 41
+            door_dict[(172, 11)] = 41
+            door_dict[(210, 267)] = 365
+            door_dict[(267, 210)] = 365
+            door_dict[(11, 210)] = 249 # CHECK  
+            door_dict[(210, 11)] = 249 #
+
+
+        elif doors == [24, 128, 129, 240, 241, 287, 288]:
+            door_dict[(11, 109)] = 128
+            door_dict[(109, 11)] = 128
+            door_dict[(109, 212)] = 241
+            door_dict[(212, 109)] = 241
+            door_dict[(11, 274)] = 288 
+            door_dict[(274, 11)] = 288
+
+        elif doors == [48, 49, 112, 189, 190, 286, 287]:
+            door_dict[(11, 73)] = 48
+            door_dict[(73, 11)] = 48
+            door_dict[(73, 170)] = 189
+            door_dict[(170, 73)] = 189
+            door_dict[(259, 73)] = 286 #
+            door_dict[(73, 259)] = 286 #
+
+        elif doors == [52, 209, 295, 297]:
+            door_dict[(11, 56)] = 52
+            door_dict[(56, 11)] = 52
+            door_dict[(56, 198)] = 209
+            door_dict[(198, 56)] = 209
+            door_dict[(56, 294)] = 297
+            door_dict[(294, 56)] = 297
+        else:
+            print(doors)
+            ipdb.set_trace()
+            raise Exception
+        for doork, doorv in door_dict.items():
+            door_dict[doork] = [doorv]
+        door_dict = self.intermediate_doors(door_dict, rooms, doors)
+        # ipdb.set_trace()
+        return door_dict
+
+
+    def compute_distance(self, vh_state, action, char_id):
+        def distance(bbox1, bbox2):
+            b1 = [bbox1[0], bbox1[2]]
+            b2 = [bbox2[0], bbox2[2]]
+            return np.linalg.norm(np.array(b1) - np.array(b2))
         
+        if self.room_doors is None:
+            self.room_doors = self.build_room_doors()
+        
+
+        script = read_script_from_string(action) 
+        
+        assert(len(script) == 1)
+        scriptline = script[0]
+        object_script = scriptline.object()
+
+        if scriptline.action.name != 'WALK':
+            return 0
+        if object_script is None:
+            return 0
+        else:
+            total_dist = 0.
+            # The current room of the character
+            room_char = list(vh_state._graph.get_node_ids_from(char_id, Relation.INSIDE))[0]
+            close_char = list(vh_state._graph.get_node_ids_from(char_id, Relation.CLOSE))
+            close_char = [index for index in close_char if 'GRABBABLE' not in self.id2node[index]['properties']]
+            if len(close_char) == 0:
+                pos_char = self.id2node[room_char]['bounding_box']['center']
+            else:
+                pos_char = self.id2node[close_char[0]]['bounding_box']['center']
+            curr_node = vh_state._graph.get_node(object_script.instance)
+
+            # ipdb.set_trace()
+            # if walking to a room
+            is_obj = False
+            if curr_node.category == "Rooms":
+                curr_room = object_script.instance
+            else:
+                inside_obj = list(vh_state._graph.get_node_ids_from(object_script.instance, Relation.INSIDE))
+                try:
+                    curr_room = [indexr for indexr in inside_obj if indexr in self.rooms_ids][0]
+                except:
+                    ipdb.set_trace()
+                if 'GRABBABLE' not in self.id2node[object_script.instance]['properties']:
+                    final_pos = self.id2node[object_script.instance]['bounding_box']['center']
+                else:
+                    final_pos = list(vh_state._graph.get_node_ids_from(object_script.instance, Relation.INSIDE))
+                    final_pos += list(vh_state._graph.get_node_ids_from(object_script.instance, Relation.ON))
+                    final_pos = [index for index in final_pos if 'GRABBABLE' not in self.id2node[index]['properties'] and final_pos not in self.rooms_ids]
+                    if len(close_char) > 0:
+                        final_pos = self.id2node[final_pos[0]]['bounding_box']['center']
+                    else:
+                        final_pos = self.id2node[curr_room]['bounding_box']['center']
+                
+                is_obj = True
+
+            if room_char == curr_room:
+                doors = []
+            else:
+                try:
+                    doors = self.room_doors[(room_char, curr_room)]
+                except:
+                    ipdb.set_trace()
+            doors_pos = [self.id2node[did]['bounding_box']['center'] for did in doors]
+            
+            if len(doors) > 0:
+                total_dist = distance(pos_char, doors_pos[0])
+            
+                for did in range(1, len(doors)):
+                    total_dist += distance(doors_pos[did], doors_pos[did-1])
+                
+                if is_obj:
+                    # add distance from last door to new object
+                    if len(doors) > 0:
+                        total_dist += distance(doors_pos[-1], final_pos)
+            else:
+                total_dist += distance(pos_char, final_pos)
+        return total_dist
 
     def to_pomdp(self):
         self.pomdp = True
@@ -164,66 +332,66 @@ class VhGraphEnv():
         observable_state = self._mask_state(state, char_index) if self.pomdp else state
         return observable_state
 
-    def step(self, scripts):
-        obs_n = []
-        info_n = {'n':[]}
-        reward_n = []
+    # def step(self, scripts):
+    #     obs_n = []
+    #     info_n = {'n':[]}
+    #     reward_n = []
 
-        if self.pomdp:
-            for i in range(self.n_chars):
-                if i not in scripts:
-                    continue
-                assert self._is_action_valid(scripts.get(i), i)
+    #     if self.pomdp:
+    #         for i in range(self.n_chars):
+    #             if i not in scripts:
+    #                 continue
+    #             assert self._is_action_valid(scripts.get(i), i)
 
-        # State transition: Sequentially performing actions
-        # TODO: Detect action conflicts
-        # convert action to a single action script
-        objs_in_use = []
-        for i in range(self.n_chars):
-            if i not in scripts:
-                continue
-            script = read_script_from_string(scripts.get(i, ""))
+    #     # State transition: Sequentially performing actions
+    #     # TODO: Detect action conflicts
+    #     # convert action to a single action script
+    #     objs_in_use = []
+    #     for i in range(self.n_chars):
+    #         if i not in scripts:
+    #             continue
+    #         script = read_script_from_string(scripts.get(i, ""))
 
-            is_executable, msg = self._is_action_executable(script, i, objs_in_use)
-            if (is_executable):
-                objs_in_use += script.obtain_objects()
-                succeed, self.vh_state = self.executor_n[i].execute_one_step(script, self.vh_state)
-                info_n['n'].append({
-                    "succeed": succeed, 
-                    "error_message": {i: self.executor_n[i].info.get_error_string() for i in range(self.n_chars)}
-                })
-            else:
-                info_n['n'].append({
-                    "succeed": False,
-                    "error_message": {i: msg}
-                })
+    #         is_executable, msg = self._is_action_executable(script, i, objs_in_use)
+    #         if (is_executable):
+    #             objs_in_use += script.obtain_objects()
+    #             succeed, self.vh_state = self.executor_n[i].execute_one_step(script, self.vh_state)
+    #             info_n['n'].append({
+    #                 "succeed": succeed, 
+    #                 "error_message": {i: self.executor_n[i].info.get_error_string() for i in range(self.n_chars)}
+    #             })
+    #         else:
+    #             info_n['n'].append({
+    #                 "succeed": False,
+    #                 "error_message": {i: msg}
+    #             })
 
-        state = self.vh_state.to_dict()
-        self.state = state
+    #     state = self.vh_state.to_dict()
+    #     self.state = state
         
-        for i in range(self.n_chars):
-            observable_state = self._mask_state(state, i) if self.pomdp else state
-            self.observable_state_n[i] = observable_state
-            self.observable_object_ids_n[i] = [node["id"] for node in observable_state["nodes"]]
-            obs_n.append(observable_state)
-            # Reward Calculation
+    #     for i in range(self.n_chars):
+    #         observable_state = self._mask_state(state, i) if self.pomdp else state
+    #         self.observable_state_n[i] = observable_state
+    #         self.observable_object_ids_n[i] = [node["id"] for node in observable_state["nodes"]]
+    #         obs_n.append(observable_state)
+    #         # Reward Calculation
 
-            # progress = self.tasks_n[i].measure_progress(self.observable_state_n[i], i)
-            #progress_per_task = [task.measure_progress(self.observable_state_n[i], i) for task in self.tasks_n[i]]
-            #progress = sum(progress_per_task) / float(len(progress_per_task))
-            progress = 0
-            reward_n.append(progress - self.prev_progress_n[i])
-            self.prev_progress_n[i] = progress
+    #         # progress = self.tasks_n[i].measure_progress(self.observable_state_n[i], i)
+    #         #progress_per_task = [task.measure_progress(self.observable_state_n[i], i) for task in self.tasks_n[i]]
+    #         #progress = sum(progress_per_task) / float(len(progress_per_task))
+    #         progress = 0
+    #         reward_n.append(progress - self.prev_progress_n[i])
+    #         self.prev_progress_n[i] = progress
 
-            # if abs(progress - 1.0) < 1e-6:
-            #     info_n['n'][i].update({'terminate': True})
-            # else:
-            #     info_n['n'][i].update({'terminate': False})
+    #         # if abs(progress - 1.0) < 1e-6:
+    #         #     info_n['n'][i].update({'terminate': True})
+    #         # else:
+    #         #     info_n['n'][i].update({'terminate': False})
 
 
-        # Information
+    #     # Information
     
-        return reward_n, obs_n, info_n
+    #     return reward_n, obs_n, info_n
 
     def reward(self, agent_id, state):
         #progress_per_task = [task.measure_progress(self._mask_state(state, agent_id), agent_id) for task in self.tasks_n[agent_id]]
@@ -324,6 +492,7 @@ class VhGraphEnv():
                 self.rooms.append(node)
         self.rooms_ids = [n["id"] for n in self.rooms]
         self.state = state
+        self.id2node = {node['id']: node for node in state['nodes']}
         self.vh_state = self.get_vh_state(state)
 
         ############ Reward ############

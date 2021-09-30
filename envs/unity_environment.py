@@ -64,6 +64,8 @@ class UnityEnvironment(BaseUnityEnvironment):
         )
         self.full_graph = None
 
+
+
     def get_graph(self):
         graph = super(UnityEnvironment, self).get_graph()
         objects_seen = self.agent_object_touched

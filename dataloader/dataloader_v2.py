@@ -78,7 +78,7 @@ class AgentTypeDataset(Dataset):
     def __len__(self):
         return len(self.pkl_files)
 
-    def failure(self, index, print_index=True):
+    def failure(self, index, print_index=False):
         if print_index:
             print(colored(f"Failure at {index}"))
         file_name = self.pkl_files[index]
@@ -93,7 +93,7 @@ class AgentTypeDataset(Dataset):
     def __getitem__(self, index):
         if self.overfit:
             index = 0
-        # index = 5138
+        # index = 2349
         file_name = self.pkl_files[index]
         seed_number = int(file_name.split('.')[-2]) 
         with open(file_name, 'rb') as f:
@@ -270,8 +270,11 @@ class AgentTypeDataset(Dataset):
                 program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
             except:
                 #print("Index", index, program, it)
-                ipdb.set_trace()
-                return self.failure(index)
+                # ipdb.set_trace()
+                # if self.args_config.train.num_workers == 0:
+                #     ipdb.set_trace()
+                # Open pinter ??
+                return self.failure(index, print_index=True)
             contit += 1
         program_batch['action'].append(self.max_actions - 1)
         program_batch['obj1'].append(-1)

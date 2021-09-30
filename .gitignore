@@ -38,3 +38,4 @@ dataset/*
 *.png
 analysis/*.mp4
 analysis/*.html
+debug/*
