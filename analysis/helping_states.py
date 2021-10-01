@@ -384,7 +384,7 @@ def main(cfg: DictConfig):
     rootdir = curr_dir + '/../'
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    # args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 

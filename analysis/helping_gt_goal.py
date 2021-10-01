@@ -266,7 +266,8 @@ def main(cfg: DictConfig):
     rootdir = curr_dir + '/../'
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    # args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
@@ -410,8 +411,9 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+    # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
 
+    # num_tries = 1
     for iter_id in range(num_tries):
         # if iter_id > 0:
         # iter_id = 1

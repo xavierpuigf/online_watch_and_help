@@ -64,8 +64,6 @@ class UnityEnvironment(BaseUnityEnvironment):
         )
         self.full_graph = None
 
-
-
     def get_graph(self):
         graph = super(UnityEnvironment, self).get_graph()
         objects_seen = self.agent_object_touched
@@ -256,6 +254,8 @@ class UnityEnvironment(BaseUnityEnvironment):
         self.init_graph = copy.deepcopy(env_task['init_graph'])
         self.init_rooms = env_task['init_rooms']
         self.task_goal = env_task['task_goal']
+        if self.task_goal[1] is None or len(self.task_goal[1]) == 0:
+            self.task_goal[1] = self.task_goal[0]
 
         if self.convert_goal:
             self.task_goal = {
@@ -323,8 +323,6 @@ class UnityEnvironment(BaseUnityEnvironment):
             s, g = self.comm.environment_graph()
             updated_graph = utils.separate_new_ids_graph(updated_graph, max_id)
             success, m = self.comm.expand_scene(updated_graph)
-
-
 
         if not success:
             ipdb.set_trace()
