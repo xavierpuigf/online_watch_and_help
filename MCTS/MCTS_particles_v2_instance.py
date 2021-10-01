@@ -414,7 +414,12 @@ class MCTS_particles_v2_instance:
                     )
 
             subgoals = self.get_subgoal_space(
-                curr_state, curr_vh_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
+                curr_state,
+                curr_vh_state,
+                satisfied,
+                unsatisfied_aux,
+                goal_spec,
+                self.opponent_subgoal,
             )
             subgoals += subgoals_hand
 
@@ -651,16 +656,16 @@ class MCTS_particles_v2_instance:
         # print(type(next_vh_state), type(curr_vh_state))
         dict_vh_state = next_vh_state.to_dict()
 
-        if 'grab' in action[action_index]:
-            print(
-                'transition',
-                [
-                    edge
-                    for edge in dict_vh_state['edges']
-                    if edge['from_id'] == [351, 352, 353, 354]
-                    or edge['to_id'] in [351, 352, 353, 354]
-                ],
-            )
+        # if 'grab' in action[action_index]:
+        #     print(
+        #         'transition',
+        #         [
+        #             edge
+        #             for edge in dict_vh_state['edges']
+        #             if edge['from_id'] == [351, 352, 353, 354]
+        #             or edge['to_id'] in [351, 352, 353, 354]
+        #         ],
+        #     )
 
         reward = self.check_progress(dict_vh_state, goal_spec)
 
@@ -745,9 +750,9 @@ class MCTS_particles_v2_instance:
         next_vh_state = curr_state[0]
         if selected_child.state is None:
 
-            if len(actions) > 1 and '(2)' in actions[-2]:
-                print("New action", actions)
-                next_vh_state = copy.deepcopy(next_vh_state)
+            # if len(actions) > 1 and '(2)' in actions[-2]:
+            # print("New action", actions)
+            next_vh_state = copy.deepcopy(next_vh_state)
 
             total_cost = 0
             total_reward = 0
@@ -761,7 +766,6 @@ class MCTS_particles_v2_instance:
 
                 # if '[walk] <character> (2)' in action_str:
                 #     ipdb.set_trace()
-
 
             # if 'put' in actions:
             #      print("CLOSE:", [edge for edge in next_state_dict['edges'] if edge['to_id'] == 232 and edge['from_id'] == 1])
@@ -777,17 +781,17 @@ class MCTS_particles_v2_instance:
             selected_child.cost = total_cost
             selected_child.reward = total_reward
         else:
-            if len(actions) > 1 and '(2)' in actions[-2]:
-                print("Old action", actions)
-                print(
-                    "transition",
-                    [
-                        edge
-                        for edge in selected_child.state[1]['edges']
-                        if edge['from_id'] in [351, 352, 353, 354]
-                        or edge['to_id'] in [351, 352, 353, 354]
-                    ],
-                )
+            # if len(actions) > 1 and '(2)' in actions[-2]:
+            #     print("Old action", actions)
+            #     print(
+            #         "transition",
+            #         [
+            #             edge
+            #             for edge in selected_child.state[1]['edges']
+            #             if edge['from_id'] in [351, 352, 353, 354]
+            #             or edge['to_id'] in [351, 352, 353, 354]
+            #         ],
+            #     )
             cost = selected_child.cost
             reward = selected_child.reward
             next_state = selected_child.state
@@ -991,7 +995,12 @@ class MCTS_particles_v2_instance:
                 )
 
         subgoals = self.get_subgoal_space(
-            curr_state, vh_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
+            curr_state,
+            vh_state,
+            satisfied,
+            unsatisfied_aux,
+            goal_spec,
+            self.opponent_subgoal,
         )
         subgoals += subgoals_hand
 
@@ -1119,10 +1128,17 @@ class MCTS_particles_v2_instance:
         return '[{}] {}'.format(action_tuple[0], objects_str)
 
     def get_subgoal_space(
-        self, state, vh_state, satisfied, unsatisfied, goal_spec, opponent_subgoal=None, verbose=0
+        self,
+        state,
+        vh_state,
+        satisfied,
+        unsatisfied,
+        goal_spec,
+        opponent_subgoal=None,
+        verbose=0,
     ):
         """
-        TODO(tianmin): Tianmin, could you add comments for what the different sections here are doing 
+        TODO(tianmin): Tianmin, could you add comments for what the different sections here are doing
 
         Get subgoal space
         Args:
@@ -1206,12 +1222,24 @@ class MCTS_particles_v2_instance:
                     index_offer = container_id
                     for obj_id in objects_id_grab:
                         tmp_predicate = f'offer_{index_offer}_{obj_id}'
-                        object_is_grabbed = len([edge for edge in state['edges'] if 'HOLD' in edge['relation_type'] 
-                                                                                    and edge['from_id'] == self.agent_id 
-                                                                                    and edge['to_id'] == obj_id]) > 0
-                        if tmp_predicate not in satisfied[predicate] and object_is_grabbed: 
+                        object_is_grabbed = (
+                            len(
+                                [
+                                    edge
+                                    for edge in state['edges']
+                                    if 'HOLD' in edge['relation_type']
+                                    and edge['from_id'] == self.agent_id
+                                    and edge['to_id'] == obj_id
+                                ]
+                            )
+                            > 0
+                        )
+                        if (
+                            tmp_predicate not in satisfied[predicate]
+                            and object_is_grabbed
+                        ):
                             obsed_subgoal_space.append(
-                                [f'offer_{index_offer}', predicate, tmp_predicate] 
+                                [f'offer_{index_offer}', predicate, tmp_predicate]
                             )
                 if elements[0] == 'on':
                     subgoal_type = 'put'

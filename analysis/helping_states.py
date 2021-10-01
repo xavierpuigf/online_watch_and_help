@@ -138,6 +138,13 @@ def get_edge_instance(pred, t, source='pred'):
                 'plate',
             ]:
                 continue
+            if from_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+            ]:
+                continue
         else:
             continue
         # if from_node_name.split('.')[0] not in [
@@ -285,6 +292,7 @@ def pred_main_agent_plan(
     res,
 ):
     inferred_goal = get_edge_instance(pred_graph, t)
+    print('pred {}:'.format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
         opponent_actions, opponent_info = pred_actions_fn(
