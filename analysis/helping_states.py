@@ -349,7 +349,7 @@ def get_helping_plan(
         print('pred {}:'.format(process_id), inferred_goal)
         print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
         if info[1]['subgoals'] is None or len(info[1]['subgoals']) == 0:
-            res[process_id] = (None, None, None)
+            res[process_id] = (None, None, None, None)
             return
 
         # Here you can get the intermediate states
@@ -531,8 +531,8 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
-    episode_ids = [21, 22, 23, 24]
+    episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+    # episode_ids = [21, 22, 23, 24]
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
