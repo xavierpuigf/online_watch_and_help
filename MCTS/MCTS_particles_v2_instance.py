@@ -1202,6 +1202,17 @@ class MCTS_particles_v2_instance:
             ):
                 elements = predicate.split('_')
                 # print(elements)
+                if elements[0] == 'offer':
+                    index_offer = container_id
+                    for obj_id in objects_id_grab:
+                        tmp_predicate = f'offer_{index_offer}_{obj_id}'
+                        object_is_grabbed = len([edge for edge in state['edges'] if 'HOLD' in edge['relation_type'] 
+                                                                                    and edge['from_id'] == self.agent_id 
+                                                                                    and edge['to_id'] == obj_id]) > 0
+                        if tmp_predicate not in satisfied[predicate] and object_is_grabbed: 
+                            obsed_subgoal_space.append(
+                                [f'offer_{index_offer}', predicate, tmp_predicate] 
+                            )
                 if elements[0] == 'on':
                     subgoal_type = 'put'
                     obj = elements[1]

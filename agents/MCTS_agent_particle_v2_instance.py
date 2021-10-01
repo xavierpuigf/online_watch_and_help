@@ -31,6 +31,8 @@ from utils import utils_exception
 def find_heuristic(
     agent_id, char_index, unsatisfied, env_graph, simulator, object_target
 ):
+    # find_{index}
+    
     target = int(object_target.split('_')[-1])
     observations = simulator.get_observations(env_graph, char_index=char_index)
     id2node = {node['id']: node for node in env_graph['nodes']}
@@ -601,6 +603,7 @@ def clean_graph(state, goal_spec, last_opened):
 
 def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
     heuristic_dict = {
+        'offer': find_heuristic,
         'find': find_heuristic,
         'grab': grab_heuristic,
         'put': put_heuristic,
@@ -1193,7 +1196,7 @@ class MCTS_agent_particle_v2_instance:
                 'belief': copy.deepcopy(self.belief.edge_belief),
                 'belief_room': copy.deepcopy(self.belief.room_node),
             }
-            
+
             if self.get_plan_states or self.get_plan_cost:
                 plan_states = []
                 plan_cost = []

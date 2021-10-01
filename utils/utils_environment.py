@@ -258,28 +258,31 @@ def check_progress2(state, goal_spec):
         elements = key.split('_')
         
         preds = []
+        objects_int = value['grab_obj_ids']
+        container_id = value['container_ids'][0]
         count = value['count'] if elements[0] not in ['offOn', 'offInside'] else 0
+        grabbed_objs = []
         for edge in state['edges']:
             if elements[0] in 'close':
-                if edge['relation_type'].lower().startswith('close') and id2node[edge['to_id']]['class_name'] == elements[1] and edge['from_id'] == int(elements[2]):
+                if edge['relation_type'].lower().startswith('close') and edge['to_id'] in objects_int and edge['from_id'] == int(elements[2]):
                     predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
                     preds.append(predicate)
                     count -= 1
             if elements[0] in ['on', 'inside']:
-                if edge['relation_type'].lower() == elements[0] and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
+                if edge['relation_type'].lower() == elements[0] and edge['to_id'] == int(elements[2]) and edge['from_id'] in objects_int:
                     predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
                     preds.append(predicate)
                     count -= 1
             elif elements[0] == 'offOn':
-                if edge['relation_type'].lower() == 'on' and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
+                if edge['relation_type'].lower() == 'on' and edge['to_id'] == int(elements[2]) and  edge['from_id'] in objects_int:
                     predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
                     count += 1
             elif elements[0] == 'offInside':
-                if edge['relation_type'].lower() == 'inside' and edge['to_id'] == int(elements[2]) and (id2node[edge['from_id']]['class_name'] == elements[1] or str(edge['from_id']) == elements[1]):
+                if edge['relation_type'].lower() == 'inside' and edge['to_id'] == int(elements[2]) and  edge['from_id'] in objects_int:
                     predicate = '{}_{}_{}'.format(elements[0], edge['from_id'], elements[2])
                     count += 1
             elif elements[0] == 'holds':
-                if edge['relation_type'].lower().startswith('holds') and id2node[edge['to_id']]['class_name'] == elements[1] and edge['from_id'] == int(elements[2]):
+                if edge['relation_type'].lower().startswith('holds') and edge['to_id'] in objects_int and edge['from_id'] == container_id:
                     predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
                     preds.append(predicate)
                     count -= 1
@@ -288,6 +291,27 @@ def check_progress2(state, goal_spec):
                     predicate = '{}_{}_{}'.format(elements[0], edge['to_id'], elements[2])
                     preds.append(predicate)
                     count -= 1
+            elif elements[0] == 'offer':
+                # if object is already grabbed by the other agent or not grabbed by me
+                if edge['relation_type'].lower().startswith['hold'] and edge['to_id'] in objects_int:
+                    if edge['from_id'] == container_id:
+                        to_id = edge['to_id']
+                        predicate = 'offer_{container_id}_{to_id}'
+                        preds.append(predicate)
+                        count -=1
+                    else:
+                        # TODO: Grabbed by me, note this will break with more agents
+                        grabbed_objs.append(edge['to_id'])
+
+        if elements[0] == 'offer':
+            # The objects that are not grabbed anymore, should be satisfied
+            objects_not_grabbed = set(objects_int) - set(grabbed_objs)
+            for obj_to_id in objects_not_grabbed:
+                predicate = 'offer_{container_id}_{obj_to_id}'
+                if predicate not in preds:
+                    preds.append(predicate)
+                    count -= 1
+
         if elements[0] == 'turnOn':
             if 'ON' in id2node[int(elements[1])]['states']:
                 predicate = '{}_{}_{}'.format(elements[0], elements[1], 1)
@@ -299,7 +323,7 @@ def check_progress2(state, goal_spec):
                     predicate = '{}_{}_{}'.format(elements[0], id_touch, 1)
                     preds.append(predicate)
                     count -= 1
-        
+            
         satisfied[key] = preds
         unsatisfied[key] = count
         # if unsatisfied[key] < 0:
