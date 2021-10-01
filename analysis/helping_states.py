@@ -45,6 +45,7 @@ def get_class_mode(agent_args):
 def get_edge_class(pred, t, source='pred'):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+    t = min(t, len(pred['edge_pred']) - 1)
     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
     pred_edge_names = pred['edge_names']
     pred_nodes = pred['nodes']
@@ -107,6 +108,7 @@ def get_edge_class(pred, t, source='pred'):
 def get_edge_instance(pred, t, source='pred'):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+    t = min(t, len(pred['edge_pred']) - 1)
     edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
     pred_edge_names = pred['edge_names']
     pred_nodes = pred['nodes']
@@ -143,6 +145,7 @@ def get_edge_instance(pred, t, source='pred'):
                 'livingroom',
                 'bedroom',
                 'bathroom',
+                'character',
             ]:
                 continue
         else:
@@ -221,6 +224,7 @@ def get_edge_instance_from_state(state):
 
 
 def aggregate_multiple_pred(preds, t, change=False):
+    t = min(t, len(preds[0]['edge_pred']) - 1)
     edge_classes = []
     edge_pred_class_all = {}
     N_preds = len(preds)
@@ -303,6 +307,7 @@ def pred_main_agent_plan(
             inferred_goal=inferred_goal,
         )
         plan_states = opponent_info[1 - agent_id]['plan_states']
+        plan_cost = opponent_info[1 - agent_id]['plan_cost']
         plan = opponent_info[1 - agent_id]['plan']
         if (
             opponent_info[1 - agent_id]['subgoals'] is not None
@@ -313,7 +318,7 @@ def pred_main_agent_plan(
             opponent_subgoal = None
         print('main pred {}:'.format(process_id), inferred_goal)
         print('main plan {}:'.format(process_id), plan)
-    res[process_id] = (opponent_subgoal, plan, plan_states)
+    res[process_id] = (opponent_subgoal, plan, plan_states, plan_cost)
 
 
 def get_helping_plan(
@@ -349,6 +354,7 @@ def get_helping_plan(
 
         # Here you can get the intermediate states
         plan_states = info[agent_id]['plan_states']
+        plan_cost = info[agent_id]['plan_cost']
         plan = info[agent_id]['plan']
         action = actions[agent_id]
         subgoal = (
@@ -357,7 +363,7 @@ def get_helping_plan(
             and len(info[agent_id]['subgoals']) > 0
             else None
         )
-    res[process_id] = (subgoal, plan, plan_states)
+    res[process_id] = (subgoal, plan, plan_states, plan_cost)
 
 
 @hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
@@ -497,6 +503,7 @@ def main(cfg: DictConfig):
         logging=True,
         logging_graphs=True,
         get_plan_states=True,
+        get_plan_cost=True,
     )
     if args.obs_type == 'full':
         args_common['num_particles'] = 1
@@ -524,8 +531,8 @@ def main(cfg: DictConfig):
     # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
     # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
-    # episode_ids = [21, 22, 23, 24]
+    # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
+    episode_ids = [21, 22, 23, 24]
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
@@ -822,7 +829,7 @@ def main(cfg: DictConfig):
                     all_plan_states = []
                     edge_freq = {}
                     edge_steps = {}
-                    for pred_id, (subgoal, plan, plan_states) in res.items():
+                    for pred_id, (subgoal, plan, plan_states, plan_cost) in res.items():
                         if subgoal is not None:
                             if subgoal not in opponent_subgoal_freq:
                                 opponent_subgoal_freq[subgoal] = 1
@@ -833,8 +840,8 @@ def main(cfg: DictConfig):
                                 all_plan_states.append(all_plan_states)
                                 all_edges = []
                                 estimated_steps = 0
-                                for t, (action, state) in enumerate(
-                                    zip(plan, plan_states)
+                                for t, (action, state, cost) in enumerate(
+                                    zip(plan, plan_states, plan_cost)
                                 ):
                                     (
                                         edge_pred_ins,
@@ -845,18 +852,19 @@ def main(cfg: DictConfig):
                                     # print(edge_list)
                                     # ipdb.set_trace()
                                     all_edges += edge_list
-                                    if 'walk' in action:
-                                        if (
-                                            'kitchen' in action
-                                            or 'livingroom' in action
-                                            or 'bedroom' in action
-                                            or 'bathroom' in action
-                                        ):
-                                            estimated_steps += 5
-                                        else:
-                                            estimated_steps += 2
-                                    else:
-                                        estimated_steps += 1
+                                    estimated_steps += max(int(cost + 0.5), 1)
+                                    # if 'walk' in action:
+                                    #     if (
+                                    #         'kitchen' in action
+                                    #         or 'livingroom' in action
+                                    #         or 'bedroom' in action
+                                    #         or 'bathroom' in action
+                                    #     ):
+                                    #         estimated_steps += 5
+                                    #     else:
+                                    #         estimated_steps += 2
+                                    # else:
+                                    #     estimated_steps += 1
                                     for edge in edge_list:
                                         if edge not in edge_freq:
                                             edge_freq[edge] = 0
@@ -950,13 +958,13 @@ def main(cfg: DictConfig):
 
                     # select best subgoal and action based on value
                     best_value = 0
-                    for pred_id, (subgoal, plan, plan_states) in res.items():
+                    for pred_id, (subgoal, plan, plan_states, plan_cost) in res.items():
                         estimated_steps = 0
                         if plan is None:
                             estimated_steps = None
                         else:
                             first_walk_steps = 0
-                            for action in plan:
+                            for action, cost in zip(plan, plan_cost):
                                 if 'walk' in action:
                                     if (
                                         'kitchen' in action
@@ -965,12 +973,13 @@ def main(cfg: DictConfig):
                                         or 'bathroom' in action
                                     ):
                                         if estimated_steps == 0:
-                                            first_walk_steps += 5
-                                        estimated_steps += 5
-                                    else:
-                                        estimated_steps += 2
-                                else:
-                                    estimated_steps += 1
+                                            first_walk_steps += int(cost + 0.5)
+                                #        estimated_steps += 5
+                                #     else:
+                                #         estimated_steps += 2
+                                # else:
+                                #     estimated_steps += 1
+                                estimated_steps += max(int(cost + 0.5), 1)
                         if estimated_steps is None:
                             value = -1e6
                             estimated_steps_back = None
