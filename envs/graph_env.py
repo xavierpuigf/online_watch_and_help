@@ -18,8 +18,8 @@ from evolving_graph.scripts import read_script_from_string
 from evolving_graph.environment import EnvironmentGraph, Relation
 from evolving_graph.environment import EnvironmentState as EnvironmentStateBase
 
-def init_from_state(env_state: EnvironmentStateBase, touched_objs):
-   env_state_new =  EnvironmentState(env_state._graph, env_state._name_equivalence, env_state.instance_selection, touched_objs)
+def init_from_state(env_state: EnvironmentStateBase, touched_objs, offer_objs):
+   env_state_new =  EnvironmentState(env_state._graph, env_state._name_equivalence, env_state.instance_selection, touched_objs, offer_objs)
    env_state_new.executor_data = env_state.executor_data
    env_state_new._script_objects = env_state._script_objects
    env_state_new._new_nodes = env_state._new_nodes
