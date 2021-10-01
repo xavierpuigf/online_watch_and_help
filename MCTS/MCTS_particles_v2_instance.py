@@ -414,7 +414,7 @@ class MCTS_particles_v2_instance:
                     )
 
             subgoals = self.get_subgoal_space(
-                curr_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
+                curr_state, curr_vh_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
             )
             subgoals += subgoals_hand
 
@@ -752,11 +752,16 @@ class MCTS_particles_v2_instance:
             total_cost = 0
             total_reward = 0
             for action_str in actions:
+
                 success, next_vh_state, next_state_dict, cost, reward = self.transition(
                     next_vh_state, {self.char_index: action_str}, goal_spec
                 )
                 total_cost += cost
                 total_reward += reward
+
+                # if '[walk] <character> (2)' in action_str:
+                #     ipdb.set_trace()
+
 
             # if 'put' in actions:
             #      print("CLOSE:", [edge for edge in next_state_dict['edges'] if edge['to_id'] == 232 and edge['from_id'] == 1])
@@ -783,7 +788,6 @@ class MCTS_particles_v2_instance:
                         or edge['to_id'] in [351, 352, 353, 354]
                     ],
                 )
-
             cost = selected_child.cost
             reward = selected_child.reward
             next_state = selected_child.state
@@ -987,7 +991,7 @@ class MCTS_particles_v2_instance:
                 )
 
         subgoals = self.get_subgoal_space(
-            curr_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
+            curr_state, vh_state, satisfied, unsatisfied_aux, goal_spec, self.opponent_subgoal
         )
         subgoals += subgoals_hand
 
@@ -1115,9 +1119,11 @@ class MCTS_particles_v2_instance:
         return '[{}] {}'.format(action_tuple[0], objects_str)
 
     def get_subgoal_space(
-        self, state, satisfied, unsatisfied, goal_spec, opponent_subgoal=None, verbose=0
+        self, state, vh_state, satisfied, unsatisfied, goal_spec, opponent_subgoal=None, verbose=0
     ):
         """
+        TODO(tianmin): Tianmin, could you add comments for what the different sections here are doing 
+
         Get subgoal space
         Args:
             state: current state
@@ -1134,6 +1140,8 @@ class MCTS_particles_v2_instance:
         obsed_objs = [node["id"] for node in obs["nodes"]]
 
         inhand_objects = []
+        objects_on_offer = vh_state.offer_obj
+
         for edge in state['edges']:
             if (
                 edge['relation_type'].startswith('HOLDS')
@@ -1145,6 +1153,7 @@ class MCTS_particles_v2_instance:
             if (
                 edge['relation_type'].startswith('HOLDS')
                 and edge['from_id'] == 3 - self.agent_id
+                and edge['to_id'] in objects_on_offer
             ):
                 inhand_objects_opponent.append(edge['to_id'])
 

@@ -782,29 +782,45 @@ def main(cfg: DictConfig):
                     manager = mp.Manager()
 
                     res = manager.dict()
-                    for start_root_id in range(0, num_samples, num_processes):
-                        end_root_id = min(start_root_id + num_processes, num_samples)
-                        jobs = []
-                        for process_id in range(start_root_id, end_root_id):
-                            # print(process_id)
-                            p = mp.Process(
-                                target=pred_main_agent_plan,
-                                args=(
-                                    process_id,
-                                    graph_result[process_id],
-                                    steps - 3,
-                                    arena.pred_actions,
-                                    curr_obs,
-                                    15,
-                                    {0: True, 1: True},
-                                    1,
-                                    res,
-                                ),
+                    if num_processes > 0:
+                        for start_root_id in range(0, num_samples, num_processes):
+                            end_root_id = min(start_root_id + num_processes, num_samples)
+                            jobs = []
+                            for process_id in range(start_root_id, end_root_id):
+                                # print(process_id)
+                                p = mp.Process(
+                                    target=pred_main_agent_plan,
+                                    args=(
+                                        process_id,
+                                        graph_result[process_id],
+                                        steps - 3,
+                                        arena.pred_actions,
+                                        curr_obs,
+                                        15,
+                                        {0: True, 1: True},
+                                        1,
+                                        res,
+                                    ),
+                                )
+                                jobs.append(p)
+                                p.start()
+                            for p in jobs:
+                                p.join()
+                    else:
+                        res = {}
+                        for process_id in range(0, num_samples):
+                            pred_main_agent_plan(process_id,
+                                        graph_result[process_id],
+                                        steps - 3,
+                                        arena.pred_actions,
+                                        curr_obs,
+                                        15,
+                                        {0: True, 1: True},
+                                        1,
+                                        res
                             )
-                            jobs.append(p)
-                            p.start()
-                        for p in jobs:
-                            p.join()
+
+
                     all_plan_states = []
                     edge_freq = {}
                     edge_steps = {}
@@ -909,30 +925,36 @@ def main(cfg: DictConfig):
 
                     res = manager.dict()
                     num_goals = len(goal_edges)
-                    for start_root_id in range(0, num_goals, num_processes):
-                        end_root_id = min(start_root_id + num_processes, num_goals)
-                        jobs = []
-                        for process_id in range(start_root_id, end_root_id):
-                            # print(process_id)
-                            p = mp.Process(
-                                target=get_helping_plan,
-                                args=(
-                                    process_id,
-                                    goal_edges[process_id],
-                                    steps - 3,
-                                    None,
-                                    arena.get_actions,
-                                    curr_obs,
-                                    10,
-                                    {0: True, 1: True},
-                                    1,
-                                    res,
-                                ),
-                            )
-                            jobs.append(p)
-                            p.start()
-                        for p in jobs:
-                            p.join()
+                    if num_processes > 0:
+                        for start_root_id in range(0, num_goals, num_processes):
+                            end_root_id = min(start_root_id + num_processes, num_goals)
+                            jobs = []
+                            for process_id in range(start_root_id, end_root_id):
+                                # print(process_id)
+                                p = mp.Process(
+                                    target=get_helping_plan,
+                                    args=(
+                                        process_id,
+                                        goal_edges[process_id],
+                                        steps - 3,
+                                        None,
+                                        arena.get_actions,
+                                        curr_obs,
+                                        10,
+                                        {0: True, 1: True},
+                                        1,
+                                        res,
+                                    ),
+                                )
+                                jobs.append(p)
+                                p.start()
+                            for p in jobs:
+                                p.join()
+                    else:
+                        for start_root_id in range(num_goals):
+                            get_helping_plan(
+                                start_root_id, goal_edges[start_root_id], steps-3, None, arena.get_actions,
+                                curr_obs, 10, {0: True, 1: True}, 1, res)
 
                     # select best subgoal and action based on value
                     best_value = 0

@@ -1193,6 +1193,7 @@ class MCTS_agent_particle_v2_instance:
                 'belief': copy.deepcopy(self.belief.edge_belief),
                 'belief_room': copy.deepcopy(self.belief.room_node),
             }
+            
             if self.get_plan_states or self.get_plan_cost:
                 plan_states = []
                 plan_cost = []
@@ -1205,6 +1206,10 @@ class MCTS_agent_particle_v2_instance:
                     
                     if self.get_plan_cost:
                         plan_cost.append(env.compute_distance(vh_state, action_item, self.agent_id))
+
+                    # if self.char_index == 1:
+                    #     ipdb.set_trace()
+
                     success, vh_state = env.transition(
                         vh_state, {self.char_index: action_item}
                     )

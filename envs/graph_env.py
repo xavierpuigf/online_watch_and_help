@@ -28,8 +28,10 @@ def init_from_state(env_state: EnvironmentStateBase, touched_objs):
    return env_state_new
 
 class EnvironmentState(EnvironmentStateBase):
-    def __init__(self, graph: EnvironmentGraph, name_equivalence, instance_selection: bool=False, touched_objs=[]):
-        self.touched_objs = touched_objs
+    def __init__(self, graph: EnvironmentGraph, name_equivalence, instance_selection: bool=False, touched_objs=[], offer_obj=[]):
+        self.touched_objs = touched_objs.copy()
+        self.offer_obj = offer_obj.copy()
+
         super(EnvironmentState, self).__init__(graph, name_equivalence, instance_selection)
 
     def to_dict(self):
@@ -45,6 +47,12 @@ class EnvironmentState(EnvironmentStateBase):
                 dict_node['states'].append('touched')
             nodes.append(dict_node)
         return {'nodes': nodes, 'edges': edges}
+
+    def remove_obj_offer(self, obj_id):
+        self.offer_obj.remove(obj_id)
+
+    def offer_object(self, obj_id):
+        self.offer_obj.append(obj_id)
 
     def touch_object(self, obj_id):
         self.touched_objs.append(obj_id)
@@ -399,6 +407,7 @@ class VhGraphEnv():
         #return sum(progress_per_task) / float(len(progress_per_task))
 
     def transition(self, vh_state, scripts, do_assert=False):
+
         # print(scripts, self.observable_object_ids_n[0])
         if do_assert:
             if self.pomdp:
@@ -413,21 +422,38 @@ class VhGraphEnv():
             if len(script_string) == 0:
                 continue
             script = read_script_from_string(script_string)
+  
+
             touched_objs = vh_state.touched_objs
-            if '[touch]' in script_string:
+            if '[offer]' in script_string:
+                obj_id = script.obtain_objects()[0][1]
+                obj_grabbed_person = list(vh_state.get_node_ids_from(obj_id, Relation.HOLDS_RH)) + list(vh_state.get_node_ids_from(obj_id, Relation.HOLDS_LH))
+                next_vh_state = init_from_state(next_vh_state, vh_state.touched_objs, vh_state.offer_obj)
+                if len(obj_grabbed_person) > 0 and obj_grabbed_person[0] == i+1:
+                    succeed = True
+                    next_vh_state.offer_object(obj_id)
+                else:
+                    succeed = False
+
+            elif '[touch]' in script_string:
 
                 succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
                 next_vh_state = init_from_state(next_vh_state, touched_objs)
                 obj_id = script.obtain_objects()[0][1]
                 next_vh_state.touch_object(obj_id)
             else:
+
                 try:
                     succeed, next_vh_state = self.executor_n[i].execute_one_step(script, vh_state)
                 except:
                     ipdb.set_trace()
-                # if not succeed:
-                #     ipdb.set_trace()
-                next_vh_state = init_from_state(next_vh_state, touched_objs)
+                
+                
+                
+                next_vh_state = init_from_state(next_vh_state, touched_objs, vh_state.offer_obj)
+                if script[0].action.name in ['GRAB', 'PUTBACK', 'PUTIN', 'PUTOBJBACK']:
+                    obj_id = script.obtain_objects()[0][1]
+                    next_vh_state.remove_obj_offer(obj_id)
             if not succeed:
                 return False, next_vh_state
 
