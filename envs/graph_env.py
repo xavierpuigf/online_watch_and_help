@@ -49,7 +49,8 @@ class EnvironmentState(EnvironmentStateBase):
         return {'nodes': nodes, 'edges': edges}
 
     def remove_obj_offer(self, obj_id):
-        self.offer_obj.remove(obj_id)
+        if obj_id in self.offer_obj:
+            self.offer_obj.remove(obj_id)
 
     def offer_object(self, obj_id):
         self.offer_obj.append(obj_id)
