@@ -260,8 +260,7 @@ def main(cfg: DictConfig):
 
     num_tries = 5
     # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
-    args.max_episode_length = 250
-    args.num_per_apartment = 20
+    # args.max_episode_length = 250
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
@@ -270,7 +269,7 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt_goal'
+    cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [

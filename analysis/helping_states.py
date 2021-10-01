@@ -78,13 +78,13 @@ def get_edge_class(pred, t, source='pred'):
                 continue
         else:
             continue
-        if from_node_name.split('.')[0] not in [
-            'apple',
-            'cupcake',
-            'plate',
-            'waterglass',
-        ]:
-            continue
+        # if from_node_name.split('.')[0] not in [
+        #     'apple',
+        #     'cupcake',
+        #     'plate',
+        #     'waterglass',
+        # ]:
+        #     continue
 
         # if from_node_name.split('.')[0]
 
@@ -140,13 +140,13 @@ def get_edge_instance(pred, t, source='pred'):
                 continue
         else:
             continue
-        if from_node_name.split('.')[0] not in [
-            'apple',
-            'cupcake',
-            'plate',
-            'waterglass',
-        ]:
-            continue
+        # if from_node_name.split('.')[0] not in [
+        #     'apple',
+        #     'cupcake',
+        #     'plate',
+        #     'waterglass',
+        # ]:
+        #     continue
 
         edge_class = '{}_{}_{}'.format(
             edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
@@ -363,17 +363,19 @@ def main(cfg: DictConfig):
 
     num_tries = 5
     # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
-    args.max_episode_length = 250
-    args.num_per_apartment = 20
+    # args.max_episode_length = 250
+    # args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
+    cachedir = f'{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -675,6 +677,7 @@ def main(cfg: DictConfig):
                 )
                 prev_action = actions[0]
                 history_action.append(prev_action)
+                new_action = True
 
                 (curr_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
@@ -716,49 +719,52 @@ def main(cfg: DictConfig):
                     steps += 1
 
                     # predict goal states
-                    history_obs.append([node['id'] for node in curr_info[0]['obs']])
-                    history_graph.append(prev_graph)
-                    assert len(history_graph) == len(history_obs)
-                    assert len(history_graph) == len(history_action)
-                    if history_action[-1] is not None:
-                        inputs_func = utils_models_wb.prepare_graph_for_model(
-                            history_graph,
-                            history_obs,
-                            history_action,
-                            args_pred,
-                            graph_helper,
-                        )
-                        with torch.no_grad():
-                            print("FORWARD")
-                            output_func = model(inputs_func)
+                    if new_action:
+                        history_obs.append([node['id'] for node in curr_info[0]['obs']])
+                        history_graph.append(prev_graph)
+                        assert len(history_graph) == len(history_obs)
+                        assert len(history_graph) == len(history_action)
+                        if history_action[-1] is not None:
+                            inputs_func = utils_models_wb.prepare_graph_for_model(
+                                history_graph,
+                                history_obs,
+                                history_action,
+                                args_pred,
+                                graph_helper,
+                            )
+                            with torch.no_grad():
+                                print("FORWARD")
+                                output_func = model(inputs_func)
 
-                        edge_dict = utils_models_wb.build_gt_edge(
-                            inputs_func['graph'], graph_helper, exclusive_edge=True
-                        )
-                        b, t, n = inputs_func['graph']['mask_obs_node'].shape
-                        pred_edge = output_func['edges'].reshape([b, t, n, n])
-                        graph_result = utils_models_wb.obtain_graph_3(
-                            graph_helper,
-                            inputs_func['graph'],
-                            torch.nn.functional.softmax(pred_edge, dim=-1)
-                            .cpu()
-                            .numpy(),
-                            output_func['states'].cpu(),
-                            inputs_func['graph']['mask_obs_node'],
-                            [
-                                torch.nn.functional.softmax(
-                                    output_func['node_change'], dim=-1
-                                )
+                            edge_dict = utils_models_wb.build_gt_edge(
+                                inputs_func['graph'], graph_helper, exclusive_edge=True
+                            )
+                            b, t, n = inputs_func['graph']['mask_obs_node'].shape
+                            pred_edge = output_func['edges'].reshape([b, t, n, n])
+                            graph_result = utils_models_wb.obtain_graph_3(
+                                graph_helper,
+                                inputs_func['graph'],
+                                torch.nn.functional.softmax(pred_edge, dim=-1)
                                 .cpu()
                                 .numpy(),
-                                torch.nn.functional.one_hot(edge_dict['gt_edges'], n)
-                                .cpu()
-                                .numpy(),
-                            ],
-                            inputs_func['mask_len'],
-                            include_last=False,
-                            samples=num_samples,
-                        )
+                                output_func['states'].cpu(),
+                                inputs_func['graph']['mask_obs_node'],
+                                [
+                                    torch.nn.functional.softmax(
+                                        output_func['node_change'], dim=-1
+                                    )
+                                    .cpu()
+                                    .numpy(),
+                                    torch.nn.functional.one_hot(
+                                        edge_dict['gt_edges'], n
+                                    )
+                                    .cpu()
+                                    .numpy(),
+                                ],
+                                inputs_func['mask_len'],
+                                include_last=False,
+                                samples=num_samples,
+                            )
                     saved_info['graph_results'].append(graph_result)
 
                     # ipdb.set_trace()
@@ -782,45 +788,29 @@ def main(cfg: DictConfig):
                     manager = mp.Manager()
 
                     res = manager.dict()
-                    if num_processes > 0:
-                        for start_root_id in range(0, num_samples, num_processes):
-                            end_root_id = min(start_root_id + num_processes, num_samples)
-                            jobs = []
-                            for process_id in range(start_root_id, end_root_id):
-                                # print(process_id)
-                                p = mp.Process(
-                                    target=pred_main_agent_plan,
-                                    args=(
-                                        process_id,
-                                        graph_result[process_id],
-                                        steps - 3,
-                                        arena.pred_actions,
-                                        curr_obs,
-                                        15,
-                                        {0: True, 1: True},
-                                        1,
-                                        res,
-                                    ),
-                                )
-                                jobs.append(p)
-                                p.start()
-                            for p in jobs:
-                                p.join()
-                    else:
-                        res = {}
-                        for process_id in range(0, num_samples):
-                            pred_main_agent_plan(process_id,
-                                        graph_result[process_id],
-                                        steps - 3,
-                                        arena.pred_actions,
-                                        curr_obs,
-                                        15,
-                                        {0: True, 1: True},
-                                        1,
-                                        res
+                    for start_root_id in range(0, num_samples, num_processes):
+                        end_root_id = min(start_root_id + num_processes, num_samples)
+                        jobs = []
+                        for process_id in range(start_root_id, end_root_id):
+                            # print(process_id)
+                            p = mp.Process(
+                                target=pred_main_agent_plan,
+                                args=(
+                                    process_id,
+                                    graph_result[process_id],
+                                    steps - 3,
+                                    arena.pred_actions,
+                                    curr_obs,
+                                    15,
+                                    {0: True, 1: True},
+                                    1,
+                                    res,
+                                ),
                             )
-
-
+                            jobs.append(p)
+                            p.start()
+                        for p in jobs:
+                            p.join()
                     all_plan_states = []
                     edge_freq = {}
                     edge_steps = {}
@@ -925,36 +915,30 @@ def main(cfg: DictConfig):
 
                     res = manager.dict()
                     num_goals = len(goal_edges)
-                    if num_processes > 0:
-                        for start_root_id in range(0, num_goals, num_processes):
-                            end_root_id = min(start_root_id + num_processes, num_goals)
-                            jobs = []
-                            for process_id in range(start_root_id, end_root_id):
-                                # print(process_id)
-                                p = mp.Process(
-                                    target=get_helping_plan,
-                                    args=(
-                                        process_id,
-                                        goal_edges[process_id],
-                                        steps - 3,
-                                        None,
-                                        arena.get_actions,
-                                        curr_obs,
-                                        10,
-                                        {0: True, 1: True},
-                                        1,
-                                        res,
-                                    ),
-                                )
-                                jobs.append(p)
-                                p.start()
-                            for p in jobs:
-                                p.join()
-                    else:
-                        for start_root_id in range(num_goals):
-                            get_helping_plan(
-                                start_root_id, goal_edges[start_root_id], steps-3, None, arena.get_actions,
-                                curr_obs, 10, {0: True, 1: True}, 1, res)
+                    for start_root_id in range(0, num_goals, num_processes):
+                        end_root_id = min(start_root_id + num_processes, num_goals)
+                        jobs = []
+                        for process_id in range(start_root_id, end_root_id):
+                            # print(process_id)
+                            p = mp.Process(
+                                target=get_helping_plan,
+                                args=(
+                                    process_id,
+                                    goal_edges[process_id],
+                                    steps - 3,
+                                    None,
+                                    arena.get_actions,
+                                    curr_obs,
+                                    10,
+                                    {0: True, 1: True},
+                                    1,
+                                    res,
+                                ),
+                            )
+                            jobs.append(p)
+                            p.start()
+                        for p in jobs:
+                            p.join()
 
                     # select best subgoal and action based on value
                     best_value = 0
@@ -1026,7 +1010,6 @@ def main(cfg: DictConfig):
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
-                    prev_action = selected_actions[0]
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
@@ -1034,7 +1017,12 @@ def main(cfg: DictConfig):
                     curr_graph = infos['graph']
                     # history_obs.append(curr_obs[0])
                     # history_graph.append(curr_graph)
-                    history_action.append(selected_actions[0])
+                    if prev_action != selected_actions[0]:
+                        history_action.append(selected_actions[0])
+                        prev_action = selected_actions[0]
+                        new_action = True
+                    else:
+                        new_action = False
 
                     if 'satisfied_goals' in infos:
                         saved_info['goals_finished'].append(infos['satisfied_goals'])
