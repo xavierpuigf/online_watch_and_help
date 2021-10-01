@@ -653,7 +653,7 @@ def main(cfg: DictConfig):
                 print('success' if success else 'failure')
                 print('steps:', steps)
                 print('-------------------------------------')
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 if not success:
                     failed_tasks.append(episode_id)
