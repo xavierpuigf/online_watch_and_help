@@ -57,6 +57,11 @@ CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred_excl.py inference=True in
 
 
 
+CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl.py inference=True inference_sample=True \
+model.predict_node_change=True logging=False model.exclusive_edge=True train.num_workers=0 ckpt_load=$ckpt_excl"/290.pt"
+
+## Other tests
+
 CUDA_VISIBLE_DEVICES=0 python tests/test_solo_loader.py model.predict_node_change=True  model.exclusive_edge=True ckpt_load=$ckpt_excl"/490.pt"
 
 
@@ -68,6 +73,9 @@ python analysis/helping_action_freq.py agent_pred_graph.ckpt_load=$ckpt_excl"/49
 
 export ckpt_excl="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl-agentsall/time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.001-bs.16-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True_goodactionreduced_walk/"
 
-python analysis/helping_action_freq.py agent_pred_graph.ckpt_load=$ckpt_excl"/490.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True agent_pred_graph.max_tsteps=30
+python analysis/helping_action_freq.py agent_pred_graph.ckpt_load=$ckpt_excl"/490.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True 
+
+
+python analysis/helping_gt_goal.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True 
 ```
 

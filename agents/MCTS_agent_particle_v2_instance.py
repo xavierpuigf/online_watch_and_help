@@ -1216,7 +1216,9 @@ class MCTS_agent_particle_v2_instance:
                     success, vh_state = env.transition(
                         vh_state, {self.char_index: action_item}
                     )
-                    plan_states.append(vh_state.to_dict())
+                    vh_state_dict = vh_state.to_dict()
+                    # print(action_item, [edge['to_id'] for edge in vh_state_dict['edges'] if edge['from_id'] == self.agent_id and edge['relation_type'] == 'INSIDE'])
+                    plan_states.append(vh_state_dict)
 
                 if self.get_plan_states:
                     info['plan_states'] = plan_states

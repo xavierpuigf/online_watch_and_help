@@ -310,51 +310,51 @@ def inference(
                     index
                 )
 
-                # print("************************")
-                # print(f"File: {current_index}:{fname}")
-                # print("\nGroundTrurth")
-                # utils_models.print_graph_3(
-                #     data_loader.dataset.graph_helper,
-                #     graph_info,
-                #     gt_edge.cpu().numpy(),
-                #     mask_edges_orig.cpu().numpy(),
-                #     gt_state.cpu().numpy(),
-                #     [edge_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
-                #     index,
-                #     0,
-                # )
-                # tsteps =  int(len_mask[index].sum()) - 1
+                print("************************")
+                print(f"File: {current_index}:{fname}")
+                print("\nGroundTrurth")
+                utils_models.print_graph_3(
+                    data_loader.dataset.graph_helper,
+                    graph_info,
+                    gt_edge.cpu().numpy(),
+                    mask_edges_orig.cpu().numpy(),
+                    gt_state.cpu().numpy(),
+                    [edge_changes_list[0].argmax(-1), edge_changes_list[1].argmax(-1)] if len(edge_changes_list) > 0 else [],
+                    index,
+                    0,
+                )
+                tsteps =  int(len_mask[index].sum()) - 1
 
-                # for t in [0, tsteps//2, tsteps-1]:
-                #     print("\nInput at {}".format(t))
-                #     utils_models.print_graph_3(
-                #         data_loader.dataset.graph_helper,
-                #         graph_info,
-                #         gt_edges.cpu().numpy(),
-                #         mask_edges_orig.cpu().numpy(),
-                #         gt_states.cpu().numpy(),
-                #         [],
-                #         index,
-                #         t,
-                #     )
+                for t in [0, tsteps//2, tsteps-1]:
+                    print("\nInput at {}".format(t))
+                    utils_models.print_graph_3(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        gt_edges.cpu().numpy(),
+                        mask_edges_orig.cpu().numpy(),
+                        gt_states.cpu().numpy(),
+                        [],
+                        index,
+                        t,
+                    )
 
 
-                #     print("\nPrediction at {}".format(t))
-                #     # ipdb.set_trace()c
-                #     utils_models.print_graph_3(
-                #         data_loader.dataset.graph_helper,
-                #         graph_info,
-                #         pred_edge.argmax(-1).cpu().numpy(),
-                #         mask_edges_orig.cpu().numpy(),
-                #         (pred_state > 0).cpu().numpy(),
-                #         [pred_changes_list[0].argmax(-1), 
-                #             edge_changes_list[1].argmax(-1) if len(pred_changes_list) > 0 else []],
-                #         index,
-                #         t,
-                #     )
-                # print("************************")
+                    print("\nPrediction at {}".format(t))
+                    # ipdb.set_trace()c
+                    utils_models.print_graph_3(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        pred_edge.argmax(-1).cpu().numpy(),
+                        mask_edges_orig.cpu().numpy(),
+                        (pred_state > 0).cpu().numpy(),
+                        [pred_changes_list[0].argmax(-1), 
+                            edge_changes_list[1].argmax(-1) if len(pred_changes_list) > 0 else []],
+                        index,
+                        t,
+                    )
+                print("************************")
                 
-
+                ipdb.set_trace()
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
                 expath = logger.results_path

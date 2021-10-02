@@ -280,10 +280,10 @@ class VhGraphEnv:
             total_dist = 0.0
             # The current room of the character
             room_char = list(
-                vh_state._graph.get_node_ids_from(char_id, Relation.INSIDE)
+                vh_state.get_node_ids_from(char_id, Relation.INSIDE)
             )[0]
             close_char = list(
-                vh_state._graph.get_node_ids_from(char_id, Relation.CLOSE)
+                vh_state.get_node_ids_from(char_id, Relation.CLOSE)
             )
             close_char = [
                 index
@@ -294,7 +294,7 @@ class VhGraphEnv:
                 pos_char = self.id2node[room_char]['bounding_box']['center']
             else:
                 pos_char = self.id2node[close_char[0]]['bounding_box']['center']
-            curr_node = vh_state._graph.get_node(object_script.instance)
+            curr_node = vh_state.get_node(object_script.instance)
 
             # ipdb.set_trace()
             # if walking to a room
@@ -303,7 +303,7 @@ class VhGraphEnv:
                 curr_room = object_script.instance
             else:
                 inside_obj = list(
-                    vh_state._graph.get_node_ids_from(
+                    vh_state.get_node_ids_from(
                         object_script.instance, Relation.INSIDE
                     )
                 )
@@ -322,12 +322,12 @@ class VhGraphEnv:
                     ]
                 else:
                     final_pos = list(
-                        vh_state._graph.get_node_ids_from(
+                        vh_state.get_node_ids_from(
                             object_script.instance, Relation.INSIDE
                         )
                     )
                     final_pos += list(
-                        vh_state._graph.get_node_ids_from(
+                        vh_state.get_node_ids_from(
                             object_script.instance, Relation.ON
                         )
                     )
@@ -365,6 +365,8 @@ class VhGraphEnv:
                     if len(doors) > 0:
                         total_dist += distance(doors_pos[-1], final_pos)
             else:
+                if not is_obj:
+                    ipdb.set_trace()
                 total_dist += distance(pos_char, final_pos)
         return total_dist
 
