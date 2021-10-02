@@ -12,6 +12,7 @@ from evolving_graph import utils as utils_env
 from utils import utils_environment as utils_env2
 import pdb
 import traceback
+from termcolor import colored
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -317,13 +318,32 @@ class UnityEnvironment(BaseUnityEnvironment):
             updated_graph = environment_graph
             s, g = self.comm.environment_graph()
             updated_graph = utils.separate_new_ids_graph(updated_graph, max_id)
+            if self.env_id == 6:
+                # TODO: this is because trashcan causes problems when removed, need to check more later
+                cids = [node['id'] for node in updated_graph['nodes']]
+                nodes_trash = [node for node in g['nodes'] if node['id'] == 360]
+                edges_trash = [edge for edge in g['edges'] if (edge['from_id'] == 360 and edge['to_id'] in cids) or  
+                                                              (edge['to_id'] == 360 and edge['from_id'] in cids)]
+                updated_graph['nodes'] += nodes_trash
+                updated_graph['edges'] += edges_trash
             success, m = self.comm.expand_scene(updated_graph)
         else:
             updated_graph = self.init_graph
             s, g = self.comm.environment_graph()
             updated_graph = utils.separate_new_ids_graph(updated_graph, max_id)
+            if self.env_id == 6:
+                # TODO: this is because tashcaan causes problems, check more later
+                cids = [node['id'] for node in updated_graph['nodes']]
+                nodes_trash = [node for node in g['nodes'] if node['id'] == 360]
+                edges_trash = [edge for edge in g['edges'] if (edge['from_id'] == 360 and edge['to_id'] in cids) or  
+                                                              (edge['to_id'] == 360 and edge['from_id'] in cids)]
+                updated_graph['nodes'] += nodes_trash
+                updated_graph['edges'] += edges_trash
             success, m = self.comm.expand_scene(updated_graph)
 
+        with open('/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/tests/graph.json', 'w+') as f: 
+            import json
+            f.write(json.dumps(updated_graph))
         if not success:
             ipdb.set_trace()
             print("Error expanding scene")
@@ -379,6 +399,7 @@ class UnityEnvironment(BaseUnityEnvironment):
                     self.agent_object_touched.append(objid)
                     success, message = True, {}
                 else:
+                    print(colored(script_list, "yellow"))
                     success, message = self.comm.render_script(
                         script_list,
                         recording=False,
@@ -386,6 +407,7 @@ class UnityEnvironment(BaseUnityEnvironment):
                         skip_animation=True,
                     )
             if not success:
+                ipdb.set_trace()
                 print("NO SUCCESS")
                 print(message, script_list)
                 failed_execution = True
