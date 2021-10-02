@@ -366,7 +366,7 @@ def get_helping_plan(
     res[process_id] = (subgoal, plan, plan_states, plan_cost)
 
 
-@hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
+@hydra.main(config_path="../config/", config_name="config_default_large_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
