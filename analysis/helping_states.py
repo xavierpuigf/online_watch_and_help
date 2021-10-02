@@ -805,12 +805,23 @@ def main(cfg: DictConfig):
                     if args.num_processes == 0:
                         res = {}
                         for index in range(num_samples):
-                            pred_main_agent_plan(index, graph_result[index], steps-3,
-                                arena.pred_actions, curr_obs, 15, {0: True, 1: True}, 1, res)
+                            pred_main_agent_plan(
+                                index,
+                                graph_result[index],
+                                steps - 3,
+                                arena.pred_actions,
+                                curr_obs,
+                                15,
+                                {0: True, 1: True},
+                                1,
+                                res,
+                            )
                     else:
                         res = manager.dict()
                         for start_root_id in range(0, num_samples, num_processes):
-                            end_root_id = min(start_root_id + num_processes, num_samples)
+                            end_root_id = min(
+                                start_root_id + num_processes, num_samples
+                            )
                             jobs = []
                             for process_id in range(start_root_id, end_root_id):
                                 # print(process_id)

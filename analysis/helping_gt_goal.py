@@ -270,6 +270,14 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
+    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/dataset_graph_full_150step_larger_test.pkl'
+    valid_set = pickle.load(open(valid_set_path, 'rb'))
+    episode_ids = []
+    for filename in valid_set:
+        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+    print(len(episode_ids))
+    # ipdb.set_trace()
+
     cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
@@ -347,9 +355,9 @@ def main(cfg: DictConfig):
 
     id_run = 0
     # random.seed(id_run)
-    episode_ids = list(range(len(env_task_set)))
-    episode_ids = sorted(episode_ids)
-    random_start.shuffle(episode_ids)
+    # episode_ids = list(range(len(env_task_set)))
+    # episode_ids = sorted(episode_ids)
+    # random_start.shuffle(episode_ids)
     # episode_ids = episode_ids[10:]
 
     S = [[] for _ in range(len(episode_ids))]
