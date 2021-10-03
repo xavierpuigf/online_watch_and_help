@@ -349,13 +349,6 @@ class UnityEnvironment(BaseUnityEnvironment):
                 updated_graph['edges'] += edges_trash
             success, m = self.comm.expand_scene(updated_graph)
 
-        with open(
-            '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/tests/graph.json',
-            'w+',
-        ) as f:
-            import json
-
-            f.write(json.dumps(updated_graph))
         if not success:
             ipdb.set_trace()
             print("Error expanding scene")

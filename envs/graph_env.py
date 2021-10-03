@@ -302,11 +302,24 @@ class VhGraphEnv:
             if curr_node.category == "Rooms":
                 curr_room = object_script.instance
             else:
-                inside_obj = list(
+                inside_obj = []
+                
+                curr_inside_obj = list(
                     vh_state.get_node_ids_from(
                         object_script.instance, Relation.INSIDE
                     )
                 )
+                inside_obj += curr_inside_obj
+                while len(curr_inside_obj) > 0:
+                    curr_obj = curr_inside_obj[0]
+                    curr_inside_obj = list(
+                        vh_state.get_node_ids_from(
+                            curr_obj, Relation.INSIDE
+                        )
+                    )
+                    inside_obj += curr_inside_obj
+                inside_obj = list(set(inside_obj))
+
                 try:
                     curr_room = [
                         indexr for indexr in inside_obj if indexr in self.rooms_ids
@@ -523,7 +536,8 @@ class VhGraphEnv:
                 next_vh_state = init_from_state(
                     next_vh_state, touched_objs, vh_state.offer_obj
                 )
-                if script[0].action.name in ['GRAB', 'PUTBACK', 'PUTIN', 'PUTOBJBACK']:
+                af script[0].action.name in ['GRAB', 'PUTBACK', 'PUTIN', 'PUTOBJBACK']:
+                    inside_obj += curr_inside_obj
                     obj_id = script.obtain_objects()[0][1]
                     next_vh_state.remove_obj_offer(obj_id)
             if not succeed:
