@@ -486,7 +486,7 @@ class MCTS_particles_v2_instance:
                 print(actions[0])
                 print()
 
-            if len(hands_busy) == 2:
+            if len(hands_busy) == 2 and actions is not None:
                 for action in actions:
                     if 'open' in action[0].lower() or 'close' in action[0].lower():
                         actions = None
@@ -1047,10 +1047,7 @@ class MCTS_particles_v2_instance:
             # If the plan is about placinng stuff, make sure i dont have to open a door
             try:
                 acti = [x[0].lower() for x in action_heuristic]
-                if (
-                        'open' in acti
-                        or 'close' in acti
-                ) and len(hands_busy) == 2:
+                if ('open' in acti or 'close' in acti) and len(hands_busy) == 2:
                     continue
             except:
                 if self.add_bp:

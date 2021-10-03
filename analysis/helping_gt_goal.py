@@ -249,7 +249,7 @@ def get_helping_plan(
     res[process_id] = (subgoal, action)
 
 
-@hydra.main(config_path="../config/", config_name="config_default_large_excl_plan")
+@hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
@@ -360,8 +360,8 @@ def main(cfg: DictConfig):
     # random_start.shuffle(episode_ids)
     # episode_ids = episode_ids[10:]
 
-    S = [[] for _ in range(len(episode_ids))]
-    L = [[] for _ in range(len(episode_ids))]
+    S = {episode_id: [] for episode_id in episode_ids}
+    L = {episode_id: [] for episode_id in episode_ids}
 
     test_results = {}
     # episode_ids = [episode_ids[0]]
@@ -482,18 +482,19 @@ def main(cfg: DictConfig):
 
         max_steps = args.max_episode_length
 
-        for env_task in env_task_set:
+        for episode_id in episode_ids:
+            # env_task = env_task_set[episode_id]
+            # for env_task in env_task_set:
 
             steps_list, failed_tasks = [], []
             current_tried = iter_id
 
-            gt_goal = env_task['task_goal'][0]
             # print('gt goal:', gt_goal)
 
-            episode_id = env_task['task_id']
+            # episode_id = env_task['task_id']
 
-            if episode_id not in episode_ids:
-                continue
+            # if episode_id not in episode_ids:
+            #     continue
 
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id
@@ -519,6 +520,7 @@ def main(cfg: DictConfig):
                 obs = arena.reset(episode_id)
                 arena.task_goal = None
                 print(arena.env.task_goal, arena.env.agent_goals)
+                gt_goal = arena.env.task_goal[0]
                 # print(
                 #     [edge for edge in obs[0]['edges'] if edge['from_id'] == 351]
                 #     or edge['to_id'] == 351

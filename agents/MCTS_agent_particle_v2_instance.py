@@ -54,8 +54,8 @@ def find_heuristic(
 
     observation_ids = [x['id'] for x in observations['nodes']]
 
-    if agent_id == 1 and hold:
-        print('container_ids find:', object_target, containerdict)
+    # if agent_id == 1 and hold:
+    #     print('container_ids find:', object_target, containerdict)
 
     try:
         room_char = [
@@ -94,8 +94,8 @@ def find_heuristic(
                 cost_list = [0.05] + cost_list
 
         target = container
-        if hold:
-            print(target)
+        # if hold:
+        #     print(target)
 
     ids_character = [
         x['to_id']
@@ -114,8 +114,8 @@ def find_heuristic(
         ] + action_list
         cost_list = [1] + cost_list
 
-    if hold:
-        print(action_list)
+    # if hold:
+    #     print(action_list)
 
     return action_list, cost_list, f'find_{target}'
 
