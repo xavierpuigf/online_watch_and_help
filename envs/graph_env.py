@@ -536,8 +536,8 @@ class VhGraphEnv:
                 next_vh_state = init_from_state(
                     next_vh_state, touched_objs, vh_state.offer_obj
                 )
-                af script[0].action.name in ['GRAB', 'PUTBACK', 'PUTIN', 'PUTOBJBACK']:
-                    inside_obj += curr_inside_obj
+                if script[0].action.name in ['GRAB', 'PUTBACK', 'PUTIN', 'PUTOBJBACK']:
+                    # inside_obj += curr_inside_obj
                     obj_id = script.obtain_objects()[0][1]
                     next_vh_state.remove_obj_offer(obj_id)
             if not succeed:
