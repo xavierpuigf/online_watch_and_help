@@ -390,6 +390,7 @@ class MCTS_particles_v2_instance:
                 pred_name_selected = None
                 for missing_pred, count_pred in unsatisfied_aux.items():
                     curr_goal_spec_pred = goal_spec[missing_pred]
+                    # pick the pred_name that has to do with the object we have now
                     if pred_name_selected is None:
                         if (
                             count_pred > 0
@@ -438,6 +439,8 @@ class MCTS_particles_v2_instance:
 
             # If I only have 1 hand busy, put this object has to go inside somewhere, focus on it
             # Otherwise it will be impossible to open anything later
+            # TODO: actually we could grab other objects if these dont involve open/close
+            # Do a check where the subgoals are oly the current one or anything that does not involve putting in
             if len(hands_busy) == 1:
                 subgoals_putin = [
                     subg
@@ -511,6 +514,7 @@ class MCTS_particles_v2_instance:
                     )
                     if not success:
                         print(f"Failure in transition when executing {action_str}")
+                        ipdb.set_trace()
                         raise Exception
                     curr_vh_state = next_vh_state
                     total_cost += cost
@@ -767,10 +771,11 @@ class MCTS_particles_v2_instance:
                 # if '[walk] <character> (2)' in action_str:
                 #     ipdb.set_trace()
 
+                if not success:
+                    print("Failure", actions)
+                    ipdb.set_trace()
             # if 'put' in actions:
             #      print("CLOSE:", [edge for edge in next_state_dict['edges'] if edge['to_id'] == 232 and edge['from_id'] == 1])
-            if not success:
-                print("Failure", actions)
             # final_vh_state = copy.deepcopy(next_vh_state)
             final_vh_state = next_vh_state
             final_state = next_state_dict
@@ -1039,11 +1044,12 @@ class MCTS_particles_v2_instance:
                 # Maybe the other agent is grabbing the object
                 continue
 
-            # TODO(xavier): this crashes sometimes!! Check what is happening
+            # If the plan is about placinng stuff, make sure i dont have to open a door
             try:
+                acti = [x[0].lower() for x in action_heuristic]
                 if (
-                    'open' in action_heuristic[0][0].lower()
-                    or 'close' in action_heuristic[0][0].lower()
+                        'open' in acti
+                        or 'close' in acti
                 ) and len(hands_busy) == 2:
                     continue
             except:
@@ -1099,6 +1105,9 @@ class MCTS_particles_v2_instance:
             action_list = [
                 self.get_action_str(action_item) for action_item in info_action[0]
             ]
+            currplan = [xt.split() for xt in action_list]
+            if len(hands_busy) == 2 and '[open]' in currplan:
+                ipdb.set_trace()
             # ipdb.set_trace()
             new_node = Node(
                 parent=node,
