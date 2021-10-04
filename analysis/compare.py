@@ -308,15 +308,13 @@ def main(cfg: DictConfig):
     rootdir = ''
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt_goal'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_no_avoidance_1'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
-    cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0/test_env_task_set_60_full_task.all'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_20'
-    cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0'
+    cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_10'
+    cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only_large'
 
     agent_types = [
         ['full', 0, 0.05, False, 0, "uniform"],  # 0
@@ -353,29 +351,9 @@ def main(cfg: DictConfig):
     args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
-    env_task_set = pickle.load(open(args.dataset_path, 'rb'))
-    # print(env_task_set)
-    print(len(env_task_set))
-
-    for env in env_task_set:
-        init_gr = env['init_graph']
-        gbg_can = [
-            node['id']
-            for node in init_gr['nodes']
-            if node['class_name'] in ['garbagecan', 'clothespile']
-        ]
-        init_gr['nodes'] = [
-            node for node in init_gr['nodes'] if node['id'] not in gbg_can
-        ]
-        init_gr['edges'] = [
-            edge
-            for edge in init_gr['edges']
-            if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can
-        ]
-        for node in init_gr['nodes']:
-            if node['class_name'] == 'cutleryfork':
-                node['obj_transform']['position'][1] += 0.1
-
+    # env_task_set = pickle.load(open(args.dataset_path, 'rb'))
+    # # print(env_task_set)
+    # print(len(env_task_set))
     args.record_dir = '{}/{}'.format(cachedir, datafile)
     record_dir_main = '{}/{}'.format(cachedir_main, datafile)
     error_dir = '{}/logging/{}'.format(cachedir, datafile)
@@ -398,7 +376,16 @@ def main(cfg: DictConfig):
     # random_start.shuffle(episode_ids)
     # episode_ids = episode_ids[10:]
 
-    episode_ids = [139, 3, 41, 63, 82, 88]
+    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
+    f = open(valid_set_path, 'r')
+    episode_ids = []
+    for filename in f:
+        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+    episode_ids = sorted(episode_ids)
+    print(len(episode_ids))
+    f.close()
+
+    # episode_ids = [139, 3, 41, 63, 82, 88]
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
@@ -410,9 +397,10 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
-    num_tries = 5
+    num_tries = 1
 
     for iter_id in range(num_tries):
+        print(iter_id)
         # if iter_id > 0:
         # iter_id = 1
 
@@ -421,37 +409,33 @@ def main(cfg: DictConfig):
 
         # test_results = {}
         # print(args.record_dir)
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
-            test_results = {}
-        else:
-            test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
-            )
-            help_results = dict(test_results)
+        for episode_id in episode_ids:
 
-        print(iter_id, test_results)
+            try:
+                logs = pickle.load(
+                    open(
+                        args.record_dir
+                        + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id),
+                        'rb',
+                    )
+                )
 
-        if not os.path.isfile(record_dir_main + '/results_{}.pik'.format(iter_id)):
-            test_results = {}
-        else:
-            test_results = pickle.load(
-                open(record_dir_main + '/results_{}.pik'.format(iter_id), 'rb')
-            )
-            main_results = dict(test_results)
+                L1 = min(len(logs['action'][0]), 150)
+                # print(len(logs['action'][0]))
 
-        # print(test_results)
-
-    print(main_results)
-    print(help_results)
-
-    SR, AL, SP, SWS, stdR, stdL, stdSP, stdS = get_metrics_reward(
-        main_results,
-        help_results,
-        episode_ids,
-        num_tries,
-        time_limit=args.max_episode_length,
-    )
-    print(SR, AL, SP, SWS, stdR, stdL, stdSP, stdS)
+                logs = pickle.load(
+                    open(
+                        record_dir_main
+                        + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id),
+                        'rb',
+                    )
+                )
+                L2 = len(logs['action'][0])
+                # print(len(logs['action'][0]))
+                print(L2 / L1 - 1, L1, L2)
+            except:
+                print('missing:', episode_id)
+                pass
 
 
 if __name__ == "__main__":
