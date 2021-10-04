@@ -257,13 +257,13 @@ class VhGraphEnv:
         # ipdb.set_trace()
         return door_dict
 
-    def compute_distance(self, vh_state, action, char_id):
+    def compute_distance(self, vh_state, action, char_id, use_doors=False):
         def distance(bbox1, bbox2):
             b1 = [bbox1[0], bbox1[2]]
             b2 = [bbox2[0], bbox2[2]]
             return np.linalg.norm(np.array(b1) - np.array(b2))
 
-        if self.room_doors is None:
+        if use_doors and self.room_doors is None:
             self.room_doors = self.build_room_doors()
 
         script = read_script_from_string(action)
@@ -297,6 +297,9 @@ class VhGraphEnv:
             is_obj = False
             if curr_node.category == "Rooms":
                 curr_room = object_script.instance
+                if not use_doors:
+                    # If we dont consider doors, the final pos is the position of the room
+                    final_pos = self.id2node[object_script.instance]['bounding_box']['center']
             else:
                 inside_obj = []
 
@@ -347,7 +350,7 @@ class VhGraphEnv:
 
                 is_obj = True
 
-            if room_char == curr_room:
+            if not use_doors or room_char == curr_room:
                 doors = []
             else:
                 try:
@@ -355,9 +358,8 @@ class VhGraphEnv:
                 except:
                     ipdb.set_trace()
 
-            doors_pos = [self.id2node[did]['bounding_box']['center'] for did in doors]
-            print(scriptline, room_char, curr_room)
             if len(doors) > 0:
+                doors_pos = [self.id2node[did]['bounding_box']['center'] for did in doors]
                 total_dist = distance(pos_char, doors_pos[0])
 
                 for did in range(1, len(doors)):
@@ -368,16 +370,19 @@ class VhGraphEnv:
                     if len(doors) > 0:
                         total_dist += distance(doors_pos[-1], final_pos)
             else:
-                if not is_obj:
-                    #     ipdb.set_trace()
-                    total_dist += 0  # TODO: should avoid this
-                else:
+                if not use_doors:
                     total_dist += distance(pos_char, final_pos)
+                else:
+                    if not is_obj:
+                        #     ipdb.set_trace()
+                        total_dist += 0  # TODO: should avoid this
+                    else:
+                        total_dist += distance(pos_char, final_pos)
         return total_dist
 
     def to_pomdp(self):
         self.pomdp = True
-        for i in range(self.n_chars):
+            for i in range(self.n_chars):
             if self.observable_object_ids_n[i] is None:
                 self.observable_state_n[i] = self._mask_state(self.state, i)
                 self.observable_object_ids_n[i] = [
