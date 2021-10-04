@@ -184,6 +184,96 @@ def get_edge_instance(pred, t, source='pred'):
     return edge_pred_ins
 
 
+def get_edge_instance_from_pred(pred):
+    # pred_edge_prob = pred['edge_prob']
+    # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+
+    edge_pred = pred['edge_pred'][-1]
+    pred_edge_names = pred['edge_names']
+    pred_nodes = pred['nodes']
+    pred_from_ids = pred['from_id']
+    pred_to_ids = pred['to_id']
+
+    # edge_prob = pred_edge_prob[t]
+    # edge_pred = np.argmax(edge_prob, 1)
+
+    edge_pred_ins = {}
+    edge_list = []
+
+    num_edges = len(edge_pred)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = pred_from_ids[-1][edge_id]
+        to_id = pred_to_ids[-1][edge_id]
+        from_node_name = pred_nodes[from_id].split('.')[0]
+        to_node_name = pred_nodes[to_id].split('.')[0]
+        from_node_id = int(pred_nodes[from_id].split('.')[1])
+        to_node_id = int(pred_nodes[to_id].split('.')[1])
+        edge_name = pred_edge_names[edge_pred[edge_id]]
+
+        if 'hold' in edge_name:  # ignore left or right hand
+            edge_name = 'offer'
+            # ipdb.set_trace()
+            continue  # TODO: add handing over plan
+
+        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+            if to_node_name in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
+            ]:
+                continue
+
+            if from_node_name.split('.')[0] not in [
+                'plate',
+                'fork',
+                'glass',
+                'cupcake',
+                'salmon',
+                'apple',
+                'remotecontrol',
+                'chips',
+                'condimentbottle',
+                'wineglass',
+                'pudding',
+            ]:
+                continue
+        elif edge_name in ['close']:
+            continue
+        # if from_node_name not in ['apple', 'cupcake', 'plate', 'waterglass']:
+        #     continue
+
+        edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
+        if edge_name == 'offer':
+            if edge_class not in edge_pred_ins:
+                edge_pred_ins[edge_class] = {
+                    'count': 0,
+                    'grab_obj_ids': [],
+                    'container_ids': [from_id],
+                }
+            edge_pred_ins[edge_class]['count'] += 1
+            edge_pred_ins[edge_class]['grab_obj_ids'].append(to_node_id)
+        else:
+            if edge_class not in edge_pred_ins:
+                edge_pred_ins[edge_class] = {
+                    'count': 0,
+                    'grab_obj_ids': [],
+                    'container_ids': [to_id],
+                }
+            edge_pred_ins[edge_class]['count'] += 1
+            edge_pred_ins[edge_class]['grab_obj_ids'].append(from_node_id)
+        edge_list.append(
+            "{}_{}.{}_{}.{}".format(
+                edge_name, from_node_name, from_node_id, to_node_name, to_node_id
+            )
+        )
+    # print(edge_list)
+    # ipdb.set_trace()
+    return edge_pred_ins, edge_list
+
+
 def get_edge_instance_from_state(state):
     id2node = {node['id']: node['class_name'] for node in state['nodes']}
     # print(id2node)
@@ -996,6 +1086,7 @@ def main(cfg: DictConfig):
                                     # all_plan_states.append(plan_states)
                                     all_edges = []
                                     estimated_steps = 0
+
                                     for t, (action, state, cost) in enumerate(
                                         zip(plan, plan_states, plan_cost)
                                     ):
@@ -1016,9 +1107,25 @@ def main(cfg: DictConfig):
                                                 proposals[pred_id]['edge_steps'][
                                                     edge
                                                 ] = estimated_steps
-                                    all_edges = list(set(all_edges))
-                                    for edge in all_edges:
-                                        edge_freq[edge] += 1.0 / len(res)
+
+                                edge_pred_ins, edge_list = get_edge_instance_from_pred(
+                                    graph_result[pred_id]
+                                )
+                                all_edges += edge_list
+                                estimated_steps = 100
+                                for edge in edge_list:
+                                    if edge not in edge_freq:
+                                        edge_freq[edge] = 0
+                                        if edge not in edge_steps:
+                                            edge_steps[edge] = []
+                                        edge_steps[edge].append(estimated_steps)
+                                        proposals[pred_id]['edge_steps'][
+                                            edge
+                                        ] = estimated_steps
+
+                                all_edges = list(set(all_edges))
+                                for edge in all_edges:
+                                    edge_freq[edge] += 1.0 / len(res)
                         for edge, freq in edge_freq.items():
                             edge_goal_name = edge2name(edge)
                             if edge_goal_name not in combined_edge_freq:
@@ -1067,9 +1174,23 @@ def main(cfg: DictConfig):
                                                 if edge not in edge_steps:
                                                     edge_steps[edge] = []
                                                 edge_steps[edge].append(estimated_steps)
-                                    all_edges = list(set(all_edges))
-                                    for edge in all_edges:
-                                        edge_freq[edge] += 1.0 / len(proposals)
+                                edge_pred_ins, edge_list = get_edge_instance_from_pred(
+                                    proposal['pred']
+                                )
+                                all_edges += edge_list
+                                estimated_steps = 100
+                                for edge in edge_list:
+                                    if edge not in edge_freq:
+                                        edge_freq[edge] = 0
+                                        if edge not in edge_steps:
+                                            edge_steps[edge] = []
+                                        edge_steps[edge].append(estimated_steps)
+                                        proposals[pred_id]['edge_steps'][
+                                            edge
+                                        ] = estimated_steps
+                                all_edges = list(set(all_edges))
+                                for edge in all_edges:
+                                    edge_freq[edge] += 1.0 / len(proposals)
                         for edge, freq in edge_freq.items():
                             edge_goal_name = edge2name(edge)
                             if edge_goal_name not in combined_edge_freq:

@@ -173,7 +173,7 @@ def main(cfg: DictConfig):
     args_common = dict(
         recursive=False,
         max_episode_length=20,
-        num_simulation=200,
+        num_simulation=100,
         max_rollout_steps=5,
         c_init=0.1,
         c_base=100,

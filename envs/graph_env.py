@@ -279,12 +279,8 @@ class VhGraphEnv:
         else:
             total_dist = 0.0
             # The current room of the character
-            room_char = list(
-                vh_state.get_node_ids_from(char_id, Relation.INSIDE)
-            )[0]
-            close_char = list(
-                vh_state.get_node_ids_from(char_id, Relation.CLOSE)
-            )
+            room_char = list(vh_state.get_node_ids_from(char_id, Relation.INSIDE))[0]
+            close_char = list(vh_state.get_node_ids_from(char_id, Relation.CLOSE))
             close_char = [
                 index
                 for index in close_char
@@ -303,19 +299,15 @@ class VhGraphEnv:
                 curr_room = object_script.instance
             else:
                 inside_obj = []
-                
+
                 curr_inside_obj = list(
-                    vh_state.get_node_ids_from(
-                        object_script.instance, Relation.INSIDE
-                    )
+                    vh_state.get_node_ids_from(object_script.instance, Relation.INSIDE)
                 )
                 inside_obj += curr_inside_obj
                 while len(curr_inside_obj) > 0:
                     curr_obj = curr_inside_obj[0]
                     curr_inside_obj = list(
-                        vh_state.get_node_ids_from(
-                            curr_obj, Relation.INSIDE
-                        )
+                        vh_state.get_node_ids_from(curr_obj, Relation.INSIDE)
                     )
                     inside_obj += curr_inside_obj
                 inside_obj = list(set(inside_obj))
@@ -340,9 +332,7 @@ class VhGraphEnv:
                         )
                     )
                     final_pos += list(
-                        vh_state.get_node_ids_from(
-                            object_script.instance, Relation.ON
-                        )
+                        vh_state.get_node_ids_from(object_script.instance, Relation.ON)
                     )
                     final_pos = [
                         index
@@ -379,8 +369,10 @@ class VhGraphEnv:
                         total_dist += distance(doors_pos[-1], final_pos)
             else:
                 if not is_obj:
-                    ipdb.set_trace()
-                total_dist += distance(pos_char, final_pos)
+                    #     ipdb.set_trace()
+                    total_dist += 0  # TODO: should avoid this
+                else:
+                    total_dist += distance(pos_char, final_pos)
         return total_dist
 
     def to_pomdp(self):

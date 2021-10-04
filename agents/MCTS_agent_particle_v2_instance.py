@@ -376,6 +376,11 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
         cost = [0.05]
         res += action
         cost_list += cost
+    else:
+        action = [('walk', (target_node2['class_name'], target_put), None)]
+        cost = [0]
+        res += action
+        cost_list += cost
     # print(res, target)
     return res, cost_list, f'put_{target_grab}_{target_put}'
 
@@ -1150,7 +1155,7 @@ class MCTS_agent_particle_v2_instance:
                     print('offer:')
                     print(satisfied)
                     print(unsatisfied)
-                    ipdb.set_trace()
+                    # ipdb.set_trace()
                 init_vh_state = self.sim_env.get_vh_state(init_state)
                 # print(colored(unsatisfied, "yellow"))
                 self.particles[particle_id] = (
