@@ -383,7 +383,10 @@ class MCTS_particles_v2_instance:
             ]
             # print('hands_busy:', len(hands_busy), self.agent_id)
             # print("GOAL SPEC", goal_spec)
-            unsatisfied_aux = copy.deepcopy(unsatisfied)
+            if len(hands_busy) > 1:
+                unsatisfied_aux = copy.deepcopy(unsatisfied)
+            else:
+                unsatisfied_aux = unsatisfied
             subgoals_hand = []
             for hand_busy in hands_busy:
                 hand_class_name = self.id2node_env[hand_busy]['class_name']
