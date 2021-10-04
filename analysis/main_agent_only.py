@@ -21,7 +21,7 @@ from utils import utils_models_wb, utils_rl_agent
 
 sys.path.append('.')
 from envs.unity_environment import UnityEnvironment
-from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
+from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
 
 # from arguments import get_args
 from algos.arena_mp2 import ArenaMP
@@ -41,7 +41,7 @@ def get_class_mode(agent_args):
     return mode_str
 
 
-@hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
+@hydra.main(config_path="../config/", config_name="config_default_large_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
@@ -51,18 +51,27 @@ def main(cfg: DictConfig):
     num_proc = 0
 
     num_tries = 5
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
-    args.max_episode_length = 250
-    args.num_per_apartment = 20
+    # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
+    # args.max_episode_length = 250
+    # args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + '/../'
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    # args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f'{get_original_cwd()}/outputs/main_agent_only'
+    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
+    f = open(valid_set_path, 'r')
+    episode_ids = []
+    for filename in f:
+        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+    print(len(episode_ids))
+    f.close()
+
+    cachedir = f'{get_original_cwd()}/outputs/main_agent_only_large'
     # cachedir = f'{rootdir}/dataset_episodes/main_agent_only'
 
     agent_types = [
@@ -137,13 +146,13 @@ def main(cfg: DictConfig):
 
     id_run = 0
     # random.seed(id_run)
-    episode_ids = list(range(len(env_task_set)))
-    episode_ids = sorted(episode_ids)
-    random_start.shuffle(episode_ids)
+    # episode_ids = list(range(len(env_task_set)))
+    # episode_ids = sorted(episode_ids)
+    # random_start.shuffle(episode_ids)
     # episode_ids = episode_ids[10:]
 
-    S = [[] for _ in range(len(episode_ids))]
-    L = [[] for _ in range(len(episode_ids))]
+    S = {episode_id: [] for episode_id in episode_ids}
+    L = {episode_id: [] for episode_id in episode_ids}
 
     test_results = {}
     # episode_ids = [episode_ids[0]]
@@ -158,6 +167,7 @@ def main(cfg: DictConfig):
             use_editor=args.use_editor,
             executable_args=executable_args,
             base_port=args.base_port,
+            convert_goal=True,
         )
 
     args_common = dict(
@@ -183,7 +193,7 @@ def main(cfg: DictConfig):
     args_agent1.update(args_common)
     args_agent1['agent_params'] = agent_args
 
-    agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
+    agents = [lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1)]
     arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
 
     # # episode_ids = [20] #episode_ids
@@ -201,11 +211,11 @@ def main(cfg: DictConfig):
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
+        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id - 1)):
             test_results = {}
         else:
             test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
+                open(args.record_dir + '/results_{}.pik'.format(iter_id - 1), 'rb')
             )
 
         logger = logging.getLogger()
@@ -225,16 +235,13 @@ def main(cfg: DictConfig):
 
         max_steps = args.max_episode_length
 
-        for env_task in env_task_set:
+        for episode_id in episode_ids:
 
             cnt = 0
             steps_list, failed_tasks = [], []
             current_tried = iter_id
 
-            gt_goal = env_task['task_goal'][0]
-            print('gt goal:', gt_goal)
-
-            episode_id = env_task['task_id']
+            # episode_id = env_task['task_id']
 
             # if episode_id != 12:
             #     continue
@@ -262,6 +269,8 @@ def main(cfg: DictConfig):
             try:
                 obs = arena.reset(episode_id)
                 arena.task_goal = None
+                gt_goal = arena.env.task_goal[0]
+                # print('gt goal:', gt_goal)
                 print(arena.env.task_goal, arena.env.agent_goals)
                 # print(
                 #     [edge for edge in obs[0]['edges'] if edge['from_id'] == 351]
@@ -296,7 +305,7 @@ def main(cfg: DictConfig):
                 )
                 print(curr_info[0]['subgoals'])
                 print(curr_info[0]['plan'])
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 prev_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -329,7 +338,7 @@ def main(cfg: DictConfig):
                 curr_graph = infos['graph']
                 print(curr_info[0]['subgoals'])
                 print(curr_info[0]['plan'])
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 if 'satisfied_goals' in infos:
                     saved_info['goals_finished'].append(infos['satisfied_goals'])
@@ -375,7 +384,7 @@ def main(cfg: DictConfig):
                             if node['id'] < 3
                         ]
                     )
-                    ipdb.set_trace()
+                    # ipdb.set_trace()
 
                     curr_graph = infos['graph']
 
@@ -430,7 +439,7 @@ def main(cfg: DictConfig):
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
                 if len(saved_info['obs']) > 0:
@@ -488,21 +497,21 @@ def main(cfg: DictConfig):
             test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
             # pdb.set_trace()
 
-        print(test_results)
+            print(test_results)
 
-        pickle.dump(
-            test_results,
-            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-        )
+            pickle.dump(
+                test_results,
+                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+            )
         print(
             'average steps (finishing the tasks):',
             np.array(steps_list).mean() if len(steps_list) > 0 else None,
         )
         print('failed_tasks:', failed_tasks)
-        # pickle.dump(
-        #     test_results,
-        #     open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-        # )
+        pickle.dump(
+            test_results,
+            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+        )
 
 
 if __name__ == "__main__":

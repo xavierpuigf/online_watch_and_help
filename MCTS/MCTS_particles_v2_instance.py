@@ -988,7 +988,9 @@ class MCTS_particles_v2_instance:
                 unsatisfied_aux[pred_name_selected] -= 1
 
                 pred_name_split = pred_name_selected.split('_')
-                verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
+                verb = {'on': 'put', 'inside': 'putIn', 'offer': 'offer'}[
+                    pred_name_split[0]
+                ]
                 subgoals_hand.append(
                     [
                         '{}_{}_{}'.format(verb, hand_busy, pred_name_split[2]),
@@ -1226,26 +1228,30 @@ class MCTS_particles_v2_instance:
                 # print(elements)
                 if elements[0] == 'offer':
                     index_offer = container_id
-                    for obj_id in objects_id_grab:
-                        tmp_predicate = f'offer_{index_offer}_{obj_id}'
-                        object_is_grabbed = (
-                            len(
-                                [
-                                    edge
-                                    for edge in state['edges']
-                                    if 'HOLD' in edge['relation_type']
-                                    and edge['from_id'] == self.agent_id
-                                    and edge['to_id'] == obj_id
-                                ]
-                            )
-                            > 0
-                        )
+                    for obj_id in obj_ids_grab:
+                        tmp_predicate = f'offer_{obj_id}_{index_offer}'
+                        # object_is_grabbed = (
+                        #     len(
+                        #         [
+                        #             edge
+                        #             for edge in state['edges']
+                        #             if 'HOLD' in edge['relation_type']
+                        #             and edge['from_id'] == self.agent_id
+                        #             and edge['to_id'] == obj_id
+                        #         ]
+                        #     )
+                        #     > 0
+                        # )
                         if (
                             tmp_predicate not in satisfied[predicate]
-                            and object_is_grabbed
+                           # and object_is_grabbed
                         ):
                             obsed_subgoal_space.append(
-                                [f'offer_{index_offer}', predicate, tmp_predicate]
+                                [
+                                    f'offer_{obj_id}_{index_offer}',
+                                    predicate,
+                                    tmp_predicate,
+                                ]
                             )
                 if elements[0] == 'on':
                     subgoal_type = 'put'

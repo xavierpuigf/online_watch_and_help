@@ -249,7 +249,7 @@ def get_helping_plan(
     res[process_id] = (subgoal, action)
 
 
-@hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
+@hydra.main(config_path="../config/", config_name="config_default_large_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
@@ -270,12 +270,13 @@ def main(cfg: DictConfig):
     args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/dataset_graph_full_150step_larger_test.pkl'
-    valid_set = pickle.load(open(valid_set_path, 'rb'))
+    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
+    f = open(valid_set_path, 'r')
     episode_ids = []
-    for filename in valid_set:
+    for filename in f:
         episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
     print(len(episode_ids))
+    f.close()
     # ipdb.set_trace()
 
     cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'

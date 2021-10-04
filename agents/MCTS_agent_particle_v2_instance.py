@@ -32,7 +32,7 @@ def find_heuristic(
     agent_id, char_index, unsatisfied, env_graph, simulator, object_target
 ):
     # find_{index}
-    
+
     target = int(object_target.split('_')[-1])
     observations = simulator.get_observations(env_graph, char_index=char_index)
     id2node = {node['id']: node for node in env_graph['nodes']}
@@ -362,16 +362,20 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
             'find_' + str(target_node2['id']),
         )
 
-    action = [
-        (
-            'putback',
-            (target_node['class_name'], target_grab),
-            (target_node2['class_name'], target_put),
-        )
-    ]
-    cost = [0.05]
-    res = grab_obj1 + find_obj2 + action
-    cost_list = cost_grab_obj1 + cost_find_obj2 + cost
+    res = grab_obj1 + find_obj2
+    cost_list = cost_grab_obj1 + cost_find_obj2
+
+    if target_put > 2:  # not character
+        action = [
+            (
+                'putback',
+                (target_node['class_name'], target_grab),
+                (target_node2['class_name'], target_put),
+            )
+        ]
+        cost = [0.05]
+        res += action
+        cost_list += cost
     # print(res, target)
     return res, cost_list, f'put_{target_grab}_{target_put}'
 
@@ -603,7 +607,7 @@ def clean_graph(state, goal_spec, last_opened):
 
 def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
     heuristic_dict = {
-        'offer': find_heuristic,
+        'offer': put_heuristic,
         'find': find_heuristic,
         'grab': grab_heuristic,
         'put': put_heuristic,
@@ -1130,18 +1134,23 @@ class MCTS_agent_particle_v2_instance:
                 #     [edge for edge in obs['edges'] if 'HOLD' in edge['relation_type']],
                 # )
 
-                print(
-                    'new_graph:',
-                    [
-                        edge
-                        for edge in new_graph['edges']
-                        if 'HOLD' in edge['relation_type']
-                    ],
-                )
+                # print(
+                #     'new_graph:',
+                #     [
+                #         edge
+                #         for edge in new_graph['edges']
+                #         if 'HOLD' in edge['relation_type']
+                #     ],
+                # )
                 init_state = clean_graph(new_graph, goal_spec, self.mcts.last_opened)
                 satisfied, unsatisfied = utils_env.check_progress2(
                     init_state, goal_spec
                 )
+                if 'offer' in list(goal_spec.keys())[0]:
+                    print('offer:')
+                    print(satisfied)
+                    print(unsatisfied)
+                    ipdb.set_trace()
                 init_vh_state = self.sim_env.get_vh_state(init_state)
                 # print(colored(unsatisfied, "yellow"))
                 self.particles[particle_id] = (
@@ -1150,14 +1159,14 @@ class MCTS_agent_particle_v2_instance:
                     satisfied,
                     unsatisfied,
                 )
-                print(
-                    'init_state:',
-                    [
-                        edge
-                        for edge in init_state['edges']
-                        if 'HOLD' in edge['relation_type']
-                    ],
-                )
+                # print(
+                #     'init_state:',
+                #     [
+                #         edge
+                #         for edge in init_state['edges']
+                #         if 'HOLD' in edge['relation_type']
+                #     ],
+                # )
 
                 self.particles_full[particle_id] = new_graph
             # print('-----')
@@ -1206,9 +1215,11 @@ class MCTS_agent_particle_v2_instance:
                 vh_state = self.particles[particle_id][0]
                 plan_states.append(vh_state.to_dict())
                 for action_item in plan:
-                    
+
                     if self.get_plan_cost:
-                        plan_cost.append(env.compute_distance(vh_state, action_item, self.agent_id))
+                        plan_cost.append(
+                            env.compute_distance(vh_state, action_item, self.agent_id)
+                        )
 
                     # if self.char_index == 1:
                     #     ipdb.set_trace()
