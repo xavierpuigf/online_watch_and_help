@@ -55,7 +55,7 @@ class MCTS_particles_v2_instance:
         """TODO: add more predicate checkers; currently only ON"""
         count = 0
         for key, value in goal_spec.items():
-            if key.startswith('off'):
+            if not key.startswith('offer') and key.startswith('off'):
                 count += value
         id2node = {node['id']: node for node in state['nodes']}
         class2id = {}
@@ -403,7 +403,7 @@ class MCTS_particles_v2_instance:
                     # if unsatisfied_aux[pred_name_selected] < 0:
                     #     ipdb.set_trace()
                     pred_name_split = pred_name_selected.split('_')
-                    verb = {'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
+                    verb = {'offer': 'offer', 'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
                     subgoals_hand.append(
                         [
                             '{}_{}_{}'.format(verb, hand_busy, pred_name_split[2]),
@@ -972,9 +972,12 @@ class MCTS_particles_v2_instance:
             for edge in curr_state['edges']
             if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
         ]
-
+        is_offering = False
         unsatisfied_aux = copy.deepcopy(unsatisfied)
         subgoals_hand = []
+        if 'offer' in list(unsatisfied_aux.keys())[0]:
+            is_offering = True
+            # ipdb.set_trace()
         for hand_busy in hands_busy:
             hand_class_name = self.id2node_env[hand_busy]['class_name']
             pred_name_selected = None
@@ -1010,6 +1013,10 @@ class MCTS_particles_v2_instance:
             self.opponent_subgoal,
         )
         subgoals += subgoals_hand
+        
+        if is_offering:
+            pass
+        # ipdb.set_trace()
 
         if len(subgoals) == 0:
             return None, []
@@ -1227,6 +1234,7 @@ class MCTS_particles_v2_instance:
                 elements = predicate.split('_')
                 # print(elements)
                 if elements[0] == 'offer':
+                    #ipdb.set_trace()
                     index_offer = container_id
                     for obj_id in obj_ids_grab:
                         tmp_predicate = f'offer_{obj_id}_{index_offer}'
@@ -1245,14 +1253,25 @@ class MCTS_particles_v2_instance:
                         if (
                             tmp_predicate not in satisfied[predicate]
                            # and object_is_grabbed
+
                         ):
-                            obsed_subgoal_space.append(
+
+                            subgoal_space.append(
                                 [
                                     f'offer_{obj_id}_{index_offer}',
                                     predicate,
                                     tmp_predicate,
                                 ]
                             )
+
+                            if obj_id in obsed_objs:
+                                obsed_subgoal_space.append(
+                                    [
+                                        f'offer_{obj_id}_{index_offer}',
+                                        predicate,
+                                        tmp_predicate,
+                                    ]
+                                )
                 if elements[0] == 'on':
                     subgoal_type = 'put'
                     obj = elements[1]
