@@ -382,7 +382,7 @@ class VhGraphEnv:
 
     def to_pomdp(self):
         self.pomdp = True
-            for i in range(self.n_chars):
+        for i in range(self.n_chars):
             if self.observable_object_ids_n[i] is None:
                 self.observable_state_n[i] = self._mask_state(self.state, i)
                 self.observable_object_ids_n[i] = [
