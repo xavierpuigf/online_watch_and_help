@@ -399,6 +399,7 @@ class MCTS_particles_v2_instance:
                             pred_name_selected = missing_pred
 
                 if pred_name_selected is not None:
+                    cont_id = goal_spec[pred_name_selected]['container_ids'][0]
                     unsatisfied_aux[pred_name_selected] -= 1
                     # if unsatisfied_aux[pred_name_selected] < 0:
                     #     ipdb.set_trace()
@@ -406,10 +407,10 @@ class MCTS_particles_v2_instance:
                     verb = {'offer': 'offer', 'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
                     subgoals_hand.append(
                         [
-                            '{}_{}_{}'.format(verb, hand_busy, pred_name_split[2]),
+                            '{}_{}_{}'.format(verb, hand_busy, cont_id),
                             pred_name_selected,
                             '{}_{}_{}'.format(
-                                pred_name_split[0], hand_busy, pred_name_split[2]
+                                pred_name_split[0], hand_busy, cont_id
                             ),
                         ]
                     )
@@ -988,18 +989,20 @@ class MCTS_particles_v2_instance:
                         pred_name_selected = missing_pred
 
             if pred_name_selected is not None:
+                cont_id = goal_spec[pred_name_selected]['container_ids'][0]
                 unsatisfied_aux[pred_name_selected] -= 1
-
+                
+                # we should avoid using pred_name_split here
                 pred_name_split = pred_name_selected.split('_')
                 verb = {'on': 'put', 'inside': 'putIn', 'offer': 'offer'}[
                     pred_name_split[0]
                 ]
                 subgoals_hand.append(
                     [
-                        '{}_{}_{}'.format(verb, hand_busy, pred_name_split[2]),
+                        '{}_{}_{}'.format(verb, hand_busy, cont_id),
                         pred_name_selected,
                         '{}_{}_{}'.format(
-                            pred_name_split[0], hand_busy, pred_name_split[2]
+                            pred_name_split[0], hand_busy, cont_id
                         ),
                     ]
                 )
@@ -1041,6 +1044,9 @@ class MCTS_particles_v2_instance:
                 goal_predicate[2],
             )  # subgoal, goal predicate, the new satisfied predicate
             heuristic = self.heuristic_dict[goal.split('_')[0]]
+            if 'offer' in goal:
+                pass
+                #ipdb.set_trace()
             try:
                 action_heuristic, _, action_heuristic_name = heuristic(
                     self.agent_id, self.char_index, unsatisfied, state, self.env, goal
@@ -1236,6 +1242,8 @@ class MCTS_particles_v2_instance:
                 if elements[0] == 'offer':
                     #ipdb.set_trace()
                     index_offer = container_id
+                    if index_offer == 394:
+                        ipdb.set_trace()
                     for obj_id in obj_ids_grab:
                         tmp_predicate = f'offer_{obj_id}_{index_offer}'
                         # object_is_grabbed = (
