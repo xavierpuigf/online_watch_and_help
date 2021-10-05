@@ -525,11 +525,10 @@ class VhGraphEnv:
 
                 try:
                     succeed, next_vh_state = self.executor_n[i].execute_one_step(
-                        script, vh_state
+                            script, vh_state, in_place=True
                     )
                 except:
                     ipdb.set_trace()
-
                 next_vh_state = init_from_state(
                     next_vh_state, touched_objs, vh_state.offer_obj
                 )

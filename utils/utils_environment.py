@@ -366,7 +366,7 @@ def check_progress2(state, goal_spec):
         count = value['count'] if elements[0] not in ['offOn', 'offInside'] else 0
         grabbed_objs = []
         for edge in state['edges']:
-            if elements[0] in 'close':
+            if elements[0] == 'close':
                 if (
                     edge['relation_type'].lower().startswith('close')
                     and edge['to_id'] in objects_int

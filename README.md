@@ -77,5 +77,7 @@ python analysis/helping_action_freq.py agent_pred_graph.ckpt_load=$ckpt_excl"/49
 
 
 python analysis/helping_gt_goal.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True 
+
+python analysis/helping_states.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True  num_processes=0 num_samples=1
 ```
 

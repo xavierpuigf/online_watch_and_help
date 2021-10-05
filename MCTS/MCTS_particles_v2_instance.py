@@ -273,9 +273,17 @@ class MCTS_particles_v2_instance:
             # if leaf_node.id[1][-1] ==  '[open] <fridge> (306)':
             #     verbose_roll = True
 
+            # print("ROLLOUT", leaf_node.id)
+            # dicti = curr_state[0].to_dict()
+            # print([node['states'] for node in dicti['nodes'] if node['id'] == 133][0])
+            # print('----')
             value, reward_rollout, actions_rollout = self.rollout(
                 leaf_node, tmp_t + it, curr_state, last_reward, verbose=verbose_roll
             )
+
+            dicti = curr_state[0].to_dict()
+            # print([node['states'] for node in dicti['nodes'] if node['id'] == 133][0])
+            # print("========")
 
             # if node_path[-1].id[1][-1] == '[walk] <fridge> (103)' and len(node_path) > 1 and  node_path[-2].id[1][-1] == '[grab] <cupcake> (368)':
             #     print(colored("AQUI", "cyan"))
@@ -363,9 +371,12 @@ class MCTS_particles_v2_instance:
         curr_vh_state, curr_state, satisfied, unsatisfied = state_particle
         last_reward = lrw
         curr_vh_state = copy.deepcopy(curr_vh_state)
+        # curr_state = copy.deepcopy(curr_state)
 
         # TODO: we should start with goals at random, or with all the goals
         # Probably not needed here since we already computed whern expanding node
+        # dicti = curr_vh_state.to_dict()
+
 
         rewards = []
         actions_l = []
@@ -480,6 +491,7 @@ class MCTS_particles_v2_instance:
                 self.env,
                 goal_selected,
             )
+            # print(actions)
             # if '336' in goal_selected:
             #     ipdb.set
             if verbose:
@@ -496,6 +508,7 @@ class MCTS_particles_v2_instance:
                         actions = None
                         break
 
+            step_state = curr_state
             if actions is None or len(actions) == 0:
                 delta_reward = 0
                 action = None
@@ -505,7 +518,10 @@ class MCTS_particles_v2_instance:
                 # Check the transitions:
                 total_cost = 0
                 total_reward = 0
+                step_vh_state = curr_vh_state
                 for action in actions:
+
+
                     action_str = self.get_action_str(action)
                     (
                         success,
@@ -514,8 +530,14 @@ class MCTS_particles_v2_instance:
                         cost,
                         curr_reward,
                     ) = self.transition(
-                        curr_vh_state, {self.char_index: action_str}, goal_spec
+                        step_vh_state, {self.char_index: action_str}, goal_spec
                     )
+
+
+                    # print("roll_step")
+                    # dicti = next_vh_state.to_dict()
+                    # print([node['states'] for node in dicti['nodes'] if node['id'] == 133])
+
                     if not success:
                         print(f"Failure in transition when executing {action_str}")
                         ipdb.set_trace()
@@ -765,15 +787,20 @@ class MCTS_particles_v2_instance:
             total_cost = 0
             total_reward = 0
             for action_str in actions:
-
+                # print("Child ", action_str)
+                # dicti = next_vh_state.to_dict()
+                # print([node['states'] for node in dicti['nodes'] if node['id'] == 328])
                 success, next_vh_state, next_state_dict, cost, reward = self.transition(
                     next_vh_state, {self.char_index: action_str}, goal_spec
                 )
                 total_cost += cost
                 total_reward += reward
 
-                # if '[walk] <character> (2)' in action_str:
-                #     ipdb.set_trace()
+
+                # dicti = next_vh_state.to_dict()
+                # # print([node['states'] for node in dicti['nodes'] if node['id'] == 328])
+                # # print([node['states'] for node in next_state_dict['nodes'] if node['id'] == 328])
+                # # print('*******')
 
                 if not success:
                     print("Failure", actions)
