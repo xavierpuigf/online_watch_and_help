@@ -141,44 +141,30 @@ def inference(
             gt_edges = edge_dict['gt_edges']
             edge_interest = edge_dict['edge_interest']
 
-            gt_states = graph_info['states_objects']
-            if args.model.predict_last:
-
-                nt = gt_edges.shape[1]
-                numnode = gt_edges.shape[-1]
-                tsteps = (
-                    len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
-                )
-                gt_edge = (
-                    torch.gather(gt_edges.cuda(), 1, tsteps.cuda()).repeat(1, nt - 1, 1).cuda()
-                )
-                gt_state = goal_graph['states_objects'][:, 1:, :, :]
-            else:
-                gt_edge = gt_edges[:, 1:, ...].cuda()
-                gt_state = gt_states[:, 1:, ...].cuda()
+            gt_state = goal_graph['states_objects'][:, 1:, ...]
+            gt_edge = get_gt_edge(args, goal_graph, edge_dict, len_mask)
+            
 
             with torch.no_grad():
                 output = model(inputs)
 
             pred_edge = output['edges'][:, :-1, ...]
+            b, t, num_nodes, _ = output['states'].shape
+
             if args.model.exclusive_edge:
-                b, t, n, _ = output['states'].shape
-                pred_edge = pred_edge.reshape([b, t-1, n, n])
+                pred_edge = pred_edge.reshape([b, t-1, num_nodes, num_nodes])
 
             pred_state = output['states'][:, :-1, ...]
             mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
             mask_length = len_mask[:, 1:].cuda()
 
-            loss_state = criterion_state(
-                output['states'][:, :-1, ...],
-                graph_info['states_objects'][:, 1:, ...].cuda(),
-            )
-            loss_state = loss_state * graph_info['mask_object'][:, 1:, :, None].cuda()
+            loss_state = criterion_state(pred_state, gt_state)
+
+            loss_state = loss_state * mask_state
             loss_state = loss_state.mean()
 
             # loss edges edges in prediction are stored as a B x Time x N x N x num_edge_class tensor
             # GT is stored as B x Time x Num_edges, we need to convert
-            num_nodes = output['states'].shape[-2]
 
 
             mask_obs_node = graph_info['mask_obs_node']
@@ -260,15 +246,23 @@ def inference(
 
             loss_edges = loss_edges.mean()
 
-            if 'VAE' in args.model.time_aggregate:
-                loss_kl = compute_kl_loss(output, len_mask)
-                metric_dict['kldiv'].update(loss_kl.item())
-                loss += loss_kl
+
 
             loss += loss_edges + loss_state
-            metric_dict['losses'].update(loss.item())
-            metric_dict['losses_state'].update(loss_state.item())
-            metric_dict['losses_edge'].update(loss_edges.item())
+            losses_dict = {
+                'losses': loss.item(),
+                'losses_state': loss_state.item(),
+                'losses_edge': loss_edges.item()
+            }
+
+            if 'VAE' in args.model.time_aggregate:
+                loss_kl = compute_kl_loss(output, len_mask)
+                losses_dict['kldiv'] = loss_kl.item()
+                loss += loss_kl
+
+
+            update_metrics(metric_dict, args, losses_dict, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
+                           mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
 
 
             label_action = program['action']
@@ -375,9 +369,7 @@ def inference(
 
                 # ipdb.set_trace()
             # Update accuracy
-            update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
-                           mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
-
+            
             progress.display(it)
             # ipdb.set_trace()
             # ipdb.set_trace()
@@ -410,6 +402,22 @@ def get_metrics(args):
     if 'VAE' in args.model.time_aggregate:
         metric_dict['kldiv'] = AverageMeter('KLDIV', ':6.3f')
     return metric_dict
+
+
+def get_gt_edge(args, goal_graph, edge_dict, len_mask):
+    gt_edges = edge_dict['gt_edges']
+    if args.model.predict_last:
+        nt = gt_edges.shape[1]
+        numnode = gt_edges.shape[-1]
+        tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
+        gt_edge = (
+            torch.gather(gt_edges, 1, tsteps).repeat(1, nt - 1, 1).cuda()
+        )
+
+
+    else:
+        gt_edge = gt_edges[:, 1:, ...].cuda()
+    return gt_edge
 
 def evaluate(
     data_loader,
@@ -459,36 +467,17 @@ def evaluate(
             inputs['goal_graph'] = goal_graph
 
             edge_dict = utils_models.build_gt_edge(graph_info, data_loader.dataset.graph_helper,  exclusive_edge=args.model.exclusive_edge)
-            gt_edges = edge_dict['gt_edges']
-            edge_interest = edge_dict['edge_interest']
-
-            gt_states = graph_info['states_objects']
-            if args.model.predict_last:
-
-                nt = gt_edges.shape[1]
-                numnode = gt_edges.shape[-1]
-                tsteps = (
-                    len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
-                )
-                gt_edge = (
-                    torch.gather(gt_edges, 1, tsteps).repeat(1, nt - 1, 1).cuda()
-                )
-
-                gt_state = goal_graph['states_objects'][:, 1:, :, :]
-
-            else:
-                gt_edge = gt_edges[:, 1:, ...].cuda()
-                gt_state = gt_states[:, 1:, ...].cuda()
-
+            gt_state = goal_graph['states_objects'][:, 1:, ...]
+            gt_edge = get_gt_state_edge(args, goal_graph, edge_dict, len_mask)
+            
             with torch.no_grad():
                 output = model(inputs)
 
 
             pred_edge = output['edges'][:, :-1, ...]
-
+            b, t, num_nodes, _ = output['states'].shape
             if args.model.exclusive_edge:
-                b, t, n, _ = output['states'].shape
-                pred_edge = pred_edge.reshape([b, t-1, n, n])
+                pred_edge = pred_edge.reshape([b, t-1, num_nodes, num_nodes])
 
 
 
@@ -497,15 +486,14 @@ def evaluate(
             mask_length = len_mask[:, 1:].cuda()
 
             loss_state = criterion_state(
-                output['states'][:, :-1, ...],
-                graph_info['states_objects'][:, 1:, ...].cuda(),
+                pred_state,
+                gt_state,
             )
             loss_state = loss_state * graph_info['mask_object'][:, 1:, :, None].cuda()
             loss_state = loss_state.mean()
 
             # loss edges edges in prediction are stored as a B x Time x N x N x num_edge_class tensor
             # GT is stored as B x Time x Num_edges, we need to convert
-            num_nodes = output['states'].shape[-2]
 
             mask_obs_node = graph_info['mask_obs_node']
 
@@ -554,84 +542,57 @@ def evaluate(
                 loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
                 loss_edges = loss_edges * changed_edges
 
-            elif args.model.predict_node_change:
+            elif args.model.predict_node_change and args.model.exclusive_edge::
                 
                 # A node is if the from_edge is changed
                 # An edge is changed if any of the nodes is changed
                 
-                if args['model']['exclusive_edge']:
-                    # ipdb.set_trace()
-                    changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
-                    changed_edges_pre *= mask_obs_node[:, 1:, ...].long().cuda()
-                    pred_changes = output['node_change'][:, :-1, ...]
-                    
-                    # Only care about the from edges
-                    changed_nodes = changed_edges_pre
+                # ipdb.set_trace()
+                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
+                changed_edges_pre *= mask_obs_node[:, 1:, ...].long().cuda()
+                pred_changes = output['node_change'][:, :-1, ...]
+                
+                # Only care about the from edges
+                changed_nodes = changed_edges_pre
 
-                    loss_change = criterion_change(
-                        pred_changes.permute(0, 3, 1, 2), changed_nodes
-                    )
-                    loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
-                    loss_change = loss_change.mean()
-                    metric_dict['losses_change'].update(loss_change.item())
-                    loss += loss_change
+                loss_change = criterion_change(
+                    pred_changes.permute(0, 3, 1, 2), changed_nodes
+                )
+                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
+                loss_change = loss_change.mean()
+                metric_dict['losses_change'].update(loss_change.item())
+                loss += loss_change
 
-                    pred_changes_list = [
-                        (pred_changes[...].argmax(-1)).cpu().long(),
-                        gt_edges[:, :-1, :].cpu(),
-                    ]
-                    edge_changes_list = [changed_nodes.cpu(), gt_edges[:, :-1, :].cpu()]
+                pred_changes_list = [
+                    (pred_changes[...].argmax(-1)).cpu().long(),
+                    gt_edges[:, :-1, :].cpu(),
+                ]
+                edge_changes_list = [changed_nodes.cpu(), gt_edges[:, :-1, :].cpu()]
 
-                    loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-                    loss_edges = loss_edges * changed_nodes
+                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
+                loss_edges = loss_edges * changed_nodes
 
-                else:
-
-                    changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
-                    changed_edges_pre *= mask_edges.long()
-
-                    B, T, N = output['states'].shape[:3]
-                    changed_edges_from_to = changed_edges_pre.reshape([B, T-1, N, N])
-                    changed_nodes = (changed_edges_from_to.sum(-1)  > 0).long()
-                    changed_edges = changed_nodes.repeat_interleave(N, dim=2)
-
-
-
-                    pred_changes = output['node_change'][:, :-1, ...]  
-                    loss_change = criterion_change(
-                        pred_changes.permute(0, 3, 1, 2), changed_nodes
-                    )
-                    loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
-                    loss_change = loss_change.mean()
-                    
-                    metric_dict['losses_change'].update(loss_change.item())
-
-                    # Only loss for changed edges
-                    loss += loss_change
-
-                    pred_changes_list = [
-                        (pred_changes[...].argmax(-1)).cpu().long(),
-                        gt_edges[:, :-1, :].cpu(),
-                    ]
-                    edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
-                    
-                    loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-                    loss_edges = loss_edges * changed_edges
             else:
                 loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
                 loss_edges = loss_edges * mask_edges   
             
 
+
+            losses_dict = {
+                'losses': loss.item(),
+                'losses_state': loss_state.item(),
+                'losses_edge': loss_edges.item()
+            }
             if 'VAE' in args.model.time_aggregate:
                 loss_kl = compute_kl_loss(output, len_mask)
-                metric_dict['kldiv'].update(loss_kl.item())
+                losses_dict['kldiv'] = loss_kl.item()
                 loss += loss_kl
 
-            loss_edges = loss_edges.mean()
-            loss += loss_edges + loss_state
-            metric_dict['losses'].update(loss.item())
-            metric_dict['losses_state'].update(loss_state.item())
-            metric_dict['losses_edge'].update(loss_edges.item())
+
+            # Update accuracy
+            update_metrics(metric_dict, args, losses_dict, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
+                           mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
+
 
             for index in range(1):
                 current_index = ind[index]
@@ -667,9 +628,7 @@ def evaluate(
                     print("************************")
                     # ipdb.set_trace()
 
-            # Update accuracy
-            update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
-                           mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
+            
             
 
             # ipdb.set_trace()
@@ -709,7 +668,7 @@ def evaluate(
         'misc': {'epoch': epoch},
     }
     if 'VAE' in args.model.time_aggregate:
-        info_log['losses']['kldiv'] = metric_dict['kldiv'].avg
+        info_log['losses']['kldiv_val'] = metric_dict['kldiv'].avg
     if args.model.predict_edge_change:
         info_log['losses']['loss_change_val'] = metric_dict['losses_change'].avg
         info_log['accuracy']['edge_prec_change_val'] = metric_dict['prec_change'].avg
@@ -723,8 +682,11 @@ def evaluate(
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
 
-def update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
+def update_metrics(metric_dict, args, losses_dict, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
                 mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, id_nothing):
+    
+    for loss_name, loss_val in losses_dict.items():
+        metric_dict[loss_name].update(loss.item())
 
     if args.model.predict_edge_change or args.model.predict_node_change:
         # ipdb.set_trace()
@@ -870,28 +832,16 @@ def train_epoch(
         gt_edges = edge_dict['gt_edges']
         edge_interest = edge_dict['edge_interest']
 
-        if args.model.predict_last:
-
-            nt = gt_edges.shape[1]
-            numnode = gt_edges.shape[-1]
-            tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, numnode).long() - 1
-            gt_edge = (
-                torch.gather(gt_edges, 1, tsteps).repeat(1, nt - 1, 1).cuda()
-            )
-            
-            gt_state = goal_graph['states_objects'][:, 1:, ...].cuda()
-
-        else:
-            gt_edge = gt_edges[:, 1:, ...].cuda()
-            gt_state = graph_info['states_objects'][:, 1:, ...].cuda()
+        gt_state = goal_graph['states_objects'][:, 1:, ...]
+        gt_edge = get_gt_state_edge(args, goal_graph, edge_dict, len_mask)
 
         output = model(inputs)
         
         pred_edge = output['edges'][:, :-1, ...]
-
+        b, t, num_nodes, _ = output['states'].shape
+            
         if args.model.exclusive_edge:
-            b, t, n, _ = output['states'].shape
-            pred_edge = pred_edge.reshape([b, t-1, n, n])
+            pred_edge = pred_edge.reshape([b, t-1, num_nodes, num_nodes])
 
         pred_state = output['states'][:, :-1, ...]
         mask_state = graph_info['mask_object'][:, 1:, :, None].cuda()
@@ -952,93 +902,54 @@ def train_epoch(
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
             loss_edges = loss_edges * changed_edges
 
-        elif args.model.predict_node_change:
+        elif args.model.predict_node_change and args.model.exclusive_edge:
                 
             # A node is if the from_edge is changed
             # An edge is changed if any of the nodes is changed
 
-            if args['model']['exclusive_edge']:
-                # ipdb.set_trace()
-                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
-                changed_edges_pre *= mask_obs_node[:, 1:, ...].long().cuda()
-                pred_changes = output['node_change'][:, :-1, ...]
-                
-                # Only care about the from edges
-                changed_nodes = changed_edges_pre
+            # ipdb.set_trace()
+            changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
+            changed_edges_pre *= mask_obs_node[:, 1:, ...].long().cuda()
+            pred_changes = output['node_change'][:, :-1, ...]
+            
+            # Only care about the from edges
+            changed_nodes = changed_edges_pre
 
-                loss_change = criterion_change(
-                    pred_changes.permute(0, 3, 1, 2), changed_nodes
-                )
-                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
-                loss_change = loss_change.mean()
-                metric_dict['losses_change'].update(loss_change.item())
-                loss += loss_change
+            loss_change = criterion_change(
+                pred_changes.permute(0, 3, 1, 2), changed_nodes
+            )
+            loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
+            loss_change = loss_change.mean()
+            metric_dict['losses_change'].update(loss_change.item())
+            loss += loss_change
 
-                pred_changes_list = [
-                    (pred_changes[...].argmax(-1)).cpu().long(),
-                    gt_edges[:, :-1, :].cpu(),
-                ]
-                edge_changes_list = [changed_nodes.cpu(), gt_edges[:, :-1, :].cpu()]
+            pred_changes_list = [
+                (pred_changes[...].argmax(-1)).cpu().long(),
+                gt_edges[:, :-1, :].cpu(),
+            ]
+            edge_changes_list = [changed_nodes.cpu(), gt_edges[:, :-1, :].cpu()]
 
-                # ipdb.set_trace()
-                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-                loss_edges = loss_edges * changed_nodes
-
-            else:
-                changed_edges_pre = (gt_edge != gt_edges[:, :-1, :].cuda()).long().cuda()
-                changed_edges_pre *= mask_edges.long()
-
-                B, T, N = output['states'].shape[:3]
-                changed_edges_from_to = changed_edges_pre.reshape([B, T-1, N, N])
-                changed_nodes = (changed_edges_from_to.sum(-1)  > 0).long()
-                # changed_edges = changed_nodes.repeat(1, 1, N)
-                changed_edges = changed_nodes.repeat_interleave(N, dim=2)
-
-                # ipdb.set_trace()
-
-                pred_changes = output['node_change'][:, :-1, ...]
-                # ipdb.set_trace()
-                loss_change = criterion_change(
-                    pred_changes.permute(0, 3, 1, 2), changed_nodes
-                )
-                loss_change = loss_change * mask_obs_node[:, 1:, :].cuda()
-                loss_change = loss_change.mean()
-                
-                metric_dict['losses_change'].update(loss_change.item())
-
-                # Only loss for changed edges
-                # ipdb.set_trace()
-                loss += loss_change
-
-                pred_changes_list = [
-                    (pred_changes[...].argmax(-1)).cpu().long(),
-                    gt_edges[:, :-1, :].cpu(),
-                ]
-                edge_changes_list = [changed_edges.cpu(), gt_edges[:, :-1, :].cpu()]
-                # ipdb.set_trace()
-
-                loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-                loss_edges = loss_edges * changed_edges
-        else:        
+            # ipdb.set_trace()
             loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
-            loss_edges = loss_edges * mask_edges
+            loss_edges = loss_edges * changed_nodes
+
+
         
 
         loss_edges = loss_edges.mean()
         
+        losses_dict = {
+            'losses': loss.item(),
+            'losses_state': loss_state.item(),
+            'losses_edge': loss_edges.item()
+        }
         if 'VAE' in args.model.time_aggregate:
             loss_kl = compute_kl_loss(output, len_mask)
-            metric_dict['kldiv'].update(loss_kl.item())
+            losses_dict['kldiv'] = loss_kl.item()
             loss += loss_kl
 
-        loss += loss_edges + loss_state
-
-        metric_dict['losses'].update(loss.item())
-        metric_dict['losses_state'].update(loss_state.item())
-        metric_dict['losses_edge'].update(loss_edges.item())
-
         
-        update_metrics(metric_dict, args, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
+        update_metrics(metric_dict, args, losses_dict, gt_state, gt_edge, pred_state, pred_edge, mask_state, mask_length, 
                            mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
         optimizer.zero_grad()
         loss.backward()
@@ -1071,13 +982,9 @@ def train_epoch(
 
 
             if 'VAE' in args.model.time_aggregate:
-                info_log['losses']['kldiv'] = metric_dict['kldiv'].avg
+                info_log['losses']['kldiv'] = metric_dict['kldiv'].val
 
-            if args.model.predict_edge_change:
-                info_log['losses']['loss_change'] = metric_dict['losses_change'].val
-
-            if args.model.predict_node_change:
-                info_log['losses']['loss_change_node'] = metric_dict['losses_change'].val
+     
             
 
             if args.model.predict_edge_change:
