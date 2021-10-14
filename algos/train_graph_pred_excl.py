@@ -96,7 +96,7 @@ def inference(
     model.eval()
 
 
-    metric_dict = get_metrics()
+    metric_dict = get_metrics(args)
 
     progress = ProgressMeter(
         len(data_loader),
@@ -260,6 +260,11 @@ def inference(
 
             loss_edges = loss_edges.mean()
 
+            if 'VAE' in args.model.time_aggregate:
+                loss_kl = compute_kl_loss(output, len_mask)
+                metric_dict['kldiv'].update(loss_kl.item())
+                loss += loss_kl
+
             loss += loss_edges + loss_state
             metric_dict['losses'].update(loss.item())
             metric_dict['losses_state'].update(loss_state.item())
@@ -384,7 +389,7 @@ def inference(
 
         progress.display(it)
 
-def get_metrics():
+def get_metrics(args):
     metric_dict = {}    
     metric_dict['batch_time'] = AverageMeter('Time', ':6.3f')
     metric_dict['batch_time'] = AverageMeter('Time', ':6.3f')
@@ -401,6 +406,9 @@ def get_metrics():
     metric_dict['accuracy_edge_pos'] = AverageMeter('Accuracy Edge Pos', ':6.2f')
     metric_dict['accuracy_edge_interest'] = AverageMeter('Accuracy Edge Interest', ':6.2f')
     metric_dict['accuracy_edge_interest_pos'] = AverageMeter('Accuracy Edge Interest Pos', ':6.2f')
+
+    if 'VAE' in args.model.time_aggregate:
+        metric_dict['kldiv'] = AverageMeter('KLDIV', ':6.3f')
     return metric_dict
 
 def evaluate(
@@ -417,7 +425,7 @@ def evaluate(
     model.eval()
 
 
-    metric_dict = get_metrics()
+    metric_dict = get_metrics(args)
     progress = ProgressMeter(
         len(data_loader),
         list(metric_dict.values()),
@@ -613,6 +621,12 @@ def evaluate(
                 loss_edges = criterion_edge(pred_edge.permute(0, 3, 1, 2), gt_edge)
                 loss_edges = loss_edges * mask_edges   
             
+
+            if 'VAE' in args.model.time_aggregate:
+                loss_kl = compute_kl_loss(output, len_mask)
+                metric_dict['kldiv'].update(loss_kl.item())
+                loss += loss_kl
+
             loss_edges = loss_edges.mean()
             loss += loss_edges + loss_state
             metric_dict['losses'].update(loss.item())
@@ -694,6 +708,8 @@ def evaluate(
         },
         'misc': {'epoch': epoch},
     }
+    if 'VAE' in args.model.time_aggregate:
+        info_log['losses']['kldiv'] = metric_dict['kldiv'].avg
     if args.model.predict_edge_change:
         info_log['losses']['loss_change_val'] = metric_dict['losses_change'].avg
         info_log['accuracy']['edge_prec_change_val'] = metric_dict['prec_change'].avg
@@ -777,7 +793,7 @@ def train_epoch(
 ):
     print(colored(f"Training epoch {epoch}", "yellow"))
 
-    metric_dict = get_metrics()
+    metric_dict = get_metrics(args)
 
     progress = ProgressMeter(
         len(data_loader),
@@ -1009,7 +1025,12 @@ def train_epoch(
         
 
         loss_edges = loss_edges.mean()
-        # ipdb.set_trace()
+        
+        if 'VAE' in args.model.time_aggregate:
+            loss_kl = compute_kl_loss(output, len_mask)
+            metric_dict['kldiv'].update(loss_kl.item())
+            loss += loss_kl
+
         loss += loss_edges + loss_state
 
         metric_dict['losses'].update(loss.item())
@@ -1048,6 +1069,10 @@ def train_epoch(
                 'misc': {'epoch': epoch},
             }
 
+
+            if 'VAE' in args.model.time_aggregate:
+                info_log['losses']['kldiv'] = metric_dict['kldiv'].avg
+
             if args.model.predict_edge_change:
                 info_log['losses']['loss_change'] = metric_dict['losses_change'].val
 
@@ -1072,6 +1097,19 @@ def train_epoch(
 
     # logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
     print("Failed Elements...", data_loader.dataset.get_failures())
+
+def compute_kl_loss(net_outputs, mask_len):
+
+    # https://stats.stackexchange.com/questions/60680/kl-divergence-between-two-multivariate-gaussians
+    mu_prior, logvar_prior, mu_posterior, logvar_posterior = net_outputs['vae_params']
+    var_prior = logvar_prior.exp()
+    var_posterior = logvar_posterior.exp()
+    kl_per_dim = logvar_prior - logvar_posterior - 1 + var_posterior/var_prior + (mu_prior - mu_posterior)**2 / var_prior
+    mask_norm = mask_len / mask_len.sum(-1)[:, None]
+    res = torch.sum(kl_per_dim, -1) * mask_norm.cuda()
+    kldiv = 0.5 * res.sum(1).mean(0)
+    # ipdb.set_trace()
+    return kldiv
 
 
 def compute_metrics_change(
@@ -1296,10 +1334,13 @@ def main(cfg: DictConfig):
 
     train_loader, test_loader = get_loaders(config)
     if config.model.input_goal:
+
         model = agent_pref_policy.GoalConditionedGraphPredNetwork(config)
     else:
-        model = agent_pref_policy.GraphPredNetwork(config)
-
+        if 'VAE' not in config.model.time_aggregate:
+            model = agent_pref_policy.GraphPredNetwork(config)
+        else:
+            model = agent_pref_policy.GraphPredNetworkVAE(config)
     print("CUDA: {}".format(cfg.cuda))
     if cfg.cuda:
         model = model.cuda()

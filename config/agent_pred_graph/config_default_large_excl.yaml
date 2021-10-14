@@ -29,10 +29,10 @@ test:
 model:
         
         condense_walking: True
-        exclusive_edge: False # Whether to predict edges or container relations
+        exclusive_edge: True # Whether to predict edges or container relations
         predict_last: True
         predict_edge_change: False
-        predict_node_change: False
+        predict_node_change: True
         input_goal: True
         reduced_graph: False
         global_repr: 'pool'
@@ -50,5 +50,6 @@ model:
         agent_embed: False
         num_agents: 100
         relative_coords: False
-        time_aggregate: 'LSTM' #
+        time_aggregate: 'LSTM' # LSTM, none, firstcurr, fcVAE, seqVAE
+        cond_prior: True
         state_encoder: 'TF' # GNN

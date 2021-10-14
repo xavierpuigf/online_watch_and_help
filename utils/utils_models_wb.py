@@ -1183,7 +1183,8 @@ class LoggerSteps:
         )
         if args['model']['gated']:
             experiment_name += '_gated'
-
+        if 'VAE' in args['model']['time_aggregate']:
+            experiment_name += '_condprior.{}'.format(args['model']['cond_prior'])
         if 'exp_name' in self.args and self.args.exp_name != '':
             experiment_name += '_{}'.format(args['exp_name'])
         if 'debug' in args:
