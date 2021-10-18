@@ -60,6 +60,11 @@ CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred_excl.py inference=True in
 CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl.py inference=True inference_sample=True \
 model.predict_node_change=True logging=False model.exclusive_edge=True train.num_workers=0 ckpt_load=$ckpt_excl"/290.pt"
 
+
+CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl_old.py inference=True inference_sample=True \
+model.predict_node_change=True logging=False model.exclusive_edge=True train.num_workers=0 ckpt_load=$ckpt_excl"/290.pt"
+
+
 ## Other tests
 
 CUDA_VISIBLE_DEVICES=0 python tests/test_solo_loader.py model.predict_node_change=True  model.exclusive_edge=True ckpt_load=$ckpt_excl"/490.pt"

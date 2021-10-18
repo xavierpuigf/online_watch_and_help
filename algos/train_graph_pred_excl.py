@@ -6,6 +6,7 @@ import yaml
 import pickle as pkl
 from tqdm import tqdm
 import ipdb
+import numpy as np
 from dataloader.dataloader_v2 import AgentTypeDataset
 from dataloader import dataloader_v2 as dataloader_v2
 from arguments import *
@@ -304,6 +305,11 @@ def inference(
                 predicted_state.append(cpred_state)
                 predicted_change.append(cpred_change)
 
+
+            pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
+            pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
+            update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
+
             input_edges = misc['input_edges'].cpu().numpy()
             gt_state = gt['gt_state']
             gt_change = gt['gt_change']
@@ -368,7 +374,7 @@ def inference(
 
                 for t in [0, tsteps//2, tsteps-1]:
                     print("\nInput at {}".format(t))
-                    ipdb.set_trace()
+                    # ipdb.set_trace()
                     utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
@@ -397,7 +403,7 @@ def inference(
                     )
                 print("************************")
                 
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
                 expath = logger.results_path
@@ -465,6 +471,9 @@ def get_metrics(args):
     metric_dict['accuracy_edge_pos'] = AverageMeter('Accuracy Edge Pos', ':6.2f')
     metric_dict['accuracy_edge_interest'] = AverageMeter('Accuracy Edge Interest', ':6.2f')
     metric_dict['accuracy_edge_interest_pos'] = AverageMeter('Accuracy Edge Interest Pos', ':6.2f')
+    metric_dict['precision_edge_sample'] = AverageMeter('Precision Edge Sample', ':6.2f')
+    metric_dict['recall_edge_sample'] = AverageMeter('Recall Edge Sample', ':6.2f')
+    metric_dict['f1_edge_sample'] = AverageMeter('F1 Edge Sample', ':6.2f')
 
     if 'VAE' in args.model.time_aggregate:
         metric_dict['kldiv'] = AverageMeter('KLDIV', ':6.3f')
@@ -529,6 +538,40 @@ def evaluate(
             # Update accuracy
             
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
+
+            num_samples = args.samples_per_graph
+
+            # Sample here:
+            predicted_edge, predicted_state, predicted_change = [], [], []
+
+            if not 'VAE' in args.model.time_aggregate:
+                pred_change = (nn.functional.softmax(predictions['pred_change'], dim=3)).cpu().numpy()
+                pred_edge = (nn.functional.softmax(predictions['pred_edge'], dim=-1)).cpu().numpy()
+                
+                pred_state = torch.sigmoid(predictions['pred_state'][..., None]).cpu()
+                pred_state = torch.cat([1-pred_state, pred_state], -1).cpu().numpy()
+
+            for sample_num in range(num_samples):
+                if 'VAE' in args.model.time_aggregate:
+                    cpred_change = output2['node_change'][:, :-1, ...].argmax(-1)
+                    cpred_state = output2['states'][:, :-1, ...].argmax(-1)
+                    cpred_edge = output2['edges'][:, :-1, ...].argmax(-1)
+                else:
+                    if sample_num == 0:
+                        cpred_change = pred_change.argmax(-1)
+                        cpred_edge = pred_edge.argmax(-1)
+                        cpred_state = pred_state.argmax(-1)
+                    else:
+                        cpred_change = utils_models.vectorized(pred_change)
+                        cpred_edge = utils_models.vectorized(pred_edge)
+                        cpred_state = utils_models.vectorized(pred_state)
+                predicted_edge.append(cpred_edge)
+                predicted_state.append(cpred_state)
+                predicted_change.append(cpred_change)
+
+            pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
+            pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
+            update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
             input_edges = misc['input_edges']
             gt_state = gt['gt_state']
@@ -604,7 +647,9 @@ def evaluate(
             'edge_accuracy_val': metric_dict['accuracy_edge'].avg,
             'edge_accuracy_pos_val': metric_dict['accuracy_edge_pos'].avg,
             'edge_accuracy_interest_val': metric_dict['accuracy_edge_interest'].avg,
-            'edge_accuracy_interest_pos_val': metric_dict['accuracy_edge_interest_pos'].avg
+            'edge_accuracy_interest_pos_val': metric_dict['accuracy_edge_interest_pos'].avg,
+            'recall_edge_sample_val': metric_dict['recall_edge_sample'].avg,
+            'precision_edge_sample_val': metric_dict['precision_edge_sample'].avg
         },
         'misc': {'epoch': epoch},
     }
@@ -621,6 +666,52 @@ def evaluate(
         info_log['accuracy']['node_recall_change_val'] = metric_dict['recall_change'].avg
 
     logger.log_data(len(data_loader_train) * epoch, info_log)
+
+def update_metrics_recall_prec(metric_dict, args, gt, predicted_edge, changed_edge, misc):
+    gt_edge = gt['gt_edge'].cpu().numpy()
+    input_edge = misc['input_edges'].cpu().numpy()
+    constructed_edge = changed_edge * predicted_edge + (1-changed_edge) * input_edge[None, :]
+
+    samples, b, t, n = constructed_edge.shape
+    pred_one_hot = np.zeros((samples, b, t, n, n)).astype(np.uint8)
+    np.put_along_axis(pred_one_hot, constructed_edge[..., None], 1, 4)
+    pred_max = pred_one_hot.max(0)
+    
+    # Remove edges connected to None from the prediction
+    index_nothing = misc['id_nothing'][:, None, None, None].repeat(1, t, n, n).cpu().numpy()
+    np.put_along_axis(pred_max, index_nothing, 0, 3)
+    mask_nodes = misc['mask_nodes'].cpu().numpy()[..., 0]
+    
+    # Remove edges connected to nothing
+    gt_max = np.zeros((b, t, n, n))
+    np.put_along_axis(gt_max, gt_edge[..., None], 1, 3)
+    np.put_along_axis(gt_max, index_nothing, 0, 3)
+    mask_idnothing = gt_max.sum(-1)
+
+    true_positives = np.take_along_axis(pred_max, gt_edge[..., None], 3)[..., 0]
+    
+    true_positives = (true_positives * mask_nodes).sum(-1)
+    pred_positives = (pred_max.sum(-1) * mask_nodes).sum(-1)
+    gt_positives = (mask_nodes * mask_idnothing).sum(-1)
+
+    # ipdb.set_trace()
+    recall = true_positives / (gt_positives + 1e-9)
+    prec = true_positives / (pred_positives + 1e-9)
+    f1 = recall * prec
+
+    # ipdb.set_trace()
+    mask_length = misc['mask_length'].cpu().numpy()
+    mask_length = mask_length / mask_length.sum(-1)[:, None]
+
+    # Average over time steps
+    recall = (recall * mask_length).sum(-1).mean(0)
+    prec = (prec * mask_length).sum(-1).mean(0)
+    f1 = (f1 * mask_length).sum(-1).mean(0)
+
+    # ipdb.set_trace()
+    metric_dict['recall_edge_sample'].update(recall)
+    metric_dict['precision_edge_sample'].update(prec)
+    metric_dict['f1_edge_sample'].update(f1)
 
 
 def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
@@ -750,7 +841,10 @@ def train_epoch(
 
 
         update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
-        
+        pred_edge_c = predictions['pred_edge'].argmax(-1)[None, :]
+        pred_change_c = predictions['pred_change'].argmax(-1)[None, :]
+        update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
