@@ -198,7 +198,7 @@ class GraphPredNetworkVAE(nn.Module):
         z = eps * std + mu
         return z
 
-    def forward(self, inputs, cond=None, inference=False):
+    def forward(self, inputs, cond=None, inference=False, seed=None):
         # Cond is an embedding of the past, optionally used
         # ipdb.set_trace()
         program = inputs['program']

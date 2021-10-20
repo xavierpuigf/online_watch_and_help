@@ -278,7 +278,7 @@ def inference(
                 'mask_len': len_mask,
             }
             # ipdb.set_trace()
-            for index in range(ind.shape[0]):
+            for index in range(1): #ind.shape[0]):
                 try:
                     program_gt = utils_models.decode_program(
                         data_loader.dataset.graph_helper, prog_gt, index=index
@@ -354,7 +354,6 @@ def inference(
                     )
                 print("************************")
                 
-                ipdb.set_trace()
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
                 expath = logger.results_path
@@ -374,7 +373,7 @@ def inference(
                            mask_edges, changed_edges, changed_nodes, pred_changes, edge_interest, edge_dict['id_nothing'].cuda())
 
             progress.display(it)
-            # ipdb.set_trace()
+            ipdb.set_trace()
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
             end = time.time()

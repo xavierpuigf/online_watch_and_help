@@ -26,6 +26,8 @@ from utils import utils_rl_agent
 
 plt.switch_backend('agg')
 
+def get_html(results):
+    ipdb.set_trace()
 
 def print_graph_3_2(
     graph_helper,
@@ -548,6 +550,7 @@ def obtain_graph_3(
 
     all_edges, all_from, all_to, all_edges_input, all_from_input, all_to_input = [], [], [], [], [], []
     object_states = state_pred[batch_item, :num_tsteps]
+    new_mark = []
     # print(num_tsteps)
     for step in range(num_tsteps):
         result = {}
@@ -570,6 +573,7 @@ def obtain_graph_3(
         current_mask_edge = mask_edge[batch_item, step]
         # current_edge = edge_info[batch_item, step]
         indices_valid = np.where(current_mask_edge == 1)[0]
+        new_edge = change_pred[batch_item, step + offset, indices_valid]
 
         edge_pred_step = edge_pred[batch_item, step + offset, indices_valid]
         edge_input_step = input_edges[batch_item, step + offset, indices_valid]
@@ -592,8 +596,10 @@ def obtain_graph_3(
         all_edges.append(edge_pred_step_class[None, :])
         all_edges_input.append(edge_input_step_class[None, :])
         all_from.append(from_id[None, :])
-        all_to.append(to_id[None, :]
-                )
+        all_to.append(to_id[None, :])
+        new_mark.append(new_edge[None, :])
+
+
         all_from_input.append(from_id_input[None, :])
         all_to_input.append(to_id_input[None, :])
 
@@ -603,11 +609,14 @@ def obtain_graph_3(
     all_to = np.concatenate(all_to, 0)
     all_from_input = np.concatenate(all_from_input, 0)
     all_to_input = np.concatenate(all_to_input, 0)
+    new_mark = np.concatenate(new_mark, 0)
     
+
     info['edge_pred'] = all_edges
     info['edge_input'] = all_edges_input
     info['from_id'] = all_from
     info['to_id'] = all_to
+    info['new_marker'] = new_mark
 
     info['from_id_input'] = all_from_input
     info['to_id_input'] = all_to_input

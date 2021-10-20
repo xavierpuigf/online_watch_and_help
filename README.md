@@ -24,6 +24,15 @@ CUDA_VISIBLE_DEVICES=3,4 python algos/train_graph_pred.py name_log=pred_last_gra
 CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred.py name_log=pred_last_graph
 
 CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large model.predict_node_change=True model.exclusive_edge=True train.lr=0.001
+
+
+CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE model.predict_node_change=True model.exclusive_edge=True train.lr=0.001
+
+
+### VAE
+
+CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE model.predict_node_change=True model.exclusive_edge=True train.lr=0.001
+
 ```
 
 
@@ -63,6 +72,13 @@ model.predict_node_change=True logging=False model.exclusive_edge=True train.num
 
 CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl_old.py inference=True inference_sample=True \
 model.predict_node_change=True logging=False model.exclusive_edge=True train.num_workers=0 ckpt_load=$ckpt_excl"/290.pt"
+
+
+## VAE
+
+export ckpt_excl_vae="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl-agentsall/time_model.seqVAE-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.001-bs.16-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True_goodactionreduced_walk_condprior.True"
+CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl.py inference=True inference_sample=True \
+model.predict_node_change=True logging=False model.exclusive_edge=True train.num_workers=0 ckpt_load=$ckpt_excl_vae"/290.pt" model.time_aggregate='seqVAE'
 
 
 ## Other tests

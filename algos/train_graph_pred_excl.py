@@ -168,6 +168,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     # ipdb.set_trace()
     loss_state = loss_state * gt_change[..., None] # graph_info['mask_object'][:, 1:, :, None].cuda()
     loss_state = loss_state.mean()
+    loss_state *= 0.
 
     # Loss change
     loss_change = criterions['change'](
@@ -219,7 +220,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'mask_length': mask_length,
         'edge_interest': edge_dict['edge_interest']
     }
-    return gt, predictions, misc, losses_dict, loss
+    return gt, predictions, misc, losses_dict, inputs, loss
 
 
 def inference(
@@ -244,6 +245,7 @@ def inference(
 
     end = time.time()
     for it, data_item in enumerate(data_loader):
+        # print("HEre")
         if it < args['test']['num_iters']:
             metric_dict['data_time'].update(time.time() - end)
 
@@ -259,7 +261,7 @@ def inference(
             ) = data_item
             
 
-            gt , predictions, misc, losses_dict, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
+            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
 
     
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
@@ -289,9 +291,12 @@ def inference(
 
             for sample_num in range(num_samples):
                 if 'VAE' in args.model.time_aggregate:
-                    cpred_change = output2['node_change'][:, :-1, ...].argmax(-1)
-                    cpred_state = output2['states'][:, :-1, ...].argmax(-1)
-                    cpred_edge = output2['edges'][:, :-1, ...].argmax(-1)
+                    with torch.no_grad():
+                        output2 = model(inp)
+                    b, t, n, _ = output2['states'].shape
+                    cpred_change = output2['node_change'][:, :-1, ...].argmax(-1).cpu()
+                    cpred_state = (output2['states'][:, :-1, ...] > 0).cpu()
+                    cpred_edge = output2['edges'][:, :-1, ...].reshape(b, t-1, n, n).argmax(-1).cpu()
                 else:
                     if sample_num == 0:
                         cpred_change = pred_change.argmax(-1)
@@ -403,13 +408,20 @@ def inference(
                     )
                 print("************************")
                 
-                # ipdb.set_trace()
+                ipdb.set_trace()
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
                 sfname = fname.split('/')[-1] + "_result"
                 expath = logger.results_path
+
+
+
                 cpath = '/'.join(fname.split('/')[-3:-1])
                 dir_name = f'{expath}/{cpath}/'
                 result_name = f'{dir_name}/{sfname}.pkl'
+                result_name_html = f'{dir_name}/{sfname}.html'
+                html_str = utils_models.get_html(results)
+                with open(result_name_html, 'r') as f:
+                    f.write(html_str)
                 if args.save_inference:
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
@@ -534,7 +546,7 @@ def evaluate(
             ) = data_item
 
 
-            gt, predictions, misc, losses_dict, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
+            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
             # Update accuracy
             
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
@@ -553,9 +565,12 @@ def evaluate(
 
             for sample_num in range(num_samples):
                 if 'VAE' in args.model.time_aggregate:
-                    cpred_change = output2['node_change'][:, :-1, ...].argmax(-1)
-                    cpred_state = output2['states'][:, :-1, ...].argmax(-1)
-                    cpred_edge = output2['edges'][:, :-1, ...].argmax(-1)
+                    with torch.no_grad():
+                        output2 = model(inp)
+                    b, t, n, _ = output2['states'].shape
+                    cpred_change = output2['node_change'][:, :-1, ...].argmax(-1).cpu()
+                    cpred_state = (output2['states'][:, :-1, ...] > 0).cpu()
+                    cpred_edge = output2['edges'][:, :-1, ...].reshape(b, t-1, n, n).argmax(-1).cpu()
                 else:
                     if sample_num == 0:
                         cpred_change = pred_change.argmax(-1)
@@ -573,7 +588,7 @@ def evaluate(
             pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
             update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
-            input_edges = misc['input_edges']
+            input_edges = misc['input_edges'].cpu().numpy()
             gt_state = gt['gt_state']
             gt_change = gt['gt_change']
             gt_edge = gt['gt_change']            
@@ -585,26 +600,32 @@ def evaluate(
                 if True:
                     print("************************")
                     print(f"File: {current_index}:{fname}")
+
                     print("\nGroundTrurth")
+                    # print(gt_edge.max())
                     utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
-                        gt_edge.cpu(),
-                        mask_edges_orig.cpu(),
-                        gt_state.cpu(),
-                        edge_changes_list,
+                        gt_edge.cpu().numpy(),
+                        mask_edges_orig.cpu().numpy(),
+                        gt_state.cpu().numpy(),
+                        input_edges,
+                        gt_change.cpu().numpy(),
                         index,
                         0,
                     )
 
-                    print("\nPrediction")
+
+                    print("\nPrediction at {}".format(0))
+                    #ipdb.set_trace()
                     utils_models.print_graph_3(
                         data_loader.dataset.graph_helper,
                         graph_info,
-                        pred_edge.argmax(-1).cpu(),
-                        mask_edges_orig.cpu(),
-                        (pred_state > 0).cpu(),
-                        pred_changes_list,
+                        predicted_edge[0],
+                        mask_edges_orig.cpu().numpy(),
+                        predicted_state[0] > 0,
+                        input_edges,
+                        predicted_change[0],
                         index,
                         0,
                     )
@@ -818,7 +839,8 @@ def train_epoch(
         ) = data_item
 
 
-        gt , predictions, misc, losses_dict, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
+        gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(
+            args, data_item, data_loader, model, criterions, evaluation=False)
 
         label_action = program['action']
         index_label_obj1 = program['indobj1']
@@ -841,8 +863,8 @@ def train_epoch(
 
 
         update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
-        pred_edge_c = predictions['pred_edge'].argmax(-1)[None, :]
-        pred_change_c = predictions['pred_change'].argmax(-1)[None, :]
+        pred_edge_c = predictions['pred_edge'].argmax(-1)[None, :].cpu().numpy()
+        pred_change_c = predictions['pred_change'].argmax(-1)[None, :].cpu().numpy()
         update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
         optimizer.zero_grad()
@@ -1189,17 +1211,15 @@ def main(cfg: DictConfig):
         # evaluate(test_loader, train_loader, model, 0, config, logger, criterion_state, criterion_edge)
         # ipdb.set_trace()
 
-        # evaluate(
-        #     test_loader,
-        #     train_loader,
-        #     model,
-        #     0,
-        #     config,
-        #     logger,
-        #     criterion_state,
-        #     criterion_edge,
-        #     criterion_change,
-        # )
+        evaluate(
+            test_loader,
+            train_loader,
+            model,
+            0,
+            config,
+            logger,
+            criterions
+        )
         for epoch in range(config['train']['epochs']):
             # ipdb.set_trace()
             train_epoch(
