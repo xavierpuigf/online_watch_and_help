@@ -199,6 +199,7 @@ class GraphPredNetworkVAE(nn.Module):
         return z
 
     def forward(self, inputs, cond=None, inference=False, seed=None):
+        # ipdb.set_trace()
         # Cond is an embedding of the past, optionally used
         # ipdb.set_trace()
         program = inputs['program']
@@ -261,6 +262,7 @@ class GraphPredNetworkVAE(nn.Module):
 
             z_vec = self.sample_param(q_post)
         else:
+            # ipdb.set_trace()
             z_vec = self.sample_param(p_prior) 
 
         if self.time_aggregate in ['LSTM', 'none']:

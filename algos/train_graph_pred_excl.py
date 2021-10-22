@@ -16,6 +16,8 @@ from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from termcolor import colored
 import utils.utils_models_wb as utils_models
+from collections import Counter
+import utils.utils_rl_agent as utils_agent
 from utils.utils_models_wb import AverageMeter, ProgressMeter, LoggerSteps
 import math
 import hydra
@@ -133,7 +135,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         
     else:
         with torch.no_grad():
-            output = model(inputs)
+            output = model(inputs, inference=True)
 
     ##################
     # Get Predictions
@@ -244,6 +246,7 @@ def inference(
 
 
     end = time.time()
+    rows_total = []
     for it, data_item in enumerate(data_loader):
         # print("HEre")
         if it < args['test']['num_iters']:
@@ -313,13 +316,14 @@ def inference(
 
             pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
             pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
-            update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
+            metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
             input_edges = misc['input_edges'].cpu().numpy()
             gt_state = gt['gt_state']
             gt_change = gt['gt_change']
             gt_edge = gt['gt_edge']            
             mask_edges_orig = misc['mask_nodes']
+
 
             for index in range(ind.shape[0]):
                 try:
@@ -408,8 +412,14 @@ def inference(
                     )
                 print("************************")
                 
-                ipdb.set_trace()
-                results = {'gt_graph': gt_graph, 'pred_graph': pred_graph}
+                # ipdb.set_trace()
+                other_info = {
+                    'prog_gt': program_gt,
+                    'index': index,
+                    'metrics': metrics_item,
+                    'metrics_tstep': metrics_item_tstep
+                }
+                results = {'gt_graph': gt_graph, 'pred_graph': pred_graph_samples, 'other_info': other_info}
                 sfname = fname.split('/')[-1] + "_result"
                 expath = logger.results_path
 
@@ -419,9 +429,31 @@ def inference(
                 dir_name = f'{expath}/{cpath}/'
                 result_name = f'{dir_name}/{sfname}.pkl'
                 result_name_html = f'{dir_name}/{sfname}.html'
-                html_str = utils_models.get_html(results)
-                with open(result_name_html, 'r') as f:
+                result_name_html_total = f'{dir_name}/total.html'
+                score_total_str = '<br>'.join(['{}: {:03f}'.format(name, value[index]) for name, value in metrics_item.items()])
+                # Get the goal of this task:
+
+                change = results['gt_graph']['new_marker'][0].astype(np.bool)
+                dest_index = list(results['gt_graph']['to_id'][0][change])
+                from_index = list(results['gt_graph']['from_id'][0][change])
+                obj_names = results['gt_graph']['nodes']
+                tuples = [(obj_names[i].split('.')[0], obj_names[j].split('.')[0]) for i,j in zip(from_index, dest_index)]
+                ct = Counter(tuples)
+                goal_str = '<br>'.join([f'{elem}: x{cont}' for elem, cont in ct.items()])
+                rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
+                # ipdb.set_trace()
+                html_str_total = utils_models.build_table(rows_total, ['Link', 'Scores', 'Goals'])
+                html_str = utils_models.get_html(results, data_loader.dataset.graph_helper)
+                # ipdb.set_trace()
+                if not os.path.isdir(dir_name):
+                    os.makedirs(dir_name)
+                with open(result_name_html, 'w+') as f:
                     f.write(html_str)
+
+                with open(result_name_html_total, 'w+') as f:
+                    f.write(html_str_total)
+                print(result_name_html)
+                # ipdb.set_trace()
                 if args.save_inference:
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
@@ -437,6 +469,7 @@ def inference(
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
             end = time.time()
+            ipdb.set_trace()
 
         else:
             continue
@@ -725,15 +758,30 @@ def update_metrics_recall_prec(metric_dict, args, gt, predicted_edge, changed_ed
     mask_length = mask_length / mask_length.sum(-1)[:, None]
 
     # Average over time steps
-    recall = (recall * mask_length).sum(-1).mean(0)
-    prec = (prec * mask_length).sum(-1).mean(0)
-    f1 = (f1 * mask_length).sum(-1).mean(0)
+    recall_item = (recall * mask_length).sum(-1)
+    prec_item = (prec * mask_length).sum(-1)
+    f1_item = (f1 * mask_length).sum(-1)
+    
+    metrics_item_tstep = {
+        'recall': recall, 
+        'prec': prec,
+        'f1': f1
+
+    }
+    metrics_item = {
+        'recall': recall_item,
+        'prec': prec_item,
+        'f1': f1_item
+    }
+    recall = recall_item.mean(0)
+    prec = prec_item.mean(0)
+    f1 = f1_item.mean(0)
 
     # ipdb.set_trace()
     metric_dict['recall_edge_sample'].update(recall)
     metric_dict['precision_edge_sample'].update(prec)
     metric_dict['f1_edge_sample'].update(f1)
-
+    return metrics_item_tstep, metrics_item
 
 def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
     

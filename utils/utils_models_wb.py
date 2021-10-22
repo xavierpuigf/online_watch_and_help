@@ -25,9 +25,100 @@ from .utils_plot import Plotter
 from utils import utils_rl_agent
 
 plt.switch_backend('agg')
+def build_table(rows, header_names):
+    html_str = '<table>'
+    html_str += '<tr>'+''.join([f'<th>{nh}</th>' for nh in header_names])+'</tr>'
+    for row in rows:
+        td_cont = ''.join([f'<td>{rc}</td>' for rc in row])
+        html_str += f'<tr>{td_cont}</tr>'
+    html_str += '</table>'
+    # ipdb.set_trace()
+    return html_str
+def build_graph_str(from_id, to_id, edge_type, obj_names, tstep, graph_helper, new_nodes=None):
+    from_id = from_id[tstep]
+    to_id = to_id[tstep]
+    edge_type = edge_type[tstep]
+    if new_nodes is not None:
+        new_nodes = list(new_nodes)
+    # else:
 
-def get_html(results):
-    ipdb.set_trace()
+    from_edge = {}
+    # ipdb.set_trace()
+    for elem_from, elem_to in zip(from_id.tolist(), to_id.tolist()):
+        if int(elem_to) not in from_edge:
+            from_edge[int(elem_to)] = []
+        from_edge[int(elem_to)].append(int(elem_from))
+
+    all_elems = sorted(list(set(list(from_edge.keys()))))
+    # obj_names = gt_graph['nodes']
+
+    graph_str = ''
+    def convert_name(name, itt):
+        if new_nodes is None or new_nodes[itt] == 0:
+            return name
+        else:
+            return '<span style="color:blue">'+name+'</span>'
+            # return name÷
+    for elem in all_elems:
+        on_curr = []
+        if elem in from_edge:
+            on_curr = from_edge[elem]
+        # ipdb.set_trace()
+        on_str = ' '.join([convert_name(obj_names[itt].strip(), itt) for itt in on_curr])
+        elem2 = obj_names[elem]
+        graph_str += f'<span style="white-space: nowrap"><b>{elem2}</b>: [{on_str}]</span><br>'
+    # print("==========")
+
+
+    return graph_str
+
+def get_html(results, graph_helper):
+    other_info = results['other_info']
+    scores_step = other_info['metrics_tstep'] 
+    gt_graph = results['gt_graph']
+    pred_graph = results['pred_graph']
+    program_gt = other_info['prog_gt']
+    index = other_info['index']
+
+    html_str = '<html>'
+    header_names = ['Action', 'Score', 'Input', 'GT'] + [f'Pred {i}' for i in range(5)]
+    header = ''.join(['<th>{}</th>'.format(name) for name in header_names])
+    table_resp = f'<table><tr>{header}</tr>'
+    numtsteps = len(program_gt) - 1
+    edge_names = gt_graph['edge_names']
+
+    rows = []
+    for tstep in range(numtsteps):
+        columns = []
+        # ipdb.set_trace()
+        score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
+        columns = [program_gt[tstep], score_str]
+        graph_input = build_graph_str(
+            gt_graph['from_id_input'], gt_graph['to_id_input'], gt_graph['edge_input'], gt_graph['nodes'], tstep, graph_helper) 
+        graph_gt = build_graph_str(
+            gt_graph['from_id'], gt_graph['to_id'], gt_graph['edge_pred'], gt_graph['nodes'], tstep, graph_helper, new_nodes=gt_graph['new_marker'][tstep])
+        
+        columns += [graph_input, graph_gt]
+        for gind in range(5):
+            c_pred_graph = pred_graph[gind]
+            # ipdb.set_trace()
+            pred_graph_str = build_graph_str(
+                c_pred_graph['from_id'], c_pred_graph['to_id'], c_pred_graph['edge_pred'], c_pred_graph['nodes'], tstep, graph_helper, new_nodes=c_pred_graph['new_marker'][tstep])
+            # ipdb.set_trace()
+            columns.append(pred_graph_str)
+        # ipdb.set_trace()
+        style_str = 'overflow: auto; width: 500px'
+        style_str2 = 'overflow: auto; width: 150px'
+        column_str = ''.join(['<td><div style="{}">{}</div></td>'.format(style_str2, col) for col in columns[:2]])
+        column_str += ''.join(['<td><div style="{}">{}</div></td>'.format(style_str, col) for col in columns[2:]])
+        rows.append(column_str)
+    
+    table_resp += ''.join(['<tr>{}</tr>'.format(row) for row in rows])
+    
+    table_resp += '</table>'
+    html_str += table_resp 
+    html_str += '</html>'
+    return html_str
 
 def print_graph_3_2(
     graph_helper,
