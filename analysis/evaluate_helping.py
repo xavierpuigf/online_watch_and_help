@@ -200,7 +200,7 @@ def get_metrics_reward(
 
         alice_S = []
         alice_L = []
-    normalized_by_suc = False
+    normalized_by_suc = True
     for episode_id in episode_ids:
         Ls = []
         Ss = []
@@ -301,22 +301,21 @@ def main(cfg: DictConfig):
 
     num_tries = 5
     args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
-    args.max_episode_length = 250
+    args.max_episode_length = 200
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = ''
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
+    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_gt_goal'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq_no_avoidance_1'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_toy_action_freq'
-    cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0/test_env_task_set_60_full_task.all'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_20'
-    cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
+    cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
+    cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only_large'
 
     agent_types = [
         ['full', 0, 0.05, False, 0, "uniform"],  # 0
@@ -353,28 +352,9 @@ def main(cfg: DictConfig):
     args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
     # args.mode += 'v9_particles_v2'
 
-    env_task_set = pickle.load(open(args.dataset_path, 'rb'))
-    # print(env_task_set)
-    print(len(env_task_set))
-
-    for env in env_task_set:
-        init_gr = env['init_graph']
-        gbg_can = [
-            node['id']
-            for node in init_gr['nodes']
-            if node['class_name'] in ['garbagecan', 'clothespile']
-        ]
-        init_gr['nodes'] = [
-            node for node in init_gr['nodes'] if node['id'] not in gbg_can
-        ]
-        init_gr['edges'] = [
-            edge
-            for edge in init_gr['edges']
-            if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can
-        ]
-        for node in init_gr['nodes']:
-            if node['class_name'] == 'cutleryfork':
-                node['obj_transform']['position'][1] += 0.1
+    # env_task_set = pickle.load(open(args.dataset_path, 'rb'))
+    # # print(env_task_set)
+    # print(len(env_task_set))
 
     args.record_dir = '{}/{}'.format(cachedir, datafile)
     record_dir_main = '{}/{}'.format(cachedir_main, datafile)
@@ -398,7 +378,16 @@ def main(cfg: DictConfig):
     # random_start.shuffle(episode_ids)
     # episode_ids = episode_ids[10:]
 
-    episode_ids = [139, 3, 41, 63, 82, 88]
+    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
+    f = open(valid_set_path, 'r')
+    episode_ids = []
+    for filename in f:
+        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+    episode_ids = sorted(episode_ids)
+    print(len(episode_ids))
+    f.close()
+
+    # episode_ids = [139, 3, 41, 63, 82, 88]
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
@@ -410,9 +399,9 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
-    num_tries = 5
+    num_tries = 1
 
-    for iter_id in range(num_tries):
+    for iter_id in range(num_tries - 1, num_tries):
         # if iter_id > 0:
         # iter_id = 1
 
@@ -420,7 +409,8 @@ def main(cfg: DictConfig):
         current_tried = iter_id
 
         # test_results = {}
-        # print(args.record_dir)
+        print(args.record_dir)
+
         if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
             test_results = {}
         else:
@@ -429,7 +419,7 @@ def main(cfg: DictConfig):
             )
             help_results = dict(test_results)
 
-        print(iter_id, test_results)
+        print(iter_id, len(test_results))
 
         if not os.path.isfile(record_dir_main + '/results_{}.pik'.format(iter_id)):
             test_results = {}

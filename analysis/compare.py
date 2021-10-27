@@ -312,8 +312,8 @@ def main(cfg: DictConfig):
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
-    # cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0'
-    cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_10'
+    cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0'
+    # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_10'
     cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only_large'
 
     agent_types = [
@@ -398,6 +398,7 @@ def main(cfg: DictConfig):
 
     main_results, help_results = {}, {}
     num_tries = 1
+    max_length = 0
 
     for iter_id in range(num_tries):
         print(iter_id)
@@ -412,17 +413,18 @@ def main(cfg: DictConfig):
         for episode_id in episode_ids:
 
             try:
-                logs = pickle.load(
-                    open(
-                        args.record_dir
-                        + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id),
-                        'rb',
-                    )
-                )
+                # logs = pickle.load(
+                #     open(
+                #         args.record_dir
+                #         + '/logs_episode.{}_iter.{}.pik'.format(episode_id, iter_id),
+                #         'rb',
+                #     )
+                # )
 
-                L1 = min(len(logs['action'][0]), 150)
+                # L1 = min(len(logs['action'][0]), 150)
                 # print(len(logs['action'][0]))
-
+                # for t in range(L1):
+                #     print(logs['action'][0][t], logs['action'][1][t])
                 logs = pickle.load(
                     open(
                         record_dir_main
@@ -431,11 +433,15 @@ def main(cfg: DictConfig):
                     )
                 )
                 L2 = len(logs['action'][0])
+                if L2 < 250 and L2 > max_length:
+                    max_length = L2
+                print(L2, max_length)
                 # print(len(logs['action'][0]))
-                print(L2 / L1 - 1, L1, L2)
+                # print(L2 / L1 - 1, L1, L2)
             except:
                 print('missing:', episode_id)
                 pass
+    print(max_length)
 
 
 if __name__ == "__main__":

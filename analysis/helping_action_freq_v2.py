@@ -78,13 +78,13 @@ def get_edge_class(pred, t, source='pred'):
                 continue
         else:
             continue
-        if from_node_name.split('.')[0] not in [
-            'apple',
-            'cupcake',
-            'plate',
-            'waterglass',
-        ]:
-            continue
+        # if from_node_name.split('.')[0] not in [
+        #     'apple',
+        #     'cupcake',
+        #     'plate',
+        #     'waterglass',
+        # ]:
+        #     continue
 
         # if from_node_name.split('.')[0]
 
@@ -104,7 +104,8 @@ def get_edge_class(pred, t, source='pred'):
     return edge_pred_class
 
 
-def get_edge_instance(pred, t, source='pred'):
+def get_edge_instance(pred, t, task_type, source='pred'):
+    tv, food, dish = task_type['tv'], task_type['food'], task_type['dish']
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
     t = min(t, len(pred['edge_pred']) - 1)
@@ -139,13 +140,36 @@ def get_edge_instance(pred, t, source='pred'):
                 'plate',
             ]:
                 continue
-            if from_node_name.split('.')[0] in [
+            obj_name = from_node_name.split('.')[0]
+            if obj_name in [
                 'kitchen',
                 'livingroom',
                 'bedroom',
                 'bathroom',
                 'character',
             ]:
+                continue
+            if tv and (
+                not (
+                    'chips' in obj_name
+                    or 'remotecontrol' in obj_name
+                    or 'condimentbottle' in obj_name
+                    or 'condimentshaker' in obj_name
+                )
+            ):
+                continue
+            if food and (
+                not (
+                    'salmon' in obj_name
+                    or 'apple' in obj_name
+                    or 'cupcake' in obj_name
+                    or 'pudding' in obj_name
+                )
+            ):
+                continue
+            if dish and (
+                not ('plate' in obj_name or 'fork' in obj_name or 'glass' in obj_name)
+            ):
                 continue
         else:
             continue
@@ -225,9 +249,10 @@ def pred_main_agent_plan(
     length_plan,
     must_replan,
     agent_id,
+    task_type,
     res,
 ):
-    inferred_goal = get_edge_instance(pred_graph, t)
+    inferred_goal = get_edge_instance(pred_graph, t, task_type)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
         opponent_actions, opponent_info = pred_actions_fn(
@@ -258,9 +283,10 @@ def get_helping_plan(
     length_plan,
     must_replan,
     agent_id,
+    task_type,
     res,
 ):
-    inferred_goal = get_edge_instance(pred_graph, t)
+    inferred_goal = get_edge_instance(pred_graph, t, task_type)
     print('pred {}:'.format(process_id), inferred_goal)
     subgoal, action = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
@@ -320,7 +346,7 @@ def main(cfg: DictConfig):
     print(len(episode_ids))
     f.close()
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v1_{args.num_samples}'
+    cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_{args.num_samples}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -572,6 +598,10 @@ def main(cfg: DictConfig):
                 history_graph = []
                 history_action = []
 
+                tv = False
+                food = False
+                dish = False
+
                 saved_info = {
                     'task_id': arena.env.task_id,
                     'env_id': arena.env.env_id,
@@ -722,6 +752,27 @@ def main(cfg: DictConfig):
                     print('main agent subgoal:', curr_info[0]['subgoals'])
                     # ipdb.set_trace()
 
+                    if (
+                        'chips' in selected_actions[0]
+                        or 'remotecontrol' in selected_actions[0]
+                        or 'condimentbottle' in selected_actions[0]
+                        or 'condimentshaker' in selected_actions[0]
+                    ):
+                        tv = True
+                    if (
+                        'salmon' in selected_actions[0]
+                        or 'apple' in selected_actions[0]
+                        or 'cupcake' in selected_actions[0]
+                        or 'pudding' in selected_actions[0]
+                    ):
+                        food = True
+                    if (
+                        'plate' in selected_actions[0]
+                        or 'glass' in selected_actions[0]
+                        or 'fork' in selected_actions[0]
+                    ):
+                        dish = True
+
                     # get helper action
                     print('planning for the helper agent')
                     action_freq = {}
@@ -745,6 +796,7 @@ def main(cfg: DictConfig):
                                     10,
                                     {0: True, 1: True},
                                     1,
+                                    {'tv': tv, 'food': food, 'dish': dish},
                                     res,
                                 ),
                             )
@@ -787,6 +839,7 @@ def main(cfg: DictConfig):
                                     10,
                                     {0: True, 1: True},
                                     1,
+                                    {'tv': tv, 'food': food, 'dish': dish},
                                     res,
                                 ),
                             )
