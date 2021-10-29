@@ -86,7 +86,7 @@ def unmerge(tensor, firstdim):
 #     edges_something = edges
 
 
-def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False):
+def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False):
     (
         graph_info,
         program,
@@ -135,7 +135,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         
     else:
         with torch.no_grad():
-            output = model(inputs, inference=True)
+            output = model(inputs, inference=not posterior)
 
     ##################
     # Get Predictions
@@ -264,7 +264,7 @@ def inference(
             ) = data_item
             
 
-            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
+            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=args.inference_posterior)
 
     
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
@@ -421,6 +421,10 @@ def inference(
                 }
                 results = {'gt_graph': gt_graph, 'pred_graph': pred_graph_samples, 'other_info': other_info}
                 sfname = fname.split('/')[-1] + "_result"
+                pv = ''
+                if args.inference_posterior:
+                    sfname += '_posterior'
+                    pv = '_posterior'
                 expath = logger.results_path
 
 
@@ -429,7 +433,7 @@ def inference(
                 dir_name = f'{expath}/{cpath}/'
                 result_name = f'{dir_name}/{sfname}.pkl'
                 result_name_html = f'{dir_name}/{sfname}.html'
-                result_name_html_total = f'{dir_name}/total.html'
+                result_name_html_total = f'{dir_name}/total{pv}.html'
                 score_total_str = '<br>'.join(['{}: {:03f}'.format(name, value[index]) for name, value in metrics_item.items()])
                 # Get the goal of this task:
 
@@ -1256,7 +1260,7 @@ def main(cfg: DictConfig):
         if config.logging:
             logger.save_model(0, model, optimizer)
 
-        # evaluate(test_loader, train_loader, model, 0, config, logger, criterion_state, criterion_edge)
+        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
         # ipdb.set_trace()
 
         evaluate(

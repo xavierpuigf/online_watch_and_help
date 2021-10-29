@@ -87,6 +87,7 @@ class GraphPredNetworkVAE(nn.Module):
 
         # VAE related
         self.cond_prior = False
+        self.args = args
         if args['cond_prior']:
             self.cond_prior = True
             self.prior_net = nn.Sequential(
@@ -100,8 +101,13 @@ class GraphPredNetworkVAE(nn.Module):
             nn.Linear(self.hidden_size, 128 * 2)
         )
 
+
+        if self.args['cond_prior']:
+            input_dim_zproj = 128
+        else:
+            input_dim_zproj = 128 + self.hidden_size
         self.z_projection = nn.Sequential(
-            nn.Linear(128, self.hidden_size),
+            nn.Linear(input_dim_zproj, self.hidden_size),
             nn.ReLU(),
             nn.Linear(self.hidden_size, self.hidden_size)
         )
@@ -242,6 +248,8 @@ class GraphPredNetworkVAE(nn.Module):
         tsteps = mask_len.sum(-1)[..., None, None].repeat(1, 1, embed_size).long() - 1
         last_tstep_embeddings = torch.gather(graph_repr, 1, tsteps)
 
+
+        # Prepare input to the LSTM
         action_graph = torch.cat([action_embed[:, :, :], graph_repr], -1)
         input_embed = self.comb_layer(action_graph)
 
@@ -253,7 +261,8 @@ class GraphPredNetworkVAE(nn.Module):
             p_prior = self.prior_net(graph_output) 
         else:
             mean_logvar = torch.zeros(q_post.shape)
-            p_prior = torch.cat([mean, log_var], -1)
+            p_prior = mean_logvar.to(q_post.device)
+            # p_prior = torch.cat([mean, log_var], -1)
 
         d = p_prior.shape[-1] // 2
         mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
@@ -271,8 +280,14 @@ class GraphPredNetworkVAE(nn.Module):
                 [1, 1, self.max_nodes, 1]
             )  # Recurrent part, we may want to replace that by a z later?
         elif 'VAE' in self.time_aggregate:
-            z_vec = self.z_projection(z_vec)
-            graph_output_nodes = z_vec[:, :, None, :].repeat([1, 1, num_nodes, 1])
+            if not self.cond_prior:
+                # ipdb.set_trace()
+                z_and_lstm = torch.cat([graph_output, z_vec], -1)
+                graph_output_nodes = self.z_projection(z_and_lstm)
+                graph_output_nodes = graph_output_nodes[:, :, None, :].repeat([1, 1, num_nodes, 1])
+            else:
+                z_vec = self.z_projection(z_vec)
+                graph_output_nodes = z_vec[:, :, None, :].repeat([1, 1, num_nodes, 1])
 
         elif self.time_aggregate == 'firstcurr':
             graph_output_nodes = node_embeddings[:, 0, :, :].repeat([1, T, 1, 1])
@@ -465,7 +480,7 @@ class GraphPredNetwork(nn.Module):
             change = self.node_change_pred(inputs)
         return states, edges, change
 
-    def forward(self, inputs, cond=None):
+    def forward(self, inputs, cond=None, inference=False):
         # Cond is an embedding of the past, optionally used
         # ipdb.set_trace()
         program = inputs['program']

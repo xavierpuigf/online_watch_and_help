@@ -4,6 +4,7 @@ name_log: ''
 inference: False
 save_inference: False
 inference_sample: False
+inference_posterior: False
 samples_per_graph: 20
 ckpt_load: ''
 data:
@@ -15,7 +16,7 @@ log:
         delete_prior_logs: False
         save_every: 10
 train:
-        epochs: 500
+        epochs: 300
         batch_size: 16
         num_workers: 32
         lr: 0.0001
@@ -52,4 +53,5 @@ model:
         relative_coords: False
         time_aggregate: 'LSTM' # LSTM, none, firstcurr, fcVAE, seqVAE
         cond_prior: True
+        zvec: 'node' # node / single
         state_encoder: 'TF' # GNN

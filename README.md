@@ -33,6 +33,9 @@ CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred
 
 CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE model.predict_node_change=True model.exclusive_edge=True train.lr=0.001
 
+
+CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 model.cond_prior=False model.time_aggregate='seqVAE'
+
 ```
 
 
@@ -65,7 +68,7 @@ CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred.py inference=True inferen
 CUDA_VISIBLE_DEVICES=1,2 python algos/train_graph_pred_excl.py inference=True inference_sample=False model.predict_node_change=True  model.exclusive_edge=True ckpt_load=$ckpt_excl"/100.pt"
 
 
-
+## LSTM
 CUDA_VISIBLE_DEVICES=5,6 python algos/train_graph_pred_excl.py inference=True inference_sample=True \
 model.predict_node_change=True logging=False model.exclusive_edge=True train.num_workers=0 ckpt_load=$ckpt_excl"/290.pt"
 

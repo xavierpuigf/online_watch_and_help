@@ -34,6 +34,9 @@ def build_table(rows, header_names):
     html_str += '</table>'
     # ipdb.set_trace()
     return html_str
+
+
+
 def build_graph_str(from_id, to_id, edge_type, obj_names, tstep, graph_helper, new_nodes=None):
     from_id = from_id[tstep]
     to_id = to_id[tstep]
@@ -72,6 +75,88 @@ def build_graph_str(from_id, to_id, edge_type, obj_names, tstep, graph_helper, n
 
     return graph_str
 
+def get_predicates(pred, t, source='pred'):
+    # pred_edge_prob = pred['edge_prob']
+    # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+    t = min(t, len(pred['edge_pred']) - 1)
+    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
+    pred_edge_names = pred['edge_names']
+    pred_nodes = pred['nodes']
+    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+
+    # edge_prob = pred_edge_prob[t]
+    # edge_pred = np.argmax(edge_prob, 1)
+
+    edge_pred_ins = {}
+
+    num_edges = len(edge_pred)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = pred_from_ids[t][edge_id]
+        to_id = pred_to_ids[t][edge_id]
+        from_node_name = pred_nodes[from_id]
+        to_node_name = pred_nodes[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = pred_edge_names[edge_pred[edge_id]]
+        if to_node_name.split('.')[1] == '-1':
+            continue
+        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+            if to_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
+            ]:
+                continue
+            if from_node_name.split('.')[0] in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'character',
+            ]:
+                continue
+        else:
+            continue
+
+        edge_class = '{}_{}_{}'.format(
+            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+        )
+
+        # print(from_node_name, to_node_name, edge_name)
+        if edge_class not in edge_pred_ins:
+            edge_pred_ins[edge_class] = {
+                'count': 0,
+                'grab_obj_ids': [],
+                'container_ids': [int(to_node_name.split('.')[1])],
+            }
+        edge_pred_ins[edge_class]['count'] += 1
+        edge_pred_ins[edge_class]['grab_obj_ids'].append(
+            int(from_node_name.split('.')[1])
+        )
+    return edge_pred_ins
+
+def get_difference_pred(pred1_dict, pred2_dict):
+    # Compute pred1 - pred2
+    pred_diff = {}
+    pred_names = list(set(list(pred1_dict.keys()) + list(pred2_dict.keys())))
+    for pred_name in pred_names:
+        if pred_name in pred1_dict:
+            if pred_name in pred2_dict:
+                pred_diff[pred_name] = {'count': pred1_dict[pred_name]['count'] - pred2_dict[pred_name]['count']}
+            else:
+                pred_diff[pred_name] = {'count': pred1_dict[pred_name]['count']}
+        else:
+            pred_diff[pred_name] = {'count': -pred2_dict[pred_name]['count']}
+    pred_diff = {x: y for x,y in pred_diff.items() if y['count'] != 0}
+    return pred_diff
+
+def get_pred_str(pred_dict):
+    l_items = ['<li>{}: {}</li>'.format(key, pred_dict[key]['count']) for key in sorted(pred_dict.keys())]
+    return ''.join(l_items)
+
 def get_html(results, graph_helper):
     other_info = results['other_info']
     scores_step = other_info['metrics_tstep'] 
@@ -80,10 +165,36 @@ def get_html(results, graph_helper):
     program_gt = other_info['prog_gt']
     index = other_info['index']
 
-    html_str = '<html>'
+    script_js = '''
+            <script>
+            var show_graph = false;
+            function switchView(){
+                var preds = document.getElementsByClassName('preds');
+                var graphs = document.getElementsByClassName('graph'); 
+                for (var j = 0; j < preds.length; j++){
+                    if (show_graph){
+
+                        preds[j].style.display = 'none';
+                        graphs[j].style.display = 'block';
+                    }  
+                    else {
+
+                        preds[j].style.display = 'block';
+                        graphs[j].style.display = 'none';
+                    }
+
+                }
+                
+                show_graph = !show_graph;
+            }
+            </script>
+    '''
+    html_str = '<html><head><link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="nofollow" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"><head><body>'
+    html_str += script_js
+    html_str += '<button onclick=switchView()> Switch Preds/Graph </button>'
     header_names = ['Action', 'Score', 'Input', 'GT'] + [f'Pred {i}' for i in range(5)]
     header = ''.join(['<th>{}</th>'.format(name) for name in header_names])
-    table_resp = f'<table><tr>{header}</tr>'
+    table_resp = f'<table class="table"><tr>{header}</tr>'
     numtsteps = len(program_gt) - 1
     edge_names = gt_graph['edge_names']
 
@@ -92,32 +203,39 @@ def get_html(results, graph_helper):
         columns = []
         # ipdb.set_trace()
         score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
-        columns = [program_gt[tstep], score_str]
+        columns = [program_gt[tstep].replace('<', '').replace('>', ''), score_str]
         graph_input = build_graph_str(
             gt_graph['from_id_input'], gt_graph['to_id_input'], gt_graph['edge_input'], gt_graph['nodes'], tstep, graph_helper) 
         graph_gt = build_graph_str(
             gt_graph['from_id'], gt_graph['to_id'], gt_graph['edge_pred'], gt_graph['nodes'], tstep, graph_helper, new_nodes=gt_graph['new_marker'][tstep])
         
-        columns += [graph_input, graph_gt]
+        input_gt_pred = get_predicates(gt_graph, tstep, 'input')
+        pred_gt = get_predicates(gt_graph, tstep)
+        diff_gt_str = get_pred_str(get_difference_pred(pred_gt, input_gt_pred))
+        input_gt_str = get_pred_str(input_gt_pred)
+
+        columns += [(graph_input, input_gt_str), (graph_gt, diff_gt_str)]
         for gind in range(5):
             c_pred_graph = pred_graph[gind]
             # ipdb.set_trace()
             pred_graph_str = build_graph_str(
                 c_pred_graph['from_id'], c_pred_graph['to_id'], c_pred_graph['edge_pred'], c_pred_graph['nodes'], tstep, graph_helper, new_nodes=c_pred_graph['new_marker'][tstep])
             # ipdb.set_trace()
-            columns.append(pred_graph_str)
+            predicates_pred = get_predicates(c_pred_graph, tstep)
+            predicates_str = get_pred_str(get_difference_pred(predicates_pred, input_gt_pred))
+            columns.append((pred_graph_str, predicates_str))
         # ipdb.set_trace()
         style_str = 'overflow: auto; width: 500px'
         style_str2 = 'overflow: auto; width: 150px'
         column_str = ''.join(['<td><div style="{}">{}</div></td>'.format(style_str2, col) for col in columns[:2]])
-        column_str += ''.join(['<td><div style="{}">{}</div></td>'.format(style_str, col) for col in columns[2:]])
+        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col[0], content_pred=col[1]) for col in columns[2:]])
         rows.append(column_str)
     
     table_resp += ''.join(['<tr>{}</tr>'.format(row) for row in rows])
     
     table_resp += '</table>'
     html_str += table_resp 
-    html_str += '</html>'
+    html_str += '</body></html>'
     return html_str
 
 def print_graph_3_2(
@@ -1527,7 +1645,7 @@ class LoggerSteps:
         if args['model']['gated']:
             experiment_name += '_gated'
         if 'VAE' in args['model']['time_aggregate']:
-            experiment_name += '_condprior.{}'.format(args['model']['cond_prior'])
+            experiment_name += '_condprior.{}_zvec.{}'.format(args['model']['cond_prior'], args['model']['zvec'])
         if 'exp_name' in self.args and self.args.exp_name != '':
             experiment_name += '_{}'.format(args['exp_name'])
         if 'debug' in args:
