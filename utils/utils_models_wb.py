@@ -1,5 +1,5 @@
 import glob
-
+from multiprocessing import Queue, Process
 from omegaconf import DictConfig, OmegaConf
 import yaml
 import os
@@ -23,6 +23,97 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 from .utils_plot import Plotter
 from utils import utils_rl_agent
+import time
+
+
+
+class ThreadedPlotter():
+  # plot func receives a dict and gets what it needs to plot
+  def __init__(self, plot_func, use_threading=True, queue_size=10, force_except=False):
+    self.queue = Queue(queue_size)
+    self.plot_func = plot_func
+    self.use_threading = use_threading
+    self.force_except = force_except
+    def plot_results_process(queue, plot_func):
+        # to avoid wasting time making videos
+        while True:
+            try:
+                if queue.empty():
+                    time.sleep(1)
+                    if queue.full():
+                        print("Plotting queue is full!")
+                else:
+                    actual_plot_dict = queue.get()
+                    time_put_on_queue = actual_plot_dict.pop('time_put_on_queue')
+                    print("Plotting...")
+                    plot_func(**actual_plot_dict)
+                    continue
+            except Exception as e:
+                if self.force_except:
+                  raise e
+                print('Plotting failed wiht exception: ')
+                print(e)
+    if self.use_threading:
+      Process(target=plot_results_process, args=[self.queue, self.plot_func]).start()
+
+  def _detach_tensor(self, tensor):
+    if tensor.is_cuda:
+      tensor = tensor.detach().cpu()
+    tensor = np.array(tensor.detach())
+    return tensor
+
+  def _detach_dict_or_list_torch(self, list_or_dict):
+    # We put things to cpu here to avoid er
+    if type(list_or_dict) is dict:
+      to_iter = list(list_or_dict.keys())
+    elif type(list_or_dict) is list:
+      to_iter = list(range(len(list_or_dict)))
+    else:
+      return list_or_dict
+    for k in to_iter:
+      if type(list_or_dict[k]) is torch.Tensor:
+        list_or_dict[k] = self._detach_tensor(list_or_dict[k])
+      else:
+        list_or_dict[k] = self._detach_dict_or_list_torch(list_or_dict[k])
+    return list_or_dict
+
+  def clear_queue(self):
+    while not self.queue.empty():
+      self.queue.get()
+
+  def is_queue_full(self):
+    if not self.use_threading:
+      return False
+    else:
+      return self.queue.full()
+
+  def n_queue_elements(self):
+      if not self.use_threading:
+        return 0
+      else:
+        return self.queue.qsize()
+
+  def put_plot_dict(self, plot_dict):
+    try:
+      assert type(plot_dict) is dict
+      # assert 'env' in plot_dict, 'Env to plot not found in plot_dict!'
+      plot_dict = self._detach_dict_or_list_torch(plot_dict)
+      if self.use_threading:
+        timestamp = datetime.datetime.now().strftime("%m-%d-%H:%M:%S")
+        plot_dict['time_put_on_queue'] = timestamp
+        self.queue.put(plot_dict)
+      else:
+        self.plot_func(**plot_dict)
+    except Exception as e:
+      if self.force_except:
+        raise e
+      print('Putting onto plot queue failed with exception:')
+      print(e)
+
+
+
+
+
 
 plt.switch_backend('agg')
 def build_table(rows, header_names):
@@ -1377,7 +1468,8 @@ def decode_program(graph_helper, program_info, index=0):
     program_info['node_ids'] = program_info['graph']['node_ids']
     for key, val in program_info.items():
         if key != 'graph':
-            program_info_new[key] = val[index, :].cpu().numpy()
+
+            program_info_new[key] = val[index, :]
 
     length = int(program_info_new['mask_len'].sum())
 
