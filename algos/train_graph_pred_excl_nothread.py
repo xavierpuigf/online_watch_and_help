@@ -20,20 +20,9 @@ from collections import Counter
 import utils.utils_rl_agent as utils_agent
 from utils.utils_models_wb import AverageMeter, ProgressMeter, LoggerSteps
 import math
-import p_tqdm
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import pathlib
-from functools import partial
-
-
-def decode_graphs(graph_helper, graph_info, pred_edge, pred_state, pred_change, mask_edges, input_edges, len_mask, index):
-    result_graph = utils_models.obtain_graph_3(
-        graph_helper, graph_info, predicted_edge, predicted_state, predicted_change, mask_edges, input_edges,
-        len_mask, index
-    )
-    return result_graph
-
 
 
 def build_goal_graph(graph_info, len_mask):
@@ -97,7 +86,7 @@ def unmerge(tensor, firstdim):
 #     edges_something = edges
 
 
-def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False):
+def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False):
     (
         graph_info,
         program,
@@ -141,13 +130,12 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     gt_change = (gt_edge != input_edges.cuda()).long().cuda()
     gt_change *= mask_obs_node[:, 1:, ...].long().cuda()
 
-    # inputs['input_edges'] = edge_dict['gt_edges']
     if not evaluation:
         output = model(inputs)
         
     else:
         with torch.no_grad():
-            output = model(inputs, inference=not posterior)
+            output = model(inputs, inference=True)
 
     ##################
     # Get Predictions
@@ -237,60 +225,6 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     return gt, predictions, misc, losses_dict, inputs, loss
 
 
-def plot_func(html_name, graph_helper, graph_info, len_mask, index, input_edges, pred_edge, pred_change, pred_state,
-              gt_edge, gt_change, gt_state, metrics_item, metrics_item_tstep, prog_gt, mask_edges_orig):
-    
-    # ipdb.set_trace()
-    program_gt = utils_models.decode_program(graph_helper, prog_gt, index=index)
-    pred_graph_samples = []
-    num_samples = len(pred_change)
-
-    # Obtain GT Graph
-    gt_graph = utils_models.obtain_graph_3(
-        graph_helper,
-        graph_info,
-        gt_edge,
-        gt_state,
-        gt_change,
-        mask_edges_orig,
-        input_edges,
-        len_mask,
-        index
-    )    
-    for sample_num in range(num_samples):
-        pred_graph = utils_models.obtain_graph_3(
-            graph_helper,
-            graph_info,
-            pred_edge[sample_num],
-            pred_state[sample_num],
-            pred_change[sample_num],
-            mask_edges_orig,
-            input_edges,
-            len_mask,
-            index
-        )
-        pred_graph_samples.append(pred_graph)
-
-    other_info = {
-        'prog_gt': program_gt,
-        'index': index,
-        'metrics': metrics_item,
-        'metrics_tstep': metrics_item_tstep
-    }
-
-    results = {'gt_graph': gt_graph, 'pred_graph': pred_graph_samples, 'other_info': other_info}
-
-
-    html_str = utils_models.get_html(results, graph_helper)
-                # ipdb.set_trace()
-    
-    # ipdb.set_trace()
-    dir_name = os.path.dirname(html_name)
-    if not os.path.isdir(dir_name):
-        os.makedirs(dir_name)
-    with open(html_name, 'w+') as f:
-        f.write(html_str)
-
 def inference(
     data_loader,
     model,
@@ -313,10 +247,6 @@ def inference(
 
     end = time.time()
     rows_total = []
-
-
-    if args.plot_inference:
-        threaded_plotter = utils_models.ThreadedPlotter(plot_func, use_threading=False)
     for it, data_item in enumerate(data_loader):
         # print("HEre")
         if it < args['test']['num_iters']:
@@ -334,7 +264,7 @@ def inference(
             ) = data_item
             
 
-            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=args.inference_posterior)
+            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
 
     
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
@@ -365,7 +295,7 @@ def inference(
             for sample_num in range(num_samples):
                 if 'VAE' in args.model.time_aggregate:
                     with torch.no_grad():
-                        output2 = model(inp, inference=not args.inference_posterior)
+                        output2 = model(inp)
                     b, t, n, _ = output2['states'].shape
                     cpred_change = output2['node_change'][:, :-1, ...].argmax(-1).cpu()
                     cpred_state = (output2['states'][:, :-1, ...] > 0).cpu()
@@ -388,36 +318,109 @@ def inference(
             pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
             metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
-            input_edges = misc['input_edges']
+            input_edges = misc['input_edges'].cpu().numpy()
             gt_state = gt['gt_state']
             gt_change = gt['gt_change']
             gt_edge = gt['gt_edge']            
             mask_edges_orig = misc['mask_nodes']
 
-            
-            indices = list(range(ind.shape[0])) * num_samples # (#batch) #samples
-            # edge_l = []
-            # state_l = []
-            # change_l = []
 
-            # for ns in range(num_samples):
-            #     edge_l +=  predicted_edge[ns] * bs
-            #     state_l += predicted_state[ns] * bs
-            #     change_l += predicted_change[ns] * bs
-
-
-            # graphs = p_map(partial_func, edge_l, state_l, change_l, indices)
-
-            for index in range(0, ind.shape[0], 4):
-
-                # Get the name of html
+            for index in range(ind.shape[0]):
+                try:
+                    program_gt = utils_models.decode_program(
+                        data_loader.dataset.graph_helper, prog_gt, index=index
+                    )
+                except:
+                    continue
                 current_index = ind[index]
                 fname = data_loader.dataset.pkl_files[current_index]
+
+                pred_graph_samples = []
+                for sample_num in range(num_samples):
+                    pred_graph = utils_models.obtain_graph_3(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        predicted_edge[sample_num],
+                        predicted_state[sample_num],
+                        predicted_change[sample_num],
+                        mask_edges_orig.cpu(),
+                        input_edges,
+                        len_mask,
+                        index
+                    )
+                    pred_graph_samples.append(pred_graph)
+
+                gt_graph = utils_models.obtain_graph_3(
+                    data_loader.dataset.graph_helper,
+                    graph_info,
+                    gt_edge.cpu().numpy(),
+                    gt_state.cpu().numpy(),
+                    gt_change.cpu().numpy(),
+                    mask_edges_orig.cpu(),
+                    input_edges,
+                    len_mask,
+                    index
+                )
+
+
+
+                print("************************")
+                print(f"File: {current_index}:{fname}")
+                print("\nGroundTrurth")
+                # print(gt_edge.max())
+                utils_models.print_graph_3(
+                    data_loader.dataset.graph_helper,
+                    graph_info,
+                    gt_edge.cpu().numpy(),
+                    mask_edges_orig.cpu().numpy(),
+                    gt_state.cpu().numpy(),
+                    input_edges,
+                    gt_change.cpu().numpy(),
+                    index,
+                    0,
+                )
+                tsteps =  int(len_mask[index].sum()) - 1
+
+                for t in [0, tsteps//2, tsteps-1]:
+                    print("\nInput at {}".format(t))
+                    # ipdb.set_trace()
+                    utils_models.print_graph_3(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        input_edges,
+                        mask_edges_orig.cpu().numpy(),
+                        gt_state.cpu().numpy(),
+                        None,
+                        None,
+                        index,
+                        t,
+                    )
+
+
+                    print("\nPrediction at {}".format(t))
+                    # ipdb.set_trace()c
+                    utils_models.print_graph_3(
+                        data_loader.dataset.graph_helper,
+                        graph_info,
+                        predicted_edge[0],
+                        mask_edges_orig.cpu().numpy(),
+                        predicted_state[0] > 0,
+                        input_edges,
+                        predicted_change[0],
+                        index,
+                        t,
+                    )
+                print("************************")
+                
+                # ipdb.set_trace()
+                other_info = {
+                    'prog_gt': program_gt,
+                    'index': index,
+                    'metrics': metrics_item,
+                    'metrics_tstep': metrics_item_tstep
+                }
+                results = {'gt_graph': gt_graph, 'pred_graph': pred_graph_samples, 'other_info': other_info}
                 sfname = fname.split('/')[-1] + "_result"
-                pv = ''
-                if args.inference_posterior:
-                    sfname += '_posterior'
-                    pv = '_posterior'
                 expath = logger.results_path
 
 
@@ -426,45 +429,30 @@ def inference(
                 dir_name = f'{expath}/{cpath}/'
                 result_name = f'{dir_name}/{sfname}.pkl'
                 result_name_html = f'{dir_name}/{sfname}.html'
-                result_name_html_total = f'{dir_name}/total{pv}.html'
+                result_name_html_total = f'{dir_name}/total.html'
+                score_total_str = '<br>'.join(['{}: {:03f}'.format(name, value[index]) for name, value in metrics_item.items()])
+                # Get the goal of this task:
+
+                change = results['gt_graph']['new_marker'][0].astype(np.bool)
+                dest_index = list(results['gt_graph']['to_id'][0][change])
+                from_index = list(results['gt_graph']['from_id'][0][change])
+                obj_names = results['gt_graph']['nodes']
+                tuples = [(obj_names[i].split('.')[0], obj_names[j].split('.')[0]) for i,j in zip(from_index, dest_index)]
+                ct = Counter(tuples)
+                goal_str = '<br>'.join([f'{elem}: x{cont}' for elem, cont in ct.items()])
+                rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
                 # ipdb.set_trace()
-                dict_plot = {
-                    'html_name': result_name_html,
-                    'graph_helper': data_loader.dataset.graph_helper,
-                    'graph_info': graph_info,
-                    'len_mask': len_mask,
-                    'index': index,
-                    'input_edges': input_edges, 
-                    'pred_edge': predicted_edge,
-                    'pred_change': predicted_change,
-                    'pred_state': predicted_state,
-                    'gt_edge': gt_edge,
-                    'gt_change': gt_change,
-                    'gt_state': gt_state,
-                    'prog_gt': prog_gt,
-                    'metrics_item': metrics_item,
-                    'metrics_item_tstep': metrics_item_tstep,
-                    'mask_edges_orig': mask_edges_orig
-                       
-                }
+                html_str_total = utils_models.build_table(rows_total, ['Link', 'Scores', 'Goals'])
+                html_str = utils_models.get_html(results, data_loader.dataset.graph_helper)
                 # ipdb.set_trace()
-                if args.plot_inference:
-                    goal_str = ''
-                    # goal_str = '<br>'.join([f'{elem}: x{cont}' for elem, cont in ct.items()])
-                    threaded_plotter.put_plot_dict(dict_plot)
-                    score_total_str = '<br>'.join(['{}: {:03f}'.format(name, value[index]) for name, value in metrics_item.items()])
-                    rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
-                    html_str_total = utils_models.build_table(rows_total, ['Link', 'Scores', 'Goals'])
-                    with open(result_name_html_total, 'w+') as f:
-                        f.write(html_str_total)
+                if not os.path.isdir(dir_name):
+                    os.makedirs(dir_name)
+                with open(result_name_html, 'w+') as f:
+                    f.write(html_str)
 
-
-
-
-
-
-
-
+                with open(result_name_html_total, 'w+') as f:
+                    f.write(html_str_total)
+                print(result_name_html)
                 # ipdb.set_trace()
                 if args.save_inference:
                     if not os.path.isdir(dir_name):
@@ -477,13 +465,11 @@ def inference(
             # Update accuracy
             
             # ipdb.set_trace()
+            # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
-            end = time.time()
             
             progress.display(it)
-            # if it == 4:
-            #     ipdb.set_trace()
-            # ipdb.set_trace()
+            end = time.time()
             # ipdb.set_trace()
 
         else:
@@ -685,12 +671,12 @@ def evaluate(
             
 
             # ipdb.set_trace()
+            metric_dict['batch_time'].update(time.time() - end)
             end = time.time()
 
         else:
             continue
 
-        metric_dict['batch_time'].update(time.time() - end)
         progress.display(it)
 
         # # Print the prediction
@@ -1184,7 +1170,7 @@ def get_loaders(args):
         )
 
     if args['model']['state_encoder'] == 'GNN':
-        collate_fn = None # dataloader_v2.collate_fn
+        collate_fn = dataloader_v2.collate_fn
     else:
         collate_fn = None
     train_loader = torch.utils.data.DataLoader(
@@ -1271,7 +1257,7 @@ def main(cfg: DictConfig):
         if config.logging:
             logger.save_model(0, model, optimizer)
 
-        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
+        # evaluate(test_loader, train_loader, model, 0, config, logger, criterion_state, criterion_edge)
         # ipdb.set_trace()
 
         evaluate(

@@ -320,8 +320,8 @@ class AgentTypeDataset(Dataset):
         label_agent = seed_number + self.labels[index] * 5
         real_label = self.labels[index]
 
-        if self.args_config['model']['state_encoder'] == 'GNN' and build_graphs_in_loader:
-            time_graph['graph'] = build_graph(time_graph)
+        # if self.args_config['model']['state_encoder'] == 'GNN' and build_graphs_in_loader:
+        #     time_graph['graph'] = build_graph(time_graph)
 
         # ipdb.set_trace()
         return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, index

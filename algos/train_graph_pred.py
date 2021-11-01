@@ -1205,7 +1205,7 @@ def get_loaders(args):
         )
 
     if args['model']['state_encoder'] == 'GNN':
-        collate_fn = dataloader_v2.collate_fn
+        collate_fn = None
     else:
         collate_fn = None
     train_loader = torch.utils.data.DataLoader(

@@ -39,7 +39,7 @@ class GraphPredNetworkVAE(nn.Module):
         if args['state_encoder'] == 'TF':
             self.graph_encoder = base_nets.TransformerBase(**args_tf)
         elif args['state_encoder'] == 'GNN':
-            self.graph_encoder = base_nets.GNNBase(**args_tf)
+            self.graph_encoder = base_nets.GNNBase2(**args_tf)
 
         self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
         self.agent_embedding = nn.Embedding(args['num_agents'], self.hidden_size)
@@ -268,7 +268,7 @@ class GraphPredNetworkVAE(nn.Module):
         mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
         mu_posterior, logvar_posterior =q_post[..., :d], q_post[..., d:]
         if not inference:
-
+            
             z_vec = self.sample_param(q_post)
         else:
             # ipdb.set_trace()
@@ -931,10 +931,10 @@ class ActionPredNetwork(nn.Module):
 
         if cond is not None:
             cond_vec = cond
-            ipdb.set_trace()
+            # ipdb.set_trace()
             input_embed = torch.cat([input_embed, cond_vec], -1)
 
-        ipdb.set_trace()
+        # ipdb.set_trace()
         # Input a combination of previous actions and graph
         graph_output, (h_t, c_t) = self.RNN(input_embed)
 

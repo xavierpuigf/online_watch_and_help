@@ -3,6 +3,7 @@ logging: True
 name_log: ''
 inference: False
 save_inference: False
+plot_inference: False
 inference_sample: False
 inference_posterior: False
 samples_per_graph: 20

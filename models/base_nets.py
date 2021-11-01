@@ -4,7 +4,7 @@ import pdb
 from utils.utils_models import init
 import torch
 import ipdb
-
+import numpy as np
 
 class NNBase(nn.Module):
     def __init__(self, recurrent, recurrent_input_size, hidden_size):
@@ -299,6 +299,92 @@ class GNNBase(nn.Module):
         hidden_feats = self.graph_encoder(inputs)
         return hidden_feats
 
+class GNNBase2(nn.Module):
+    def __init__(
+        self, hidden_size=128, max_nodes=150, num_rels=5, num_classes=100, num_states=4, num_prop=3
+    ):
+        super(GNNBase2, self).__init__()
+        self.hidden_size = hidden_size
+        self.graph_encoder = GraphModelIN(
+            num_nodes=max_nodes,
+            h_dim=hidden_size,
+            
+        )
+        # self.object_class_encoding = self.graph_encoder.class_encoding
+        self.single_object_encoding = ObjNameCoordStateEncode(
+            output_dim=hidden_size, num_classes=num_classes, num_states=num_states
+        )
+        self.num_prop = num_prop
+
+    def forward(self, inputs):
+        # Build the graph
+
+        # ipdb.set_trace()
+
+        edges = inputs['edge_tuples']
+        mask_edges = inputs['mask_edge']
+        input_node_embedding = self.single_object_encoding(
+            inputs['class_objects'].long(),
+            inputs['object_coords'],
+            inputs['states_objects'],
+        )
+
+
+        ne = edges.shape[2]
+        b, t, n, h = input_node_embedding.shape
+        input_node_embedding = input_node_embedding.reshape([b*t, n, h])
+        edges = edges.reshape([b*t, ne, 2])
+
+
+        mask_edges = mask_edges.reshape([b*t, ne])
+        node_embeddings = torch.zeros_like(input_node_embedding)
+
+        # Flatten time and batch
+        ind1 = np.repeat(np.arange(b*t), ne)
+        ne_ind = np.tile(np.arange(ne), b*t)
+        ind_from = edges[..., 0].reshape(-1)
+        ind_to = edges[..., 1].reshape(-1)
+
+        indices_from = torch.LongTensor([ind1, ne_ind, ind_from]).to(mask_edges.device)
+        indices_to = torch.LongTensor([ind1, ne_ind, ind_to]).to(mask_edges.device)
+
+        values = mask_edges.reshape(-1)
+
+        edge_from = torch.sparse.FloatTensor(indices_from, values, (b*t, ne, n))
+        edge_to = torch.sparse.FloatTensor(indices_to, values, (b*t, ne, n))
+        edges = [edge_from, edge_to, mask_edges]
+
+        for i in range(self.num_prop):
+            node_embeddings = self.graph_encoder(node_embeddings, input_node_embedding, edges)
+        
+        node_embeddings = node_embeddings.reshape([b, t, n, h])
+        # ipdb.set_trace()
+        return node_embeddings
+
+class GraphModelIN(nn.Module):
+    def __init__(self, num_nodes, h_dim):
+        super(GraphModelIN, self).__init__()
+        self.num_nodes = num_nodes
+        self.h_dim = h_dim
+        self.particle_prop = nn.Sequential(nn.Linear(self.h_dim * 2, self.h_dim), nn.ReLU())
+        self.edge_build = nn.Sequential(nn.Linear(self.h_dim * 2, self.h_dim), nn.ReLU())
+                
+
+    def forward(self, node_embeddings, input_node_embedding, edges):
+        # edge propagate
+        edge_from, edge_to, edge_mask = edges
+        # ipdb.set_trace()
+        from_info = edge_from.bmm(node_embeddings)
+        to_info = edge_to.bmm(node_embeddings)
+        edge_info = self.edge_build(torch.cat([to_info, from_info], 2))
+
+        # We aggregate the incoming edges
+        edge_to_t = edge_to.transpose(1,2)
+
+        node_info = edge_to_t.bmm(edge_info)
+        embeddings_out = self.particle_prop(torch.cat([node_embeddings, input_node_embedding], 2))
+
+        return embeddings_out
 
 class TransformerBase(nn.Module):
     def __init__(self, hidden_size=128, max_nodes=150, num_classes=100, num_states=4):
