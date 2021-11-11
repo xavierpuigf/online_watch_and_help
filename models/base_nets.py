@@ -320,7 +320,7 @@ class GNNBase2(nn.Module):
         # Build the graph
 
         # ipdb.set_trace()
-
+        # print('1')
         edges = inputs['edge_tuples']
         mask_edges = inputs['mask_edge']
         input_node_embedding = self.single_object_encoding(
@@ -328,7 +328,6 @@ class GNNBase2(nn.Module):
             inputs['object_coords'],
             inputs['states_objects'],
         )
-
 
         ne = edges.shape[2]
         b, t, n, h = input_node_embedding.shape
@@ -340,23 +339,33 @@ class GNNBase2(nn.Module):
         node_embeddings = torch.zeros_like(input_node_embedding)
 
         # Flatten time and batch
-        ind1 = np.repeat(np.arange(b*t), ne)
-        ne_ind = np.tile(np.arange(ne), b*t)
-        ind_from = edges[..., 0].reshape(-1)
-        ind_to = edges[..., 1].reshape(-1)
+        # ind1 = np.repeat(np.arange(b*t), ne)
+        # ne_ind = np.tile(np.arange(ne), b*t)
+        # ind_from = edges[..., 0].reshape(-1)
+        # ind_to = edges[..., 1].reshape(-1)
 
-        indices_from = torch.LongTensor([ind1, ne_ind, ind_from]).to(mask_edges.device)
-        indices_to = torch.LongTensor([ind1, ne_ind, ind_to]).to(mask_edges.device)
+        # indices_from = torch.LongTensor([ind1, ne_ind, ind_from]).to(mask_edges.device)
+        # indices_to = torch.LongTensor([ind1, ne_ind, ind_to]).to(mask_edges.device)
+
+        inputs['from_indices_onehot'][..., 0] = inputs['from_indices_onehot'][..., 0] - inputs['from_indices_onehot'][0,0,0,0]
+        inputs['to_indices_onehot'][..., 0] = inputs['to_indices_onehot'][..., 0] - inputs['to_indices_onehot'][0,0,0,0]
+        
+        indices_from = inputs['from_indices_onehot'].reshape(-1, 3).transpose(0,1)
+        indices_to = inputs['to_indices_onehot'].reshape(-1, 3).transpose(0,1)
 
         values = mask_edges.reshape(-1)
-
+        # ipdb.set_trace()
+        # print('5')
+        # THE STUFF ABOVE SHOULD GO IN THE DATALOADER   
         edge_from = torch.sparse.FloatTensor(indices_from, values, (b*t, ne, n))
         edge_to = torch.sparse.FloatTensor(indices_to, values, (b*t, ne, n))
         edges = [edge_from, edge_to, mask_edges]
 
+        # print('6')
+
         for i in range(self.num_prop):
             node_embeddings = self.graph_encoder(node_embeddings, input_node_embedding, edges)
-        
+        # print('osut-')
         node_embeddings = node_embeddings.reshape([b, t, n, h])
         # ipdb.set_trace()
         return node_embeddings

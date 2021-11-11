@@ -217,6 +217,7 @@ class GraphPredNetworkVAE(nn.Module):
 
         # Compute d_{i}
         node_embeddings = self.graph_encoder(graph)
+        
         dims = list(node_embeddings.shape)
         B, T, num_nodes, embed_size = dims
 
@@ -489,8 +490,9 @@ class GraphPredNetwork(nn.Module):
         mask_nodes = graph['mask_object']
         index_obj1 = program['indobj1']
         index_obj2 = program['indobj2']
+        print('inp')
         node_embeddings = self.graph_encoder(graph)
-
+        print('out')
 
         # Is this ok?
         # node_embeddings[node_embeddings.isnan()] = 1

@@ -19,6 +19,7 @@ import numpy as np
 class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False):
         self.path_init = path_init
+        self.max_num_edges = 200
         self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], toy_dataset=args_config['model']['reduced_graph'])
         self.get_edges = True # args_config['model']['state_encoder'] == 'GNN'
         # Build the agent types
@@ -177,6 +178,8 @@ class AgentTypeDataset(Dataset):
             steps_keep = utils_rl_agent.condense_walking(program)
 
         contit = 0
+
+
         for it, graph in enumerate(content['graph']):
             
             if it > 0 and it-1 not in steps_keep:
@@ -227,6 +230,9 @@ class AgentTypeDataset(Dataset):
 
             time_graph['mask_close'].append(torch.tensor(mask_close))
             time_graph['mask_goal'].append(torch.tensor(mask_goal))
+
+
+            
             contit += 1
             # ipdb.set_trace()
         # ipdb.set_trace()
@@ -315,6 +321,20 @@ class AgentTypeDataset(Dataset):
         #     print(attribute, program_graph[attribute].shape)
         # print('----')
 
+        # Add one hot info
+
+        if self.args_config.model.state_encoder == 'GNN':
+            ne_ind2 = torch.arange(0, self.max_num_edges)[None, :].repeat(self.max_tsteps, 1)[..., None]
+            ne_ind = torch.arange(0, self.max_tsteps)[:, None].repeat(1, self.max_num_edges)[..., None] # 0 0 0 0 
+            ind_from = time_graph['edge_tuples'][ ..., 0, None]
+            ind_to = time_graph['edge_tuples'][..., 1, None]     
+            # ipdb.set_trace()
+
+            from_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_from], dim=-1).long()
+            to_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_to], dim=-1).long()
+
+            time_graph['from_indices_onehot'] = from_indices_onehot
+            time_graph['to_indices_onehot'] = to_indices_onehot
 
 
         label_agent = seed_number + self.labels[index] * 5
@@ -341,23 +361,67 @@ def build_graph(time_graph):
         graphs.append(g)
     return graphs
 
-def collate_fn(inputs):
-    new_inputs = []
-    for i in range(1, len(inputs[0])):
-        new_inputs.append(default_collate([inp[i] for inp in inputs]))
-    
-    first_inp = {}
-    for key in inputs[0][0].keys():
-        if key not in ['graph', 'edge_tuples', 'edge_classes', 'mask_edge']:
-            first_inp[key] = default_collate([inp[0][key] for inp in inputs])
 
-    #ipdb.set_trace()
-    graph_list = [inp[0]['graph'] for inp in inputs]
-    graph_list = [graph for graphs in graph_list for graph in graphs]
-    #print(type(graph_list[0]))
-    first_inp['graph'] = dgl.batch(graph_list)
-    new_inputs = [first_inp] + new_inputs
-    return new_inputs
+def collate_fn(inputs):
+    special_collate_keys = ['from_indices_onehot', 'to_indices_onehot']
+    time_graph = [inp[0] for inp in inputs]
+
+    collate_timegraph = {}
+    keys_timegraph = time_graph[0].keys()
+    for key in keys_timegraph:
+        if key not in special_collate_keys:
+            collate_timegraph[key] = default_collate([tgraph[key] for tgraph in time_graph])
+        
+    # Special collate for timegraph
+    index_t = lambda ind: torch.tensor([ind, 0, 0])
+    tstep = time_graph[0]['from_indices_onehot'].shape[0]
+    from_indices = [(time_graph[i]['from_indices_onehot']+(index_t(i)*tstep))[None, :] for i in range(len(time_graph))]
+    to_indices = [(time_graph[i]['to_indices_onehot']+(index_t(i)*tstep))[None, :] for i in range(len(time_graph))]
+
+    collate_timegraph['from_indices_onehot'] = torch.cat(from_indices, 0)
+    collate_timegraph['to_indices_onehot'] = torch.cat(to_indices, 0)
+
+
+
+    program_batch_l = [inp[1] for inp in inputs] 
+    label_one_hot_l = [inp[2] for inp in inputs]
+    length_mask_l = [inp[3] for inp in inputs]
+    goal_l = [inp[4] for inp in inputs]
+    label_agent_l = [inp[5] for inp in inputs] 
+    real_label_l = [inp[6] for inp in inputs]
+    index_l = [inp[7] for inp in inputs]
+
+    
+
+    program_batch = default_collate(program_batch_l)
+    label_one_hot = default_collate(label_one_hot_l)
+    length_mask = default_collate(length_mask_l)
+    goal = default_collate(goal_l)
+    label_agent = default_collate(label_agent_l)
+    real_label = default_collate(real_label_l)
+    index = default_collate(index_l)
+    # ipdb.set_trace()
+
+    return collate_timegraph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, index
+
+
+# def collate_fn(inputs):
+#     new_inputs = []
+#     for i in range(1, len(inputs[0])):
+#         new_inputs.append(default_collate([inp[i] for inp in inputs]))
+    
+#     first_inp = {}
+#     for key in inputs[0][0].keys():
+#         if key not in ['graph', 'edge_tuples', 'edge_classes', 'mask_edge']:
+#             first_inp[key] = default_collate([inp[0][key] for inp in inputs])
+
+#     #ipdb.set_trace()
+#     graph_list = [inp[0]['graph'] for inp in inputs]
+#     graph_list = [graph for graphs in graph_list for graph in graphs]
+#     #print(type(graph_list[0]))
+#     first_inp['graph'] = dgl.batch(graph_list)
+#     new_inputs = [first_inp] + new_inputs
+#     return new_inputs
 
 if __name__ == '__main__':
     arguments = get_args_pref_agent()

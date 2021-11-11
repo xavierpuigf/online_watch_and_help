@@ -37,8 +37,10 @@ CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred
 CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 model.cond_prior=False model.time_aggregate='seqVAE'
 
 ### VAE + GNN
-CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 model.cond_prior=False model.time_aggregate='seqVAE'
-
+CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior \
+	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN"
+	
 ```
 
 
@@ -113,5 +115,11 @@ python analysis/helping_action_freq.py agent_pred_graph.ckpt_load=$ckpt_excl"/49
 python analysis/helping_gt_goal.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True 
 
 python analysis/helping_states.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True  num_processes=0 num_samples=1
+	
+
+export ckpt_excl_vae="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl-agentsall/time_model.seqVAE-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.001-bs.16-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True_goodactionreduced_walk_condprior.False_zvec.node"
+
+python analysis/helping_states.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True  num_processes=0 num_samples=1 agent_pred_graph.model.time_aggregate='seqVAE' agent_pred_graph.model.cond_prior=False
+
 ```
 
