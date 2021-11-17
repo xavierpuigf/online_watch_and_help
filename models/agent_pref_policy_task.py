@@ -15,19 +15,21 @@ class GraphPredNetworkVAE(nn.Module):
     def __init__(self, args):
         super(GraphPredNetworkVAE, self).__init__()
         args = args['model']
+        self.max_counts = args['num_counts']
+        self.num_task_preds = args['num_task_preds']
+
         self.max_actions = args['max_actions']
         self.max_nodes = args['max_nodes']
         self.max_timesteps = args['max_tsteps']
         self.max_num_classes = args['max_class_objects']
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
-        self.exclusive_edge = False
+        
 
-        if args['exclusive_edge']:
-            self.exclusive_edge = True
-            self.edge_types = 1
-        else:
-            self.edge_types = args['edge_types']
+        self.mask_pred = MaskPredictor(self.hidden_size, self.num_task_preds)
+        self.task_pred = TaskPredictor(self.hidden_size, self.num_task_preds, self.max_counts)
+        
+
         self.global_repr = args['global_repr']
         args_tf = {
             'hidden_size': self.hidden_size,
@@ -117,38 +119,8 @@ class GraphPredNetworkVAE(nn.Module):
         if args['edge_pred'] == 'concat':
             multi_edge = 2
 
-        self.edge_pred = nn.Sequential(
-            nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.edge_types),
-        )
 
-        self.edge_pred = nn.Sequential(
-            nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.edge_types),
-        )
 
-        self.state_pred = nn.Sequential(
-            nn.Linear(self.hidden_size, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.num_states),
-        )
-
-        self.pred_change = args['predict_edge_change']
-        self.node_change = args['predict_node_change']
-        if self.pred_change:
-            self.edge_change_pred = nn.Sequential(
-                nn.Linear(self.hidden_size * multi_edge, self.hidden_size),
-                nn.ReLU(),
-                nn.Linear(self.hidden_size, 2),
-            )
-        if self.node_change:
-            self.node_change_pred = nn.Sequential(
-                nn.Linear(self.hidden_size, self.hidden_size),
-                nn.ReLU(),
-                nn.Linear(self.hidden_size, 2),
-            )
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
         # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
@@ -285,31 +257,27 @@ class GraphPredNetworkVAE(nn.Module):
                 # ipdb.set_trace()
                 z_and_lstm = torch.cat([graph_output, z_vec], -1)
                 graph_output_nodes = self.z_projection(z_and_lstm)
-                graph_output_nodes = graph_output_nodes[:, :, None, :].repeat([1, 1, num_nodes, 1])
+                # graph_output_nodes = graph_output_nodes[:, :, None, :].repeat([1, 1, num_nodes, 1])
             else:
                 z_vec = self.z_projection(z_vec)
-                graph_output_nodes = z_vec[:, :, None, :].repeat([1, 1, num_nodes, 1])
-
+                # graph_output_nodes = z_vec[:, :, None, :].repeat([1, 1, num_nodes, 1])
+                graph_output = z_vec
         elif self.time_aggregate == 'firstcurr':
             graph_output_nodes = node_embeddings[:, 0, :, :].repeat([1, T, 1, 1])
 
-        graphs_at_output = node_embeddings  # Before the recurrent net
-
-        output_and_lstm = torch.cat([graph_output_nodes, graphs_at_output], -1)
-        output_and_lstm = self.comb_out_layer(output_and_lstm)
+        
 
 
-        pred_states, pred_edges, pred_changes = self.pred_obj_states(output_and_lstm)
+        pred_graph = self.task_pred(graph_output_nodes)
 
-        if self.exclusive_edge:
-            N = mask_nodes.shape[-1]
-            mask_nodes_edge = mask_nodes.repeat(1, 1, N)[..., None]
-            pred_edges = -1e9 * (1 - mask_nodes_edge) + mask_nodes_edge * pred_edges
+        pred_mask = self.mask_pred(graph_output_nodes)
+
         # ipdb.set_trace()
-        name_change = 'edge_change'
-        if self.node_change:
-            name_change = 'node_change'
-        return {'states': pred_states, 'edges': pred_edges, name_change: pred_changes, 
+        inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
+        inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
+
+        pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
+        return {'pred_mask': pred_mask, 'pred_graph': pred_graph, 
                 'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
 
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
@@ -317,8 +285,34 @@ class GraphPredNetworkVAE(nn.Module):
         # loss_o2 = None
 
 
+class TaskPredictor(nn.Module):
+    def mlp2l(self, dim_in, dim_out):
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+        )
+    def __init__(self, input_embed, num_tasks, num_task_count):
+        super(TaskPredictor, self).__init__()
+        self.mask_layers = nn.ModuleList([self.mlp2l(input_embed, num_task_count) for _ in range(num_tasks)])
 
+    def forward(self, input_embedding):
+        output_preds = []
+        for layer in self.mask_layers:
+            output_preds.append(layer(input_embedding)[..., None, :])
 
+        output_preds = torch.cat(output_preds, -2)
+        return output_preds
+
+class MaskPredictor(nn.Module):
+    def mlp2l(self, dim_in, dim_out):
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+        )
+    def __init__(self, input_embed, num_tasks):
+        super(MaskPredictor, self).__init__()
+        self.mask_layer = self.mlp2l(input_embed, num_tasks)
+
+    def forward(self, input_embedding):
+        return self.mask_layer(input_embedding)
 
 class GraphPredNetwork(nn.Module):
     def mlp2l(self, dim_in, dim_out):

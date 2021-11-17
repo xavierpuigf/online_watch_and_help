@@ -126,6 +126,8 @@ class GraphHelper:
             content = json.load(f)
         self.object_dict_types = content
 
+        self.task_graph_dict, self.task_graph_list = self.build_task_graph_dict()
+
     def actionstr2index(self, action_str):
         action_split = action_str.split()
         action = action_split[0][1:-1]
@@ -270,6 +272,83 @@ class GraphHelper:
             if self.state_dict.valid_el(state.lower()):
                 one_hot[self.state_dict.get_id(state) - 1] = 1
         return one_hot
+
+    def build_task_graph_dict(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+
+        if self.toy_dataset:
+            object_info_fname = f'{dir_path}/../dataset/object_info_toy.json'
+        else:
+            object_info_fname = f'{dir_path}/../dataset/object_info_good.json'
+        with open(object_info_fname, 'r') as f:
+            content = json.load(f)
+
+        objects_container = list(set(content['objects_inside']+content['objects_surface']+['character']))
+        task_graph_dict = {}
+        task_graph_list = []
+        index = 0
+        
+        # objects_container = ['kitchentable', 'kitchencabinet', 'coffeetable', 'fridge', 'microwave', 'stove', 'cabinet', '']
+        for object_graph in list(set(content['objects_grab'])):
+            for object_container in objects_container:
+                tuple_key = (self.object_dict.get_id(object_graph), self.object_dict.get_id(object_container))
+                tuple_name = (object_graph, object_container)
+                if tuple_key in task_graph_dict:
+                    print("Error, key {},{} already exists".format(tuple_key[0], tuple_key[1]))
+                    raise Exception
+                task_graph_dict[tuple_key] = (tuple_name, index)
+                task_graph_list.append(tuple_key)
+                index += 1
+        for object_container in self.rooms:
+            object_graph = 'character'
+            tuple_key = (self.object_dict.get_id(object_graph), self.object_dict.get_id(object_container))
+            tuple_name = (object_graph, object_container)
+            if tuple_key in task_graph_dict:
+                print("Error, key {},{} already exists".format(tuple_key[0], tuple_key[1]))
+                raise Exception
+            task_graph_dict[tuple_key] = (tuple_name, index)
+            task_graph_list.append(tuple_key)
+            index += 1
+
+        return task_graph_dict, task_graph_list
+
+    def get_task_graph(self, task_graph, mask=None):
+        results = []
+        for i in range(int(task_graph.shape[0])):
+            if task_graph[i] != 0:
+                if mask is None or mask[i] != 0:
+                    graph_tuple = self.task_graph_list[i]
+                    graph_names = self.task_graph_dict[graph_tuple][0]
+                    results.append("{} - {}: {}".format(graph_names[0], graph_names[1], task_graph[i]))
+        return results
+
+    def print_task_graph(self, task_graph, mask=None):
+        for i in range(task_graph.shape[0]):
+            if task_graph[i] != 0:
+                if mask is None or mask[i] != 0:
+                    graph_tuple = self.task_graph_list[i]
+                    graph_names = self.task_graph_dict[graph_tuple][0]
+                    print("{} - {}: {}".format(graph_names[0], graph_names[1], task_graph[i]))
+                
+    def build_task_graph(self, graph_info):
+        num_graph_keys = len(self.task_graph_dict.keys())
+        task_graph = np.zeros(num_graph_keys)
+        num_edges = int(graph_info['mask_edge'].sum())
+        edge_tuples = graph_info['edge_tuples']
+        class_objects = graph_info['class_objects']
+        for i in range(num_edges):
+            class_from, class_to = class_objects[edge_tuples[i, 0]], class_objects[edge_tuples[i, 1]]
+            tuple_key = (class_from, class_to)
+            if tuple_key in self.task_graph_dict:
+                task_index = self.task_graph_dict[tuple_key][1]
+                task_graph[task_index] += 1
+                if task_graph[task_index] > 7:
+                    print(self.task_graph_dict[self.task_graph_list[task_index]])
+                    ipdb.set_trace()
+            else:
+                # TODO: check that here we have the right objects
+                pass
+        return task_graph
 
     def build_graph(
         self,
@@ -595,126 +674,6 @@ def make_edges_unique(edges, rooms, id2node):
     edges = list(edge_from_dict.values())
     return edges
 
-
-def can_perform_action(
-    action, o1, o1_id, agent_id, graph, graph_helper=None, teleport=True
-):
-    if action == 'no_action':
-        return None
-    # if action in ['open', 'close', 'grab', 'putback']:
-    #     return False
-    # pdb.set_trace()
-    # print('Attemptinf', action, o1)
-    obj2_str = ''
-    obj1_str = ''
-    id2node = {node['id']: node for node in graph['nodes']}
-    num_args = 0 if o1 is None else 1
-    grabbed_objects = [
-        edge['to_id']
-        for edge in graph['edges']
-        if edge['from_id'] == agent_id
-        and edge['relation_type'] in ['HOLDS_RH', 'HOLD_LH']
-    ]
-    if num_args != args_per_action(action):
-        return None
-
-    # if 'walk' not in action and 'turn' not in action:
-    #     return None
-    close_edge = (
-        len(
-            [
-                edge['to_id']
-                for edge in graph['edges']
-                if edge['from_id'] == agent_id
-                and edge['to_id'] == o1_id
-                and edge['relation_type'] == 'CLOSE'
-            ]
-        )
-        > 0
-    )
-    if action == 'grab':
-        if len(grabbed_objects) > 0:
-            return None
-
-    if action.startswith('walk'):
-        if o1_id in grabbed_objects:
-            return None
-        # print(agent_id, o1_id, close_edge)
-
-    if o1_id == agent_id:
-        return None
-
-    if (action in ['grab', 'open', 'close']) and not close_edge:
-        return None
-
-    if action == 'open':
-        # print(o1_id, id2node[o1_id]['states'])
-        if graph_helper is not None:
-            if (
-                id2node[o1_id]['class_name']
-                not in graph_helper.object_dict_types['objects_inside']
-            ):
-                return None
-        if (
-            'OPEN' in id2node[o1_id]['states']
-            or 'CLOSED' not in id2node[o1_id]['states']
-        ):
-            return None
-
-    if action == 'close':
-        # print(o1_id, id2node[o1_id]['states'])
-        if graph_helper is not None:
-            if (
-                id2node[o1_id]['class_name']
-                not in graph_helper.object_dict_types['objects_inside']
-            ):
-                return None
-        if (
-            'CLOSED' in id2node[o1_id]['states']
-            or 'OPEN' not in id2node[o1_id]['states']
-        ):
-            return None
-
-    if 'put' in action:
-        if len(grabbed_objects) == 0:
-            return None
-        else:
-            o2_id = grabbed_objects[0]
-            if o2_id == o1_id:
-                return None
-            o2 = id2node[o2_id]['class_name']
-            obj2_str = f'<{o2}> ({o2_id})'
-
-    if o1 is not None:
-        obj1_str = f'<{o1}> ({o1_id})'
-    if o1_id in id2node.keys():
-        if id2node[o1_id]['class_name'] == 'character':
-            return None
-
-    if action.startswith('put'):
-        if graph_helper is not None:
-            if (
-                id2node[o1_id]['class_name']
-                in graph_helper.object_dict_types['objects_inside']
-            ):
-                action = 'putin'
-            if (
-                id2node[o1_id]['class_name']
-                in graph_helper.object_dict_types['objects_surface']
-            ):
-                action = 'putback'
-        else:
-            if 'CONTAINERS' in id2node[o1_id]['properties']:
-                action = 'putin'
-            elif 'SURFACES' in id2node[o1_id]['properties']:
-                action = 'putback'
-
-    if action.startswith('walk') and teleport:
-        action = 'walk'
-
-    action_str = f'[{action}] {obj2_str} {obj1_str}'.strip()
-    # print(action_str)
-    return action_str
 
 
 def args_per_action(action):

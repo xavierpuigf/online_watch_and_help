@@ -94,7 +94,8 @@ class ThreadedPlotter():
         return self.queue.qsize()
 
   def put_plot_dict(self, plot_dict):
-    try:
+    # try:
+    if True:
       assert type(plot_dict) is dict
       # assert 'env' in plot_dict, 'Env to plot not found in plot_dict!'
       plot_dict = self._detach_dict_or_list_torch(plot_dict)
@@ -104,6 +105,9 @@ class ThreadedPlotter():
         self.queue.put(plot_dict)
       else:
         self.plot_func(**plot_dict)
+    
+    try:
+        pass
     except Exception as e:
       if self.force_except:
         raise e
@@ -127,6 +131,44 @@ def build_table(rows, header_names):
     return html_str
 
 
+
+def build_task_pred_str(from_id, to_id, edge_type, obj_names, tstep, graph_helper, new_nodes=None):
+    from_id = from_id[tstep]
+    to_id = to_id[tstep]
+    edge_type = edge_type[tstep]
+    if new_nodes is not None:
+        new_nodes = list(new_nodes)
+    # else:
+
+    from_edge = {}
+    # ipdb.set_trace()
+    for elem_from, elem_to in zip(from_id.tolist(), to_id.tolist()):
+        if int(elem_to) not in from_edge:
+            from_edge[int(elem_to)] = []
+        from_edge[int(elem_to)].append(int(elem_from))
+
+    all_elems = sorted(list(set(list(from_edge.keys()))))
+    # obj_names = gt_graph['nodes']
+
+    graph_str = ''
+    def convert_name(name, itt):
+        if new_nodes is None or new_nodes[itt] == 0:
+            return name
+        else:
+            return '<span style="color:blue">'+name+'</span>'
+            # return name÷
+    for elem in all_elems:
+        on_curr = []
+        if elem in from_edge:
+            on_curr = from_edge[elem]
+        # ipdb.set_trace()
+        on_str = ' '.join([convert_name(obj_names[itt].strip(), itt) for itt in on_curr])
+        elem2 = obj_names[elem]
+        graph_str += f'<span style="white-space: nowrap"><b>{elem2}</b>: [{on_str}]</span><br>'
+    # print("==========")
+
+
+    return graph_str
 
 def build_graph_str(from_id, to_id, edge_type, obj_names, tstep, graph_helper, new_nodes=None):
     from_id = from_id[tstep]
@@ -248,6 +290,107 @@ def get_pred_str(pred_dict):
     l_items = ['<li>{}: {}</li>'.format(key, pred_dict[key]['count']) for key in sorted(pred_dict.keys())]
     return ''.join(l_items)
 
+def get_pred_task_str(str_task, str_mask=None, correct=None, remove=False):
+
+    l_items = ['<li><span style="color: blue">{}</span><span style="color: {}">{}</span></li>'.format('[New] ' if (str_mask != None and str_mask[i] == 1) else '', 
+        'black' if correct is None or not correct[i] else 'green', 
+        str_item) for i, str_item in enumerate(str_task)]
+    if remove:
+        l_items = ['<li><span style="color: blue">{}</span><span style="color: {}">{}</span></li>'.format(
+            '[New] ', 
+            'black' if not correct or not correct[i] else 'green', 
+            str_item) for i, str_item in enumerate(str_task) if (str_mask != None and str_mask[i] == 1)]
+    return ''.join(l_items)
+
+
+def get_html_task(results, graph_helper):
+    other_info = results['other_info']
+
+    gt_task, gt_graph_tensor = results['gt_task']
+    pred_task, pred_task_tensor_list = results['pred_task']
+    # ipdb.set_trace()
+    
+    program_gt = other_info['prog_gt']
+    index = other_info['index']
+
+    scores_step = other_info['metrics_tstep'] 
+    
+
+    script_js = '''
+            <script>
+            var show_graph = false;
+            function switchView(){
+                var preds = document.getElementsByClassName('preds');
+                var graphs = document.getElementsByClassName('graph'); 
+                for (var j = 0; j < preds.length; j++){
+                    if (show_graph){
+
+                        preds[j].style.display = 'none';
+                        graphs[j].style.display = 'block';
+                    }  
+                    else {
+
+                        preds[j].style.display = 'block';
+                        graphs[j].style.display = 'none';
+                    }
+
+                }
+                
+                show_graph = !show_graph;
+            }
+            </script>
+    '''
+    html_str = '<html><head><link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="nofollow" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"><head><body>'
+    html_str += script_js
+    html_str += '<button onclick=switchView()> Switch Preds/Graph </button>'
+    header_names = ['Action', 'Score', 'Input', 'GT'] + [f'Pred {i}' for i in range(5)]
+    header = ''.join(['<th>{}</th>'.format(name) for name in header_names])
+    table_resp = f'<table class="table"><tr>{header}</tr>'
+    numtsteps = len(program_gt) - 1
+
+    rows = []
+    # ipdb.set_trace()
+    for tstep in range(numtsteps):
+        columns = []
+        # ipdb.set_trace()
+        
+        score_str = ''
+        # score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
+        columns = [program_gt[tstep].replace('<', '').replace('>', ''), score_str]
+        # ipdb.set_trace()
+        
+
+        gt_task_str = get_pred_task_str(gt_task[tstep]['output_task'], gt_task[tstep]['mask'])
+        input_task_str = get_pred_task_str(gt_task[tstep]['input_task'])
+
+        columns += [input_task_str, gt_task_str]
+
+        gt_task_tensor_curr = gt_graph_tensor[tstep]
+        for gind in range(min(5, len(pred_task_tensor_list))):
+            pred_task_tensor_curr = pred_task_tensor_list[gind][tstep]
+            # ipdb.set_trace()
+
+            correct = list((pred_task_tensor_curr ==  gt_task_tensor_curr)[pred_task_tensor_curr > 0])
+            # ipdb.set_trace()
+            predicates_str = get_pred_task_str(pred_task[gind][tstep]['output_task'],pred_task[gind][tstep]['mask'], correct=correct)
+            # ipdb.set_trace()
+            columns.append(predicates_str)
+        # ipdb.set_trace()
+        # ipdb.set_trace()
+        style_str = 'overflow: auto; width: 500px'
+        style_str2 = 'overflow: auto; width: 150px'
+        column_str = ''.join(['<td><div style="{}">{}</div></td>'.format(style_str2, col) for col in columns[:2]])
+        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col, content_pred=col) for col in columns[2:]])
+        rows.append(column_str)
+    
+    table_resp += ''.join(['<tr>{}</tr>'.format(row) for row in rows])
+    
+    table_resp += '</table>'
+    html_str += table_resp 
+    html_str += '</body></html>'
+    return html_str
+
+
 def get_html(results, graph_helper):
     other_info = results['other_info']
     scores_step = other_info['metrics_tstep'] 
@@ -328,6 +471,61 @@ def get_html(results, graph_helper):
     html_str += table_resp 
     html_str += '</body></html>'
     return html_str
+
+
+def obtain_task_graph(
+    graph_helper,
+    graph_info,
+    task_graph,
+    task_mask,
+    input_task,
+    index,
+    len_mask
+):
+    num_tsteps = int(len_mask[index].sum())
+    task_info = []
+    # ipdb.set_trace()
+    for i in range(num_tsteps):
+        # print(input_task.sha÷pe, task_graph.shape, index, i)
+        cinput_task = graph_helper.get_task_graph(input_task[index, i])  
+        cmask = task_mask[index, i][task_graph[index, i] != 0]
+        try:
+            coutput_task = graph_helper.get_task_graph(task_graph[index, i]) 
+        except:
+            ipdb.set_trace()
+        task_info.append({
+            'input_task': cinput_task,
+            'output_task': coutput_task,
+            'mask': list(cmask)
+        })
+    # print('--')
+    return task_info
+
+# def obtain_task_graph(
+#     graph_helper,
+#     graph_info,
+#     task_graph,
+#     task_mask,
+#     input_task,
+#     index,
+#     step
+# ):
+#     task = task_graph[index, step]
+#     mask = task_mask[index, step]
+#     return graph_helper.get_task_graph(task, mask)
+
+def print_task_graph(
+    graph_helper,
+    graph_info,
+    task_graph,
+    task_mask,
+    input_task,
+    index,
+    step
+):
+    task = task_graph[index, step]
+    mask = task_mask[index, step]
+    graph_helper.print_task_graph(task, mask)
 
 def print_graph_3_2(
     graph_helper,
@@ -1792,31 +1990,13 @@ class LoggerSteps:
             if 'misc' in info.keys():
                 for acc_name, acc_item in info['misc'].items():
                     res_dict.update({"misc/{}".format(acc_name): acc_item})
+            
+            if 'misc_hist' in info.keys():
+                ipdb.set_trace()
+                
             # ipdb.set_trace()
             self.wandb.log(res_dict)
 
-            # if 'plots' in info.keys():
-            #     info_plot = info['plots']
-            #     fig, ax = plt.subplots(4,2)
-            #     bs = len(info_plot['gt_belief_room'])
-            #     for i in range(min(4, bs)):
-            #         it = 0
-            #         for curr_str in ['gt_belief_room', 'gt_belief_container']:
-            #             try:
-            #                 names = info_plot[curr_str.replace('gt', 'names')][i]
-            #             except:
-            #                 ipdb.set_trace()
-            #             x = np.arange(len(info_plot[curr_str][i]))
-            #             ax[i,it].bar(x-0.15, info_plot[curr_str][i], width=0.3)
-            #             ax[i,it].bar(x+0.15, info_plot[curr_str.replace('gt', 'pred')][i], width=0.3)
-            #             ax[i, it].set_xticks(range(len(names)))
-            #             ax[i, it].set_xticklabels(names)
-            #             ax[i, it].set_ylim((0,1))
-            #             ax[i, it].tick_params(axis='both', which='major', labelsize=8)
-            #             ax[i, it].tick_params(axis='both', which='minor', labelsize=8)
-            #             ax[i, it].grid(axis='y')
-            #             it += 1
-            #     self.wandb.add_figure(info['plots']['name'], fig, total_num_steps)
 
     def log_info(self, info_ep):
         try:

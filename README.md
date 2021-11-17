@@ -6,7 +6,18 @@ Symlink the folder: `/data/vision/torralba/frames/data_acquisition/SyntheticStor
 
 Run training
 
-```
+
+# New experiments
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_task.py name_log=pred_last_graph_excl_large_VAE_uncondprior_new \
+	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False
+	
+
+
+
+<!-- ```
 CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py
 ```
 
@@ -14,7 +25,7 @@ Run inference
 
 ```
 CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py inference=True ckpt_load=
-```
+ -->```
 
 # Runs
 
@@ -37,7 +48,12 @@ CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred
 CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 model.cond_prior=False model.time_aggregate='seqVAE'
 
 ### VAE + GNN
-CUDA_VISIBLE_DEVICES=3,4,5,6 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior_new \
+	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="TF"
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_excl.py name_log=pred_last_graph_excl_large_VAE_uncondprior_new \
 	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
 	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN"
 	
