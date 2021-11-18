@@ -354,16 +354,19 @@ def get_html_task(results, graph_helper):
         columns = []
         # ipdb.set_trace()
         
-        score_str = ''
-        # score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
+        # score_str = ''
+        # ipdb.set_t÷race()
+        #
+        score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
         columns = [program_gt[tstep].replace('<', '').replace('>', ''), score_str]
         # ipdb.set_trace()
         
 
         gt_task_str = get_pred_task_str(gt_task[tstep]['output_task'], gt_task[tstep]['mask'])
+        gt_task_str_filter = get_pred_task_str(gt_task[tstep]['output_task'], gt_task[tstep]['mask'], remove=True)
         input_task_str = get_pred_task_str(gt_task[tstep]['input_task'])
 
-        columns += [input_task_str, gt_task_str]
+        columns += [(input_task_str, input_task_str), (gt_task_str, gt_task_str_filter)]
 
         gt_task_tensor_curr = gt_graph_tensor[tstep]
         for gind in range(min(5, len(pred_task_tensor_list))):
@@ -373,14 +376,16 @@ def get_html_task(results, graph_helper):
             correct = list((pred_task_tensor_curr ==  gt_task_tensor_curr)[pred_task_tensor_curr > 0])
             # ipdb.set_trace()
             predicates_str = get_pred_task_str(pred_task[gind][tstep]['output_task'],pred_task[gind][tstep]['mask'], correct=correct)
+            predicates_str_filtered = get_pred_task_str(pred_task[gind][tstep]['output_task'],pred_task[gind][tstep]['mask'], correct=correct, remove=True)
+            
             # ipdb.set_trace()
-            columns.append(predicates_str)
+            columns.append((predicates_str, predicates_str_filtered))
         # ipdb.set_trace()
         # ipdb.set_trace()
         style_str = 'overflow: auto; width: 500px'
         style_str2 = 'overflow: auto; width: 150px'
         column_str = ''.join(['<td><div style="{}">{}</div></td>'.format(style_str2, col) for col in columns[:2]])
-        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col, content_pred=col) for col in columns[2:]])
+        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col[0], content_pred=col[1]) for col in columns[2:]])
         rows.append(column_str)
     
     table_resp += ''.join(['<tr>{}</tr>'.format(row) for row in rows])
@@ -398,7 +403,7 @@ def get_html(results, graph_helper):
     pred_graph = results['pred_graph']
     program_gt = other_info['prog_gt']
     index = other_info['index']
-
+    ipdb.set_trace()
     script_js = '''
             <script>
             var show_graph = false;
@@ -437,6 +442,7 @@ def get_html(results, graph_helper):
         columns = []
         # ipdb.set_trace()
         score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
+        # ipdb.set_trace()
         columns = [program_gt[tstep].replace('<', '').replace('>', ''), score_str]
         graph_input = build_graph_str(
             gt_graph['from_id_input'], gt_graph['to_id_input'], gt_graph['edge_input'], gt_graph['nodes'], tstep, graph_helper) 
@@ -1913,7 +1919,7 @@ class LoggerSteps:
             'predict_graph/train_data.{}-agents{}/'
             'time_model.{}-stateenc.{}-globalrepr.{}-edgepred.{}-lr{}-bs.{}-'
             'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchange.{}_inputgoal.{}_excledge.{}_goodaction'
-            '{}'
+            '{}_logname.{}'
         ).format(
             args['data']['train_data'],
             args['train']['agents'],
@@ -1930,7 +1936,8 @@ class LoggerSteps:
             pred_change,
             args['model']['input_goal'],
             args['model']['exclusive_edge'],
-            'reduced_walk' if args['model']['condense_walking'] else ''
+            'reduced_walk' if args['model']['condense_walking'] else '',
+            args['name_log']
         )
         if args['model']['gated']:
             experiment_name += '_gated'
@@ -1991,9 +1998,9 @@ class LoggerSteps:
                 for acc_name, acc_item in info['misc'].items():
                     res_dict.update({"misc/{}".format(acc_name): acc_item})
             
-            if 'misc_hist' in info.keys():
-                ipdb.set_trace()
-                
+            # if 'misc_hist' in info.keys():
+            #     ipdb.set_trace()
+
             # ipdb.set_trace()
             self.wandb.log(res_dict)
 

@@ -5,6 +5,321 @@ import torch.nn as nn
 import ipdb
 
 
+class TaskEncoder(nn.Module):
+    def mlp2l(self, dim_in, dim_out):
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+        )
+    def __init__(self, num_preds, num_counts, out_dim):
+        super(TaskEncoder, self).__init__()
+        self.bottleneck = 3
+        self.quantity_encoder = self.mlp2l(num_counts, self.bottleneck) 
+        self.rest_encoder = self.mlp2l(num_preds*self.bottleneck, out_dim)
+        
+
+    def forward(self, input_goal):
+        # B x num_preds x num_counts
+        B = input_goal.shape[0]
+        bottleneck_feats = self.quantity_encoder(input_goal)
+        flatten_tensor = bottleneck_feats.reshape(B, -1) 
+        embedding = self.rest_encoder(flatten_tensor)
+        return embedding
+
+class GraphPredNetworkVAETask(nn.Module):
+    def mlp2l(self, dim_in, dim_out):
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+        )
+
+    def __init__(self, args):
+        super(GraphPredNetworkVAETask, self).__init__()
+        args = args['model']
+        self.max_counts = args['num_counts']
+        self.num_task_preds = args['num_task_preds']
+
+        self.max_actions = args['max_actions']
+        self.max_nodes = args['max_nodes']
+        self.max_timesteps = args['max_tsteps']
+        self.max_num_classes = args['max_class_objects']
+        self.hidden_size = args['hidden_size']
+        self.num_states = args['num_states']
+        
+
+        self.mask_pred = MaskPredictor(self.hidden_size, self.num_task_preds)
+        self.task_pred = TaskPredictor(self.hidden_size, self.num_task_preds, self.max_counts)
+        
+        self.input_vae = args['input_vae']
+        if self.input_vae:
+            self.task_encoder = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+
+        self.global_repr = args['global_repr']
+        args_tf = {
+            'hidden_size': self.hidden_size,
+            'max_nodes': self.max_nodes,
+            'num_classes': self.max_num_classes,
+            'num_states': self.num_states,
+        }
+
+        if args['state_encoder'] == 'TF':
+            self.graph_encoder = base_nets.TransformerBase(**args_tf)
+        elif args['state_encoder'] == 'GNN':
+            self.graph_encoder = base_nets.GNNBase2(**args_tf)
+
+        self.action_embedding = nn.Embedding(self.max_actions, self.hidden_size)
+        self.agent_embedding = nn.Embedding(args['num_agents'], self.hidden_size)
+        self.use_agent_embedding = args['agent_embed']
+
+        # Combine previous action and graph
+        multi = 2
+        if self.use_agent_embedding:
+            raise Exception
+            multi = 3
+
+        # Used to transform the goal encoding into features that we will use for action/object prediction
+        '''
+        self.fc_att_action = self.mlp2l(self.hidden_size , self.hidden_size)
+        self.fc_att_object = self.mlp2l(self.hidden_size , self.hidden_size)
+        self.fc_att_object2 = self.mlp2l(self.hidden_size, self.hidden_size)
+        '''
+
+        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
+        self.comb_out_layer = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.num_layer_lstm = 2
+        self.time_aggregate = args['time_aggregate']
+
+        if args['time_aggregate'] == 'LSTM' or 'VAE' in args['time_aggregate']:
+            self.RNN = nn.LSTM(
+                self.hidden_size,
+                self.hidden_size,
+                self.num_layer_lstm,
+                batch_first=True,
+            )
+        elif args['time_aggregate'] == 'none':
+            # use the current state
+            self.COMBTime = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, self.hidden_size),
+            )
+        elif args['time_aggregate'] == 'firstcurr':
+            # use the current state
+            self.COMBTime = nn.Sequential(
+                nn.Linear(self.hidden_size*2, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, self.hidden_size),
+            )
+
+        # VAE related
+        self.cond_prior = False
+        self.args = args
+        if args['cond_prior']:
+            self.cond_prior = True
+            self.prior_net = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, 128 * 2)
+            )
+        self.posterior = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 128 * 2)
+        )
+
+
+        if self.args['cond_prior']:
+            input_dim_zproj = 128
+        else:
+            input_dim_zproj = 128 + self.hidden_size
+        self.z_projection = nn.Sequential(
+            nn.Linear(input_dim_zproj, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size)
+        )
+
+
+        multi_edge = 1
+        if args['edge_pred'] == 'concat':
+            multi_edge = 2
+
+
+
+
+        # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
+        # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+        # self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+
+        # self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+        #                            nn.ReLU(),
+        #                            nn.Linear(self.hidden_size, 1))
+        # self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+        #                                    nn.ReLU(),
+        #                                    nn.Linear(self.hidden_size, 1))
+
+        self.goal_inp = args['goal_inp']
+        self.edge_pred_mode = args['edge_pred']
+        if args['goal_inp']:
+            self.goal_encoder = base_nets.GoalEncoder(
+                self.max_num_classes,
+                self.hidden_size,
+                obj_class_encoder=self.graph_encoder.object_class_encoding,
+            )
+
+    def pred_obj_states(self, inputs):
+        # inputs: Batch x T x num_nodes x embed
+        nnodes = inputs.shape[-2]
+        states = self.state_pred(inputs)
+        edges1 = inputs.repeat([1, 1, nnodes, 1])
+        edges2 = inputs.repeat_interleave(nnodes, dim=2)
+
+        if self.edge_pred_mode == 'concat':
+            edge_embeds = torch.cat([edges1, edges2], dim=-1)
+
+        elif self.edge_pred_mode == 'dot':
+            edge_embeds = edges1 * edges2
+
+        else:
+            raise Exception
+
+        edges = self.edge_pred(edge_embeds)
+        change = None
+        if self.pred_change:
+            change = self.edge_change_pred(edge_embeds)
+        if self.node_change:
+            change = self.node_change_pred(inputs)
+        return states, edges, change
+
+    def sample_param(self, qvec):
+        # ipdb.set_trace()
+        mids = qvec.shape[-1] // 2
+        mu = qvec[..., :mids]
+        logvar = qvec[..., mids:]
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = eps * std + mu
+        return z
+
+    def forward(self, inputs, cond=None, inference=False, seed=None):
+        # ipdb.set_trace()
+        # Cond is an embedding of the past, optionally used
+        # ipdb.set_trace()
+        program = inputs['program']
+        graph = inputs['graph']
+        mask_len = inputs['mask_len']
+        mask_nodes = graph['mask_object']
+        index_obj1 = program['indobj1']
+        index_obj2 = program['indobj2']
+
+        # Compute d_{i}
+        node_embeddings = self.graph_encoder(graph)
+        
+        dims = list(node_embeddings.shape)
+        B, T, num_nodes, embed_size = dims
+
+
+
+
+
+        # Is this ok?
+        # node_embeddings[node_embeddings.isnan()] = 1
+
+
+        action_embed = self.action_embedding(program['action'])
+
+        assert torch.all(inputs['graph']['node_ids'][:, 0, 0] == 1).item()
+
+        # Graph representation, it is the representation of the character or pool
+        if self.global_repr == 'pool':
+            graph_repr = (
+                node_embeddings
+                * mask_nodes.unsqueeze(-1).expand(-1, -1, -1, node_embeddings.shape[-1])
+            ).sum(-2)
+        else:
+            graph_repr = node_embeddings[:, :, 0]
+
+        
+
+        # last_tstep_embeddings, get the graph at the last step
+        # ipdb.set_trace()
+        tsteps = mask_len.sum(-1)[..., None, None].repeat(1, 1, embed_size).long() - 1
+        last_tstep_embeddings = torch.gather(graph_repr, 1, tsteps)
+
+
+        # Prepare input to the LSTM
+        action_graph = torch.cat([action_embed[:, :, :], graph_repr], -1)
+        input_embed = self.comb_layer(action_graph)
+
+        graph_output, (h_t, c_t) = self.RNN(input_embed)
+
+        # Compute posterior
+        # TODO: this should change from the previous setting! Uncommend below
+        end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
+        end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
+        # ipdb.set_trace()
+        end_task_masked = end_task_masked.reshape(-1, self.num_task_preds, self.max_counts)
+        encoded_goal_task = self.task_encoder(end_task_masked)
+        encoded_goal_task = encoded_goal_task.reshape(B, T, -1)
+
+        # ipdb.set_trace()
+
+        q_post = self.posterior(encoded_goal_task)
+        if self.cond_prior:
+            p_prior = self.prior_net(graph_output) 
+        else:
+            mean_logvar = torch.zeros(q_post.shape)
+            p_prior = mean_logvar.to(q_post.device)
+            # p_prior = torch.cat([mean, log_var], -1)
+
+        d = p_prior.shape[-1] // 2
+        mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
+        mu_posterior, logvar_posterior =q_post[..., :d], q_post[..., d:]
+        if not inference:
+            
+            z_vec = self.sample_param(q_post)
+        else:
+            # print("sampling...")
+            z_vec = self.sample_param(p_prior) 
+            # print('sampled')
+        if self.time_aggregate in ['LSTM', 'none']:
+            # Output of lstm, concatenate with output of graph
+            graph_output_nodes = graph_output.unsqueeze(-2).repeat(
+                [1, 1, self.max_nodes, 1]
+            )  # Recurrent part, we may want to replace that by a z later?
+        elif 'VAE' in self.time_aggregate:
+            if not self.cond_prior:
+                # ipdb.set_trace()
+                z_and_lstm = torch.cat([graph_output, z_vec], -1)
+                graph_output_nodes = self.z_projection(z_and_lstm)
+                # graph_output_nodes = graph_output_nodes[:, :, None, :].repeat([1, 1, num_nodes, 1])
+            else:
+                z_vec = self.z_projection(z_vec)
+                # graph_output_nodes = z_vec[:, :, None, :].repeat([1, 1, num_nodes, 1])
+                graph_output = z_vec
+        elif self.time_aggregate == 'firstcurr':
+            graph_output_nodes = node_embeddings[:, 0, :, :].repeat([1, T, 1, 1])
+
+        
+
+
+        pred_graph = self.task_pred(graph_output_nodes)
+
+        pred_mask = self.mask_pred(graph_output_nodes)
+
+        # ipdb.set_trace()
+        inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
+        inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
+
+        pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
+        return {'pred_mask': pred_mask, 'pred_graph': pred_graph, 
+                'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
+
+        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
+        # loss_o1 = None
+        # loss_o2 = None
+
+
+
+
+
 
 class GraphPredNetworkVAE(nn.Module):
     def mlp2l(self, dim_in, dim_out):
@@ -29,6 +344,9 @@ class GraphPredNetworkVAE(nn.Module):
         self.mask_pred = MaskPredictor(self.hidden_size, self.num_task_preds)
         self.task_pred = TaskPredictor(self.hidden_size, self.num_task_preds, self.max_counts)
         
+        self.input_vae = args['input_vae']
+        # if self.input_vae:
+        #     self.task_encoder = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
 
         self.global_repr = args['global_repr']
         args_tf = {
@@ -229,6 +547,8 @@ class GraphPredNetworkVAE(nn.Module):
         graph_output, (h_t, c_t) = self.RNN(input_embed)
 
         # Compute posterior
+        # TODO: this should change from the previous setting! Uncommend below
+        q_post = self.posterior(torch.cat([last_tstep_embeddings.repeat(1, T, 1), graph_output], -1))
         q_post = self.posterior(torch.cat([last_tstep_embeddings.repeat(1, T, 1), graph_output], -1))
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 

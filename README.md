@@ -13,7 +13,35 @@ Run training
 CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_task.py name_log=pred_last_graph_excl_large_VAE_uncondprior_new \
 	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
 	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False
+
+export ckpt_edge="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl-agentsall/time_model.seqVAE-stateenc.GNN-globalrepr.pool-edgepred.concat-lr0.001-bs.16-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True_goodactionreduced_walk_condprior.False_zvec.node"
+
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_task.py name_log=pred_last_graph_excl_large_VAE_uncondprior_new \
+	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" inference=True inference_sample=True  ckpt_load=$ckpt_edge"/290.pt"
 	
+
+
+## Experiment autoencoder, train only the first step, no kl loss
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_task.py name_log=pred_last_graph_excl_large_VAE_uncondprior_new \
+model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False model.max_tsteps=2 train.batch_size=64 
+
+
+##
+Train autoencoder
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_autoencoder_task.py name_log=autoencoder_VAE_new \
+	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False args.model.max_tsteps=2
+
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_task.py name_log=autoencoder_VAE_new_oldencoder \
+model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False model.max_tsteps=2 args.model.max_tsteps=2
 
 
 

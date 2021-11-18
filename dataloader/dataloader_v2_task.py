@@ -17,9 +17,10 @@ import numpy as np
 
 
 class AgentTypeDataset(Dataset):
-    def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False):
+    def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False, first_last=False):
         self.path_init = path_init
         self.max_num_edges = 200
+        self.first_last = first_last
         self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], toy_dataset=args_config['model']['reduced_graph'])
         self.get_edges = True # args_config['model']['state_encoder'] == 'GNN'
         # Build the agent types
@@ -166,6 +167,9 @@ class AgentTypeDataset(Dataset):
         if self.condense_walking:
             steps_keep = utils_rl_agent.condense_walking(program)
 
+        if self.first_last:
+            steps_keep = [len(program)-1]
+
         contit = 0
         task_graphs = []
 
@@ -258,6 +262,8 @@ class AgentTypeDataset(Dataset):
 
         contit = 0
         # We start at 1 to skip the first instruction
+        if self.first_last:
+            steps_keep = [0]
         for it, instr in enumerate(program):
             if it not in steps_keep:
                 continue

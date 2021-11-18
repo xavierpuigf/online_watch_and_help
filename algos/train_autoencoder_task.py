@@ -202,8 +202,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         pred_task.permute(0,3,1,2),
         gt_task
     )
-    
-    loss_task = loss_task * gt_mask
+    ipdb.set_trace()
     loss_task = loss_task.mean(-1)
     loss_task = (loss_task * mask_length).mean(-1).mean(-1)
 
@@ -222,7 +221,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     if 'VAE' in args.model.time_aggregate:
         loss_kl = compute_kl_loss(output, len_mask)
         losses_dict['kldiv'] = loss_kl.item()
-        loss += loss_kl
+        # loss += loss_kl
 
     gt = {
         'gt_task': gt_task,
@@ -759,10 +758,10 @@ def evaluate(
 
         },
         'misc_hist': {
-            'muprior_val': mu_prior,
-            'muposterior_val': mu_posterior,
-            'logvar_prior_val': logvar_prior,
-            'logvar_posterior_val': logvar_posterior
+            'muprior': mu_prior,
+            'muposterior': mu_posterior,
+            'logvar_prior': logvar_prior,
+            'logvar_posterior': logvar_posterior
         }
     }
 
@@ -1078,7 +1077,7 @@ def get_loaders(args):
     curr_file = os.path.dirname(get_original_cwd())
     dataset = AgentTypeDataset(
         path_init='{}/agent_preferences/dataset/{}'.format(
-            curr_file, args['data']['train_data']
+            curr_file, args['data']['train_data'] 
         ),
         first_last=True,
         args_config=args,
@@ -1150,7 +1149,7 @@ def main(cfg: DictConfig):
         if 'VAE' not in config.model.time_aggregate:
             model = agent_pref_policy.GraphPredNetwork(config)
         else:
-            model = agent_pref_policy.GraphPredNetworkVAE(config)
+            model = agent_pref_policy.GraphPredNetworkVAETask(config)
     print("CUDA: {}".format(cfg.cuda))
     if cfg.cuda:
         model = model.cuda()
