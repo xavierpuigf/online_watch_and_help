@@ -1142,14 +1142,15 @@ def main(cfg: DictConfig):
     config.model.num_task_preds = len(train_loader.dataset.graph_helper.task_graph_list)
     data_item = train_loader.dataset[0]
     # ipdb.set_trace()
-    if config.model.input_goal:
+    # if config.model.input_goal:
 
-        model = agent_pref_policy.GoalConditionedGraphPredNetwork(config)
-    else:
-        if 'VAE' not in config.model.time_aggregate:
-            model = agent_pref_policy.GraphPredNetwork(config)
-        else:
-            model = agent_pref_policy.GraphPredNetworkVAETask(config)
+    #     model = agent_pref_policy.GoalConditionedGraphPredNetwork(config)
+    # else:
+    #     if 'VAE' not in config.model.time_aggregate:
+    #         model = agent_pref_policy.GraphPredNetwork(config)
+    #     else:
+    
+    model = agent_pref_policy.GraphPredNetworkVAETask2(config)
     print("CUDA: {}".format(cfg.cuda))
     if cfg.cuda:
         model = model.cuda()

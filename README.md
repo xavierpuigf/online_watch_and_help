@@ -44,6 +44,19 @@ model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
 model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False model.max_tsteps=2 args.model.max_tsteps=2
 
 
+##
+All is task graph
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_autoencoder_task.py name_log=autoencoder_VAE_new_task \
+	model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+	model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False args.model.max_tsteps=2
+
+
+
+CUDA_VISIBLE_DEVICES=4,5,6,7 python algos/train_graph_pred_task.py name_log=autoencoder_VAE_new_oldencoder \
+model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="GNN" logging=False model.max_tsteps=2 args.model.max_tsteps=2
+
 
 <!-- ```
 CUDA_VISIBLE_DEVICES=0,1 python algos/train_graph_pred.py

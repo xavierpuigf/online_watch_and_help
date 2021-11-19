@@ -2,6 +2,8 @@ from . import base_nets
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+from .graph_nn import Transformer
+from .base_nets import PositionalEncoding
 import ipdb
 
 
@@ -13,17 +15,246 @@ class TaskEncoder(nn.Module):
     def __init__(self, num_preds, num_counts, out_dim):
         super(TaskEncoder, self).__init__()
         self.bottleneck = 3
-        self.quantity_encoder = self.mlp2l(num_counts, self.bottleneck) 
+        self.quantity_encoder = self.mlp2l(num_counts, self.bottleneck)
+        # self.aggregate = aggregate
+
+        # if aggregate:
         self.rest_encoder = self.mlp2l(num_preds*self.bottleneck, out_dim)
         
 
-    def forward(self, input_goal):
+    def forward(self, input_goal, aggregate=False):
         # B x num_preds x num_counts
         B = input_goal.shape[0]
         bottleneck_feats = self.quantity_encoder(input_goal)
+        if not aggregate:
+            return bottleneck_feats
         flatten_tensor = bottleneck_feats.reshape(B, -1) 
         embedding = self.rest_encoder(flatten_tensor)
         return embedding
+
+
+
+
+class TaskTransformerEncoder(nn.Module):
+    def __init__(self, num_preds, num_counts, out_dim, task_encoder):
+        super(TaskTransformerEncoder, self).__init__()
+        self.task_count_encoder = task_encoder
+        self.pos_encoding = PositionalEncoding(d_model=out_dim, max_len=300)        
+        in_feat = out_dim
+        self.out_feat = out_dim 
+        self.transformer_encoder = Transformer(None, None, in_feat, self.out_feat, nhead=1)
+
+    def forward(self, task_graph_curr, task_graph_init=None):
+        if task_graph_init is not None:
+            task_graph_curr = torch.cat([task_graph_init, task_graph_curr], 2)
+
+        # B x T x num_preds x dim
+        numpreds = task_graph_curr.shape[2]
+        B, T = task_graph_curr.shape[:2]
+        input_embed = self.task_count_encoder(task_graph_curr)
+        input_embed = input_embed.reshape(-1, num_preds, self.out_feat).permute(1, 0, 2)
+        embed = self.pos_encoding(input_embed)
+
+        output = self.transformer_encoder(embed).transpose(0,1).reshape(B, T, numpreds, -1)
+
+
+        if task_graph_curr:
+            d = task_graph_init.shape[1]
+            return output[:, :, d//2:, ...]
+        else:
+            return output
+
+class GraphPredNetworkVAETask2(nn.Module):
+    def mlp2l(self, dim_in, dim_out):
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+        )
+
+    def __init__(self, args):
+        super(GraphPredNetworkVAETask2, self).__init__()
+        args = args['model']
+        self.max_counts = args['num_counts']
+        self.num_task_preds = args['num_task_preds']
+
+        self.max_actions = args['max_actions']
+        self.max_nodes = args['max_nodes']
+        self.max_timesteps = args['max_tsteps']
+        self.max_num_classes = args['max_class_objects']
+        self.hidden_size = args['hidden_size']
+        self.num_states = args['num_states']
+        
+
+        self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+        self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
+        self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
+        
+
+        self.mask_pred = MaskPredictor(self.hidden_size, self.num_task_preds)
+        self.task_pred = TaskPredictor(self.hidden_size, self.num_task_preds, self.max_counts)
+        
+        self.input_vae = args['input_vae']
+        # if self.input_vae:
+
+        self.global_repr = args['global_repr']
+        
+        self.use_agent_embedding = args['agent_embed']
+
+        # Combine previous action and graph
+        multi = 2
+        if self.use_agent_embedding:
+            raise Exception
+            multi = 3
+
+        # Used to transform the goal encoding into features that we will use for action/object prediction
+        '''
+        self.fc_att_action = self.mlp2l(self.hidden_size , self.hidden_size)
+        self.fc_att_object = self.mlp2l(self.hidden_size , self.hidden_size)
+        self.fc_att_object2 = self.mlp2l(self.hidden_size, self.hidden_size)
+        '''
+
+        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
+        self.comb_out_layer = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.num_layer_lstm = 2
+        self.time_aggregate = args['time_aggregate']
+
+
+
+        # VAE related
+        self.cond_prior = False
+        self.args = args
+        if args['cond_prior']:
+            self.cond_prior = True
+            self.prior_net = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, 128 * 2)
+            )
+        self.posterior = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 128 * 2)
+        )
+
+
+        if self.args['cond_prior']:
+            input_dim_zproj = 128
+        else:
+            input_dim_zproj = 128 + self.hidden_size
+        self.z_projection = nn.Sequential(
+            nn.Linear(input_dim_zproj, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size)
+        )
+
+
+        multi_edge = 1
+        if args['edge_pred'] == 'concat':
+            multi_edge = 2
+
+
+
+
+        # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
+        # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+        # self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+
+        # self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+        #                            nn.ReLU(),
+        #                            nn.Linear(self.hidden_size, 1))
+        # self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+        #                                    nn.ReLU(),
+        #                                    nn.Linear(self.hidden_size, 1))
+
+        self.goal_inp = args['goal_inp']
+        self.edge_pred_mode = args['edge_pred']
+        if args['goal_inp']:
+            self.goal_encoder = base_nets.GoalEncoder(
+                self.max_num_classes,
+                self.hidden_size,
+                obj_class_encoder=self.graph_encoder.object_class_encoding,
+            )
+
+
+
+    def sample_param(self, qvec):
+        # ipdb.set_trace()
+        mids = qvec.shape[-1] // 2
+        mu = qvec[..., :mids]
+        logvar = qvec[..., mids:]
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = eps * std + mu
+        return z
+
+    def forward(self, inputs, cond=None, inference=False, seed=None):
+        # ipdb.set_trace()
+        # Cond is an embedding of the past, optionally used
+        # ipdb.set_trace()
+
+        inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
+        task_graph_init = inp_task_graph[:, :1, ...]
+
+        # B x T x num_preds x dim
+        embeddings_input_graph = self.task_input_encoder(inp_task_graph, task_graph_init)
+        
+
+        end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
+        # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
+        end_task_transformer = self.task_z_encoder(end_task)
+
+        # B x T x D 
+        encoded_goal_task = end_task_transformer[:, :, 0, :]
+        # ipdb.set_trace()
+
+        q_post = self.posterior(encoded_goal_task)
+        if self.cond_prior:
+            p_prior = self.prior_net(graph_output) 
+        else:
+            mean_logvar = torch.zeros(q_post.shape)
+            p_prior = mean_logvar.to(q_post.device)
+            # p_prior = torch.cat([mean, log_var], -1)
+
+        d = p_prior.shape[-1] // 2
+        mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
+        mu_posterior, logvar_posterior =q_post[..., :d], q_post[..., d:]
+        
+
+        if not inference:
+            
+            z_vec = self.sample_param(q_post)
+        else:
+            # print("sampling...")
+            z_vec = self.sample_param(p_prior) 
+            # print('sampled')
+        
+        z_vec = z_vec[:, :, None, :].repeat(1, 1, self.num_task_preds, 1)
+        z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+
+
+
+        pred_graph = self.task_pred(z_and_input)
+        pred_mask = self.mask_pred(z_and_input)
+
+        # ipdb.set_trace()
+        inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
+
+        ipdb.set_trace()
+        pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
+        return {'pred_mask': pred_mask, 'pred_graph': pred_graph, 
+                'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
+
+        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
+        # loss_o1 = None
+        # loss_o2 = None
+
+
+
+
+
+
+
+
+
 
 class GraphPredNetworkVAETask(nn.Module):
     def mlp2l(self, dim_in, dim_out):
@@ -45,8 +276,8 @@ class GraphPredNetworkVAETask(nn.Module):
         self.num_states = args['num_states']
         
 
-        self.mask_pred = MaskPredictor(self.hidden_size, self.num_task_preds)
-        self.task_pred = TaskPredictor(self.hidden_size, self.num_task_preds, self.max_counts)
+        self.task_pred = self.mlp2l(self.hidden_size, self.num_task_preds)
+        self.mask_pred = self.mlp2l(self.hidden_size, 1)
         
         self.input_vae = args['input_vae']
         if self.input_vae:
@@ -603,6 +834,10 @@ class GraphPredNetworkVAE(nn.Module):
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
         # loss_o1 = None
         # loss_o2 = None
+
+
+
+
 
 
 class TaskPredictor(nn.Module):
