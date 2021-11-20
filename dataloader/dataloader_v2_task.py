@@ -150,6 +150,9 @@ class AgentTypeDataset(Dataset):
         attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
         if self.get_edges:
             attributes_include += ['edge_tuples', 'edge_classes', 'mask_edge']
+        
+
+        attributes_include = ['class_objects', 'node_ids']
         time_graph = {attr_name: [] for attr_name in attributes_include}
         # print(list(content.keys()))
 
@@ -158,8 +161,9 @@ class AgentTypeDataset(Dataset):
             print(index)
 
 
-        time_graph['mask_close'] = []
-        time_graph['mask_goal'] = []
+        # time_graph['mask_close'] = []
+        # time_graph['mask_goal'] = []
+        
         # print("Building graph")
         num_tsteps = len(program)
         steps_keep = list(range(num_tsteps))
@@ -202,44 +206,27 @@ class AgentTypeDataset(Dataset):
                     return self.failure(index)
                 time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
 
-            # ipdb.set_trace()
-            # Build closeness and goal mask
-            close_rel_id = self.graph_helper.relation_dict.get_id('CLOSE')
-            close_nodes = list(graph_info['edge_tuples'][graph_info['edge_classes'] == close_rel_id])
-            
-            mask_close = np.zeros(graph_info['class_objects'].shape)
-            mask_goal = np.zeros(graph_info['class_objects'].shape) 
-
-            # fill up the closeness mask
-            if len(close_nodes) > 0:
-                indexe = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
-                if len(indexe) > 0:
-                    mask_close[np.array(indexe)] = 1.0
-
-            # Fill up goal object mask
-            goal_loc = [target_loc for it_pred, target_loc in enumerate(target_loc_class) if mask_goal_pred[it_pred] == 1]
-            goal_obj = [target_obj for it_pred, target_obj in enumerate(target_obj_class) if mask_goal_pred[it_pred] == 1]
-            goal_obs = list(set(goal_obj))
-            for goal_id in goal_obs:
-                mask_goal[graph_info['class_objects'] == goal_id] = 1.0
-
-            time_graph['mask_close'].append(torch.tensor(mask_close))
-            time_graph['mask_goal'].append(torch.tensor(mask_goal))
-
 
             
             contit += 1
             # ipdb.set_trace()
         # ipdb.set_trace()
         # Match graph indices to index in the tensor
+
+        # task_graphs[0] = task_graphs[-1]
+
+
+
         node_ids = graph_info['node_ids']
         indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
 
 
         task_graph_time = torch.cat([torch.tensor(tg, dtype=torch.int8)[None, :] for tg in task_graphs])
         final_task_graph = task_graph_time[-1, ...]
-        mask_task_graphs = (task_graph_time - task_graph_time[-1, :]) != 0
-
+        if self.args_config['model']['predict_diff']:
+            mask_task_graphs = (task_graph_time - task_graph_time[-1, :]) != 0
+        else:
+            mask_task_graphs = torch.ones_like(task_graph_time).bool()
 
         # ipdb.set_trace()
         # We will start with a No-OP action
@@ -287,6 +274,8 @@ class AgentTypeDataset(Dataset):
                 # Open pinter ??
                 return self.failure(index, print_index=True)
             contit += 1
+
+
         program_batch['action'].append(self.max_actions - 1)
         program_batch['obj1'].append(-1)
         program_batch['obj2'].append(-1)
@@ -294,8 +283,8 @@ class AgentTypeDataset(Dataset):
         program_batch['indobj2'].append(indexgraph2ind[-1])
 
         num_tsteps = len(program_batch['action'])
-        if len(program_batch['action']) != len(time_graph['mask_close']):
-            ipdb.set_trace()
+        # if len(program_batch['action']) != len(time_graph['mask_close']):
+        #     ipdb.set_trace()
         for key in program_batch.keys():
             unpadded_tensor = torch.tensor(program_batch[key])
 
@@ -323,6 +312,7 @@ class AgentTypeDataset(Dataset):
 
         # Batch across time
         for attribute_name in time_graph.keys():
+            # print(attribute_name, len(time_graph[attribute_name]))
             unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
             # Do padding
             padding_amount = self.max_tsteps - num_tsteps

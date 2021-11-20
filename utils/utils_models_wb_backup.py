@@ -1918,14 +1918,15 @@ class LoggerSteps:
         experiment_name = (
             'predict_graph/train_data.{}-agents{}/'
             'lr{}-bs.{}-'
-            'goalenc.{}_predchange.{}_inputgoal.{}_excledge.{}_preddiff.{}_goodaction'
+            'goalenc.{}_extended._costclose.{}_costgoal.{}_agentembed.{}_predchange.{}_inputgoal.{}_excledge.{}_preddiff.{}_goodaction'
             '{}_logname.{}'
         ).format(
-            args['data']['train_data'],
-            args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
             args['model']['goal_inp'],
+            args['train']['loss_close'],
+            args['train']['loss_goal'],
+            args['model']['agent_embed'],
             pred_change,
             args['model']['input_goal'],
             args['model']['exclusive_edge'],

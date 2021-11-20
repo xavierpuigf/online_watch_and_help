@@ -131,10 +131,10 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'label_agent': label_agent,
     }
     # ipdb.set_trace()
-    T = graph_info['mask_object'].shape[1]
-    object_coords_dim = graph_info['object_coords'].shape[3]
-    states_objects_dim = graph_info['states_objects'].shape[3]
-    mask_obs_node = graph_info['mask_obs_node']
+    # T = graph_info['mask_object'].shape[1]
+    # object_coords_dim = graph_info['object_coords'].shape[3]
+    # states_objects_dim = graph_info['states_objects'].shape[3]
+    # mask_obs_node = graph_info['mask_obs_node']
 
     # goal_graph = build_goal_graph(graph_info, len_mask)
     # inputs['goal_graph'] = goal_graph
@@ -159,7 +159,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
 
     # inputs['input_edges'] = edge_dict['gt_edges']
     # try:
-    print(len_mask.shape)
+    # print(len_mask.shape)
     if not evaluation:
         output = model(inputs)
         
@@ -197,12 +197,15 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     loss_mask = loss_mask.mean(-1)
     loss_mask = (loss_mask * mask_length).mean(-1).mean(-1)
 
+    if not args.model.predict_diff:
+        loss_mask *= 0.
+
 
     loss_task = criterions['task'](
         pred_task.permute(0,3,1,2),
         gt_task
     )
-    ipdb.set_trace()
+    # ipdb.set_trace()
     loss_task = loss_task.mean(-1)
     loss_task = (loss_task * mask_length).mean(-1).mean(-1)
 
@@ -1012,8 +1015,9 @@ def compute_kl_loss(net_outputs, mask_len):
     var_prior = logvar_prior.exp()
     var_posterior = logvar_posterior.exp()
     kl_per_dim = logvar_prior - logvar_posterior - 1 + var_posterior/var_prior + (mu_prior - mu_posterior)**2 / var_prior
-    mask_norm = mask_len / mask_len.sum(-1)[:, None]
-    res = torch.sum(kl_per_dim, -1) * mask_norm.cuda()
+    # mask_norm = mask_len / mask_len.sum(-1)[:, None]
+    # res = torch.sum(kl_per_dim, -1) * mask_norm.cuda()
+    res = kl_per_dim
     kldiv = 0.5 * res.sum(1).mean(0)
     # ipdb.set_trace()
     return kldiv
@@ -1075,11 +1079,12 @@ def get_loaders(args):
     print("Train: {}".format(args['data']['train_data']))
     print("Test: {}".format(args['data']['test_data']))
     curr_file = os.path.dirname(get_original_cwd())
+    first_last = False
     dataset = AgentTypeDataset(
         path_init='{}/agent_preferences/dataset/{}'.format(
             curr_file, args['data']['train_data'] 
         ),
-        first_last=True,
+        first_last=first_last,
         args_config=args,
     )
     if not args['train']['overfit']:
@@ -1087,7 +1092,7 @@ def get_loaders(args):
             path_init='{}/agent_preferences/dataset/{}'.format(
                 curr_file, args['data']['test_data']
             ),
-            first_last=True,
+            first_last=first_last,
             args_config=args,
         )
     else:
@@ -1095,7 +1100,7 @@ def get_loaders(args):
             path_init='{}/agent_preferences/dataset/{}'.format(
                 curr_file, args['data']['train_data']
             ),
-            first_last=True,
+            first_last=first_last,
             args_config=args,
         )
 

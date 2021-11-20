@@ -14,7 +14,7 @@ class TaskEncoder(nn.Module):
         )
     def __init__(self, num_preds, num_counts, out_dim):
         super(TaskEncoder, self).__init__()
-        self.bottleneck = 3
+        self.bottleneck = out_dim
         self.quantity_encoder = self.mlp2l(num_counts, self.bottleneck)
         # self.aggregate = aggregate
 
@@ -39,27 +39,36 @@ class TaskTransformerEncoder(nn.Module):
     def __init__(self, num_preds, num_counts, out_dim, task_encoder):
         super(TaskTransformerEncoder, self).__init__()
         self.task_count_encoder = task_encoder
-        self.pos_encoding = PositionalEncoding(d_model=out_dim, max_len=300)        
+        self.interm_embedding = out_dim
+        self.pos_encoding = PositionalEncoding(d_model=self.interm_embedding, max_len=300)        
         in_feat = out_dim
         self.out_feat = out_dim 
         self.transformer_encoder = Transformer(None, None, in_feat, self.out_feat, nhead=1)
 
     def forward(self, task_graph_curr, task_graph_init=None):
         if task_graph_init is not None:
+            T = task_graph_curr.shape[1]
+            task_graph_init = task_graph_init.repeat(1, T, 1, 1)
+            # ipdb.set_trace()
             task_graph_curr = torch.cat([task_graph_init, task_graph_curr], 2)
 
         # B x T x num_preds x dim
         numpreds = task_graph_curr.shape[2]
         B, T = task_graph_curr.shape[:2]
         input_embed = self.task_count_encoder(task_graph_curr)
-        input_embed = input_embed.reshape(-1, num_preds, self.out_feat).permute(1, 0, 2)
-        embed = self.pos_encoding(input_embed)
+        # print(input_embed.shape)
+        # ipdb.set_trace()
+        # ipdb.set_trace()
 
-        output = self.transformer_encoder(embed).transpose(0,1).reshape(B, T, numpreds, -1)
+        input_embed = input_embed.reshape(-1, numpreds, self.interm_embedding).permute(1, 0, 2)
+        embed = self.pos_encoding(input_embed).transpose(0,1)
 
+        one_mask = torch.ones((B*T, numpreds)).to(embed.device)
+        output = self.transformer_encoder(embed, one_mask).reshape(B, T, numpreds, -1)
+        # ipdb.set_trace()
 
-        if task_graph_curr:
-            d = task_graph_init.shape[1]
+        if task_graph_init is not None:
+            d = task_graph_curr.shape[2]
             return output[:, :, d//2:, ...]
         else:
             return output
@@ -73,6 +82,7 @@ class GraphPredNetworkVAETask2(nn.Module):
     def __init__(self, args):
         super(GraphPredNetworkVAETask2, self).__init__()
         args = args['model']
+        self.predict_diff = args['predict_diff']
         self.max_counts = args['num_counts']
         self.num_task_preds = args['num_task_preds']
 
@@ -89,8 +99,8 @@ class GraphPredNetworkVAETask2(nn.Module):
         self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
         
 
-        self.mask_pred = MaskPredictor(self.hidden_size, self.num_task_preds)
-        self.task_pred = TaskPredictor(self.hidden_size, self.num_task_preds, self.max_counts)
+        self.task_pred = self.mlp2l(self.hidden_size, self.max_counts)
+        self.mask_pred = self.mlp2l(self.hidden_size, 1)
         
         self.input_vae = args['input_vae']
         # if self.input_vae:
@@ -192,19 +202,22 @@ class GraphPredNetworkVAETask2(nn.Module):
         # ipdb.set_trace()
 
         inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
+        B, T, numpreds, nc = inp_task_graph.shape
+
         task_graph_init = inp_task_graph[:, :1, ...]
 
+        # ipdb.set_trace()
         # B x T x num_preds x dim
-        embeddings_input_graph = self.task_input_encoder(inp_task_graph, task_graph_init)
+        embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init.float())
         
-
         end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
         # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
-        end_task_transformer = self.task_z_encoder(end_task)
+        end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
 
-        # B x T x D 
-        encoded_goal_task = end_task_transformer[:, :, 0, :]
+        # B x T x D we just take one embedding
         # ipdb.set_trace()
+        encoded_goal_task = end_task_transformer[:, 0, :]
+        
 
         q_post = self.posterior(encoded_goal_task)
         if self.cond_prior:
@@ -226,20 +239,24 @@ class GraphPredNetworkVAETask2(nn.Module):
             # print("sampling...")
             z_vec = self.sample_param(p_prior) 
             # print('sampled')
-        
-        z_vec = z_vec[:, :, None, :].repeat(1, 1, self.num_task_preds, 1)
+        # ipdb.set_trace()
+        z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
+        # ipdb.set_trace()
         z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+        z_and_input = self.z_projection(z_and_input)
 
-
-
+        # ipdb.set_trace()
         pred_graph = self.task_pred(z_and_input)
-        pred_mask = self.mask_pred(z_and_input)
+        pred_mask = self.mask_pred(z_and_input)[..., 0]
 
         # ipdb.set_trace()
         inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
 
-        ipdb.set_trace()
-        pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
+        # ipdb.set_trace()
+        
+
+        if self.predict_diff:
+            pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
         return {'pred_mask': pred_mask, 'pred_graph': pred_graph, 
                 'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
 
