@@ -430,10 +430,18 @@ for episode_id in episode_ids:
     print(actions[0][0])
     print(actions[0][1])
     for steps in range(0, T):
+        # if steps < 29:
+        #     continue
         edge_pred_class_estimated = aggregate_multiple_pred(
             graph_results[steps], steps, change=True
         )
+        print("step ", steps + 2)
         print('change pred:')
-        for pred, count in edge_pred_class_estimated.items():
-            print(pred, count)
+        for edge_class, count in edge_pred_class_estimated.items():
+            if (
+                edge_pred_class_estimated[edge_class][0] < 1e-6
+                and edge_pred_class_estimated[edge_class][1] < 1e-6
+            ):
+                continue
+            print(edge_class, edge_pred_class_estimated[edge_class])
         print(actions[0][2 + steps], actions[1][steps])
