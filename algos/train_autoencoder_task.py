@@ -26,7 +26,9 @@ from omegaconf import DictConfig, OmegaConf
 import pathlib
 from functools import partial
 import torch.multiprocessing as mp
-
+import matplotlib
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 def setup(rank, world_size):
@@ -109,7 +111,7 @@ def unmerge(tensor, firstdim):
 #     edges_something = edges
 
 
-def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False):
+def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False, verbose=False):
     (
         graph_info,
         program,
@@ -160,12 +162,15 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     # inputs['input_edges'] = edge_dict['gt_edges']
     # try:
     # print(len_mask.shape)
+    # ipdb.set_trace()
+    if verbose:
+        ipdb.set_trace()
     if not evaluation:
-        output = model(inputs)
+        output = model(inputs, verbose=verbose)
         
     else:
         with torch.no_grad():
-            output = model(inputs, inference=not posterior)
+            output = model(inputs, inference=not posterior, verbose=verbose)
     # ipdb.set_trace()
     # except:
     #     print("ERROR!!!")
@@ -250,7 +255,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
 
 
 def plot_func(html_name, graph_helper, graph_info, len_mask, index, 
-              gt_task, gt_mask, input_task, pred_task, pred_mask, prog_gt, metrics_item, metrics_item_tstep):
+              gt_task, gt_mask, input_task, pred_task, pred_mask, prog_gt, metrics_item, metrics_item_tstep, metrics_item_tstep_all):
     program_gt = utils_models.decode_program(graph_helper, prog_gt, index=index)
     pred_graph_samples = []
     num_samples = len(pred_task)
@@ -283,7 +288,8 @@ def plot_func(html_name, graph_helper, graph_info, len_mask, index,
         'prog_gt': program_gt,
         'index': index,
         'metrics': metrics_item,
-        'metrics_tstep': metrics_item_tstep
+        'metrics_tstep': metrics_item_tstep,
+        'metrics_tstep_all': metrics_item_tstep_all
     }
 
     results = {'gt_task': [gt_graph, gt_task[index]], 
@@ -314,6 +320,14 @@ def inference(
 
 
     metric_dict = get_metrics(args)
+    
+    num_bins = 20
+    metric_over_time_dict = {
+        'recall': [[] for _ in range(num_bins)], 
+        'prec': [[] for _ in range(num_bins)], 
+        'accuracy': [[] for _ in range(num_bins)], 
+        'accuracy_pos': [[] for _ in range(num_bins)]
+    }
 
     progress = ProgressMeter(
         len(data_loader),
@@ -369,7 +383,8 @@ def inference(
             # Sample here:
 
             predicted_mask, predicted_graph = [], []
-
+            length_programs = misc['mask_length'].sum(-1)
+            
             if not 'VAE' in args.model.time_aggregate:
                 pred_mask = (nn.functional.sigmoid(predictions['pred_mask'], dim=3)).cpu().numpy()
                 pred_mask = np.concatenate([pred_mask, 1 - pred_mask], -1)
@@ -396,8 +411,20 @@ def inference(
             # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
             predicted_maskc = np.concatenate([x[None, :] for x in predicted_mask], 0)
             predicted_graphc = np.concatenate([x[None, :] for x in predicted_graph], 0)
-            metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc > 0., gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
+            metrics_item_tstep, metrics_item, metrics_item_tstep_all = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc, gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
 
+            # Update the metric over time plot
+            for index in range(ind.shape[0]):
+                current_length = int(length_programs[index])
+                # ipdb.set_trace()
+                for measure in metrics_item_tstep_all.keys():
+                    for tstep in range(current_length):
+                        index_bin = int(tstep * 1./current_length * num_bins)
+                        try:
+                            metric_over_time_dict[measure][index_bin] += list(metrics_item_tstep_all[measure][:, index, tstep])
+                        except:
+                            print(index_bin, index, tstep)
+            # ipdb.set_trace()
             # input_edges = misc['input_edges']
             # gt_state = gt['gt_state']
             # gt_change = gt['gt_change']
@@ -461,6 +488,7 @@ def inference(
                     'pred_mask': predicted_mask,
                     'prog_gt': prog_gt,
                     'metrics_item_tstep': metrics_item_tstep,
+                    'metrics_item_tstep_all': metrics_item_tstep_all,
                     'metrics_item': metrics_item
                        
                 }
@@ -473,13 +501,13 @@ def inference(
                     score_total_str = ''
                     rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
                     html_str_total = utils_models.build_table(rows_total, ['Link', 'Scores', 'Goals'])
-                    print(colored(result_name_html_total, 'cyan'))
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
                     with open(result_name_html_total, 'w+') as f:
                         f.write(html_str_total)
+                    # ipdb.set_trace()
 
-
+                    
 
 
 
@@ -500,6 +528,7 @@ def inference(
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
             end = time.time()
+            print(colored(result_name_html_total, 'cyan'))
             
             progress.display(it)
             # if it == 4:
@@ -511,6 +540,27 @@ def inference(
             continue
 
         progress.display(it)
+
+    # ipdb.set_trace()
+    x = [it*1./num_bins for it in range(num_bins)]
+    for metric_name in metric_over_time_dict:
+        stdes = []
+        means = []
+
+        result_plot_name = os.path.join(logger.results_path, f'{metric_name}.png')
+        plt.figure()
+        for timestep in range(num_bins):
+            samples = metric_over_time_dict[metric_name][timestep]
+            mean = np.mean(samples)
+            stde = np.std(samples) / np.sqrt(len(samples))
+            means.append(mean)
+            stdes.append(stde)
+        means = np.array(means)
+        stdes = np.array(stdes)
+        plt.errorbar(x, means, stdes)
+        plt.title(metric_name)
+        plt.savefig(result_plot_name)
+        # ipdb.set_trace()
 
 # def concat_predictions(pred_graph_samples):
 #     all_edges, all_from, all_to = [], [], []
@@ -584,7 +634,9 @@ def evaluate(
     epoch,
     args,
     logger,
-    criterions
+    criterions,
+    use_posterior,
+    verbose=False
 ):
     model.eval()
 
@@ -597,6 +649,7 @@ def evaluate(
     )
 
     end = time.time()
+    print("Evaluation")
     for it, data_item in enumerate(data_loader):
         if it < args['test']['num_iters']:
             metric_dict['data_time'].update(time.time() - end)
@@ -615,7 +668,12 @@ def evaluate(
 
 
 
-            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True)
+            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior, verbose=verbose)
+            # print(loss)
+            # gt1, predictions1, misc1, losses_dict1, inp1, loss1 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=False)
+            # gt2, predictions2, misc2, losses_dict2, inp2, loss2 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=True)
+            # print(loss1, loss2)
+            # ipdb.set_trace()
             # Update accuracy
             
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
@@ -633,99 +691,98 @@ def evaluate(
                 # pred_state = torch.sigmoid(predictions['pred_state'][..., None]).cpu()
                 # pred_state = torch.cat([1-pred_state, pred_state], -1).cpu().numpy()
 
-            for sample_num in range(num_samples):
-                if 'VAE' in args.model.time_aggregate:
-                    with torch.no_grad():
-                        output2 = model(inp)
+        #     for sample_num in range(num_samples):
+        #         if 'VAE' in args.model.time_aggregate:
+        #             with torch.no_grad():
+        #                 output2 = model(inp)
 
-                    cpred_mask = (output2['pred_mask'][:, :-1, ...] > 0).cpu()
-                    cpred_graph = (output2['pred_graph'][:, :-1, ...].argmax(-1)).cpu()
-                    # cpred_edge = output2['edges'][:, :-1, ...].reshape(b, t-1, n, n).argmax(-1).cpu()
-                else:
-                    if sample_num == 0:
-                        cpred_mask = pred_mask.argmax(-1)
-                        cpred_graph = pred_graph.argmax(-1)
-                        # cpred_state = pred_state.argmax(-1)
-                    else:
-                        cpred_mask = utils_models.vectorized(pred_mask)
-                        cpred_graph = utils_models.vectorized(pred_graph)
-                predicted_mask.append(cpred_mask)
-                predicted_graph.append(cpred_graph)
+        #             cpred_mask = (output2['pred_mask'][:, :-1, ...] > 0).cpu()
+        #             cpred_graph = (output2['pred_graph'][:, :-1, ...].argmax(-1)).cpu()
+        #             # cpred_edge = output2['edges'][:, :-1, ...].reshape(b, t-1, n, n).argmax(-1).cpu()
+        #         else:
+        #             if sample_num == 0:
+        #                 cpred_mask = pred_mask.argmax(-1)
+        #                 cpred_graph = pred_graph.argmax(-1)
+        #                 # cpred_state = pred_state.argmax(-1)
+        #             else:
+        #                 cpred_mask = utils_models.vectorized(pred_mask)
+        #                 cpred_graph = utils_models.vectorized(pred_graph)
+        #         predicted_mask.append(cpred_mask)
+        #         predicted_graph.append(cpred_graph)
 
-            # ipdb.set_trace()
-            # pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
-            # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
-            # update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
+        #     # ipdb.set_trace()
+        #     # pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
+        #     # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
+        #     # update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
-            # input_edges = misc['input_edges'].cpu().numpy()
+        #     # input_edges = misc['input_edges'].cpu().numpy()
             
-            gt_task = gt['gt_task'].cpu().numpy()
-            gt_mask = gt['gt_mask'].cpu().numpy()
+        #     gt_task = gt['gt_task'].cpu().numpy()
+        #     gt_mask = gt['gt_mask'].cpu().numpy()
 
-            # gt_edge = gt['gt_change']         
-            input_task = misc['input_task']   
-            # mask_edges_orig = misc['mask_nodes']
-            for index in range(1):
-                # ipdb.set_trace()
-                current_index = ind[index]
-                fname = data_loader.dataset.pkl_files[current_index]
-                pred_graph = predicted_graph[index]
-                pred_mask = predicted_mask[index]
-                if True:
-                    print("************************")
-                    print(f"File: {current_index}:{fname}")
+        #     # gt_edge = gt['gt_change']         
+        #     input_task = misc['input_task']   
+        #     # mask_edges_orig = misc['mask_nodes']
+        #     for index in range(1):
+        #         # ipdb.set_trace()
+        #         current_index = ind[index]
+        #         fname = data_loader.dataset.pkl_files[current_index]
+        #         pred_graph = predicted_graph[index]
+        #         pred_mask = predicted_mask[index]
+        #         if True:
+        #             print("************************")
+        #             print(f"File: {current_index}:{fname}")
 
-                    print("\nGroundTrurth")
-                    # print(gt_edge.max())
-                    utils_models.print_task_graph(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        gt_task,
-                        gt_mask,
-                        input_task,
-                        index,
-                        0,
-                    )
-                    print('---')
-                    # utils_models.print_task_graph(
-                    #     data_loader.dataset.graph_helper,
-                    #     graph_info,
-                    #     input_task,
-                    #     gt_mask,
-                    #     input_task,
-                    #     index,
-                    #     0,
-                    # )
+        #             print("\nGroundTrurth")
+        #             # print(gt_edge.max())
+        #             utils_models.print_task_graph(
+        #                 data_loader.dataset.graph_helper,
+        #                 graph_info,
+        #                 gt_task,
+        #                 gt_mask,
+        #                 input_task,
+        #                 index,
+        #                 0,
+        #             )
+        #             print('---')
+        #             # utils_models.print_task_graph(
+        #             #     data_loader.dataset.graph_helper,
+        #             #     graph_info,
+        #             #     input_task,
+        #             #     gt_mask,
+        #             #     input_task,
+        #             #     index,
+        #             #     0,
+        #             # )
 
-                    # ipdb.set_trace()
+        #             # ipdb.set_trace()
 
-                    print("\nPrediction at {}".format(0))
-                    #ipdb.set_trace()
-                    utils_models.print_task_graph(
-                        data_loader.dataset.graph_helper,
-                        graph_info,
-                        pred_graph,
-                        pred_mask,
-                        input_task,
-                        index,
-                        0,
-                    )
+        #             print("\nPrediction at {}".format(0))
+        #             #ipdb.set_trace()
+        #             utils_models.print_task_graph(
+        #                 data_loader.dataset.graph_helper,
+        #                 graph_info,
+        #                 pred_graph,
+        #                 pred_mask,
+        #                 input_task,
+        #                 index,
+        #                 0,
+        #             )
 
-                    print("************************")
-                    # ipdb.set_trace()
+        #             print("************************")
+        #             # ipdb.set_trace()
 
             
             
 
-            # ipdb.set_trace()
-            end = time.time()
+        #     # ipdb.set_trace()
+        #     end = time.time()
 
-        else:
-            continue
+        # else:
+        #     continue
 
         metric_dict['batch_time'].update(time.time() - end)
-        progress.display(it)
-
+        
         # # Print the prediction
         # prog_gt = {'action': label_action, 'o1': index_label_obj1, 'o2': index_label_obj2, 'graph': graph_info, 'mask_len': len_mask}
         # prog_pred = {'action': pred_action, 'o1': pred_o1, 'o2': pred_o2, 'graph': graph_info, 'mask_len': len_mask}
@@ -738,20 +795,25 @@ def evaluate(
         # logger.log_info(info_res)
 
     # Take vae params of last step    
+    progress.display(it)
+
     mu_prior, logvar_prior, mu_posterior, logvar_posterior = misc['vae_params']
 
     # ipdb.set_trace()
+    suffix = 'val'
+    if use_posterior:
+        suffix = 'val_posterior'
     info_log = {
         'losses': {
-            'total_val': metric_dict['losses'].avg,
-            'task_val': metric_dict['losses_task'].avg,
-            'mask_val': metric_dict['losses_mask'].avg,
+            'total_'+suffix: metric_dict['losses'].avg,
+            'task_'+suffix: metric_dict['losses_task'].avg,
+            'mask_'+suffix: metric_dict['losses_mask'].avg,
         },
         'accuracy': {
-            'change_prec_val': metric_dict['prec_change'].avg,
-            'change_recall_val': metric_dict['recall_change'].avg,
-            'task_accuracy_val': metric_dict['task_accuracy'].avg,
-            'task_accuracy_pos_val': metric_dict['task_accuracy_pos'].avg
+            'change_prec_'+suffix: metric_dict['prec_change'].avg,
+            'change_recall_'+suffix: metric_dict['recall_change'].avg,
+            'task_accuracy_'+suffix: metric_dict['task_accuracy'].avg,
+            'task_accuracy_pos_'+suffix: metric_dict['task_accuracy_pos'].avg
             # 'edge_accuracy_interest': metric_dict['accuracy_edge_interest'].val,
             # 'edge_accuracy_interest_pos': metric_dict['accuracy_edge_interest_pos'].val
 
@@ -771,7 +833,7 @@ def evaluate(
 
 
     if 'VAE' in args.model.time_aggregate:
-        info_log['losses']['kldiv_val'] = metric_dict['kldiv'].avg
+        info_log['losses']['kldiv_'+suffix] = metric_dict['kldiv'].avg
 
 
     logger.log_data(len(data_loader_train) * epoch, info_log)
@@ -851,6 +913,14 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
         'accuracy_pos': accuracy_pos.max(0)
 
     }
+    metrics_item_tstep_all = {
+        'recall': recall, 
+        'prec': prec,
+        'accuracy': accuracy,
+        'accuracy_pos': accuracy_pos
+
+    }
+
     metrics_item = {
         'recall': recall_item.max(0), 
         'prec': prec_item.max(0),
@@ -863,7 +933,7 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
     # f1 = f1_item.mean(0)
 
 
-    return metrics_item_tstep, metrics_item
+    return metrics_item_tstep, metrics_item, metrics_item_tstep_all
 
 def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
     
@@ -1121,7 +1191,7 @@ def get_loaders(args):
     test_loader = torch.utils.data.DataLoader(
         dataset_test,
         batch_size=args['train']['batch_size'],
-        shuffle=not args.inference,
+        shuffle=False,
         num_workers=args['train']['num_workers'],
         pin_memory=True,
         collate_fn=collate_fn,
@@ -1157,13 +1227,18 @@ def main(cfg: DictConfig):
     
     model = agent_pref_policy.GraphPredNetworkVAETask2(config)
     print("CUDA: {}".format(cfg.cuda))
+
+    if len(cfg.ckpt_load) > 0:
+        model_params = torch.load(cfg.ckpt_load)['model']
+        model_params = {x.replace('module.', ''): y for x,y in model_params.items()}
+        model.load_state_dict(model_params)
+
     if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
 
-    if len(cfg.ckpt_load) > 0:
-        model.load_state_dict(torch.load(cfg.ckpt_load)['model'])
-
+    # ipdb.set_trace()
+    # ipdb.set_trace()
     # loss states
     
     criterion_task = torch.nn.CrossEntropyLoss(reduction='none')
@@ -1188,13 +1263,17 @@ def main(cfg: DictConfig):
     else:
         optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
         print("Failures: ", train_loader.dataset.get_failures())
-
+        if len(cfg.ckpt_load) > 0:
+            optimizer.load_state_dict(torch.load(cfg.ckpt_load)['optimizer'])
+        # ipdb.set_trace()
         logger = LoggerSteps(config, log_steps=config.logging)
 
         if config.logging:
             logger.save_model(0, model, optimizer)
 
         # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
+        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions, use_posterior=True, verbose=False)
+        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions, use_posterior=True, verbose=True)
         # ipdb.set_trace()
 
         evaluate(
@@ -1204,9 +1283,23 @@ def main(cfg: DictConfig):
             0,
             config,
             logger,
-            criterions
+            criterions,
+            use_posterior=False
+        )
+
+        evaluate(
+            test_loader,
+            train_loader,
+            model,
+            0,
+            config,
+            logger,
+            criterions,
+            use_posterior=True,
+            verbose=False
         )
         # ipdb.set_trace()
+        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions, use_posterior=True, verbose=True)
         for epoch in range(config['train']['epochs']):
             # ipdb.set_trace()
             train_epoch(
@@ -1225,8 +1318,15 @@ def main(cfg: DictConfig):
                 epoch,
                 config,
                 logger,
-                criterions
+                criterions,
+                use_posterior=False
             )
+
+            
+            # logger.save_model("testingthings", model, optimizer)
+            # ipdb.set_trace()
+            # evaluate(test_loader, train_loader, model, epoch, config, logger, criterions, use_posterior=True, verbose=True)
+            # ipdb.set_trace()
             if epoch % config.log.save_every == 0:
                 logger.save_model(epoch, model, optimizer)
 

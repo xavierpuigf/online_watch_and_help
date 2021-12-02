@@ -54,7 +54,7 @@ model:
         agent_embed: False
         num_agents: 100
         relative_coords: False
-        input_vae: 'graph' # 'graph/task'
+        input_vae: 'none' # 'graph/task'
         time_aggregate: 'LSTM' # LSTM, none, firstcurr, fcVAE, seqVAE
         cond_prior: True
         zvec: 'node' # node / single

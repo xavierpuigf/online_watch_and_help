@@ -43,7 +43,7 @@ class TaskTransformerEncoder(nn.Module):
         self.pos_encoding = PositionalEncoding(d_model=self.interm_embedding, max_len=300)        
         in_feat = out_dim
         self.out_feat = out_dim 
-        self.transformer_encoder = Transformer(None, None, in_feat, self.out_feat, nhead=1)
+        self.transformer_encoder = Transformer(None, None, in_feat, self.out_feat, nhead=1, num_layers=3)
 
     def forward(self, task_graph_curr, task_graph_init=None):
         if task_graph_init is not None:
@@ -76,7 +76,7 @@ class TaskTransformerEncoder(nn.Module):
 class GraphPredNetworkVAETask2(nn.Module):
     def mlp2l(self, dim_in, dim_out):
         return nn.Sequential(
-            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+            nn.Linear(dim_in, dim_in), nn.ReLU(), nn.Linear(dim_in, dim_out)
         )
 
     def __init__(self, args):
@@ -107,14 +107,10 @@ class GraphPredNetworkVAETask2(nn.Module):
 
         self.global_repr = args['global_repr']
         
-        self.use_agent_embedding = args['agent_embed']
 
         # Combine previous action and graph
         multi = 2
-        if self.use_agent_embedding:
-            raise Exception
-            multi = 3
-
+        
         # Used to transform the goal encoding into features that we will use for action/object prediction
         '''
         self.fc_att_action = self.mlp2l(self.hidden_size , self.hidden_size)
@@ -132,6 +128,7 @@ class GraphPredNetworkVAETask2(nn.Module):
         # VAE related
         self.cond_prior = False
         self.args = args
+        self.use_vae = self.args.input_vae != 'none'
         if args['cond_prior']:
             self.cond_prior = True
             self.prior_net = nn.Sequential(
@@ -177,12 +174,7 @@ class GraphPredNetworkVAETask2(nn.Module):
 
         self.goal_inp = args['goal_inp']
         self.edge_pred_mode = args['edge_pred']
-        if args['goal_inp']:
-            self.goal_encoder = base_nets.GoalEncoder(
-                self.max_num_classes,
-                self.hidden_size,
-                obj_class_encoder=self.graph_encoder.object_class_encoding,
-            )
+
 
 
 
@@ -196,10 +188,11 @@ class GraphPredNetworkVAETask2(nn.Module):
         z = eps * std + mu
         return z
 
-    def forward(self, inputs, cond=None, inference=False, seed=None):
+    def forward(self, inputs, cond=None, inference=False, seed=None, verbose=False):
         # ipdb.set_trace()
         # Cond is an embedding of the past, optionally used
-        # ipdb.set_trace()
+        if verbose:
+            ipdb.set_trace()
 
         inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
         B, T, numpreds, nc = inp_task_graph.shape
@@ -218,7 +211,6 @@ class GraphPredNetworkVAETask2(nn.Module):
         # ipdb.set_trace()
         encoded_goal_task = end_task_transformer[:, 0, :]
         
-
         q_post = self.posterior(encoded_goal_task)
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 
@@ -230,21 +222,22 @@ class GraphPredNetworkVAETask2(nn.Module):
         d = p_prior.shape[-1] // 2
         mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
         mu_posterior, logvar_posterior =q_post[..., :d], q_post[..., d:]
-        
-
-        if not inference:
-            
-            z_vec = self.sample_param(q_post)
+        # ipdb.set_trace()
+        if self.use_vae:
+            if not inference:
+                
+                z_vec = self.sample_param(q_post)
+            else:
+                # print("sampling...")
+                z_vec = self.sample_param(p_prior) 
+                # print('sampled')
+            # ipdb.set_trace()
+            z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
+            # ipdb.set_trace()
+            z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+            z_and_input = self.z_projection(z_and_input)
         else:
-            # print("sampling...")
-            z_vec = self.sample_param(p_prior) 
-            # print('sampled')
-        # ipdb.set_trace()
-        z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
-        # ipdb.set_trace()
-        z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
-        z_and_input = self.z_projection(z_and_input)
-
+            z_and_input = embeddings_input_graph
         # ipdb.set_trace()
         pred_graph = self.task_pred(z_and_input)
         pred_mask = self.mask_pred(z_and_input)[..., 0]
@@ -253,7 +246,7 @@ class GraphPredNetworkVAETask2(nn.Module):
         inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
 
         # ipdb.set_trace()
-        
+
 
         if self.predict_diff:
             pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph

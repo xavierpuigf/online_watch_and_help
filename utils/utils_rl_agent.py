@@ -289,8 +289,8 @@ class GraphHelper:
         index = 0
         
         # objects_container = ['kitchentable', 'kitchencabinet', 'coffeetable', 'fridge', 'microwave', 'stove', 'cabinet', '']
-        for object_graph in list(set(content['objects_grab'])):
-            for object_container in objects_container:
+        for object_graph in sorted(list(set(content['objects_grab']))):
+            for object_container in sorted(objects_container):
                 tuple_key = (self.object_dict.get_id(object_graph), self.object_dict.get_id(object_container))
                 tuple_name = (object_graph, object_container)
                 if tuple_key in task_graph_dict:
@@ -299,7 +299,7 @@ class GraphHelper:
                 task_graph_dict[tuple_key] = (tuple_name, index)
                 task_graph_list.append(tuple_key)
                 index += 1
-        for object_container in self.rooms:
+        for object_container in sorted(self.rooms):
             object_graph = 'character'
             tuple_key = (self.object_dict.get_id(object_graph), self.object_dict.get_id(object_container))
             tuple_name = (object_graph, object_container)

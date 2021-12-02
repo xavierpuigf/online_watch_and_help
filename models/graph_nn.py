@@ -420,14 +420,14 @@ class GraphModel(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, num_classes, num_nodes, in_feat, out_feat, dropout=0.1, activation='relu', nhead=1):
+    def __init__(self, num_classes, num_nodes, in_feat, out_feat, dropout=0.1, activation='relu', nhead=1, num_layers=6):
         super(Transformer, self).__init__()
         encoder_layer = nn.TransformerEncoderLayer(d_model=in_feat, nhead=nhead,
                                                            dim_feedforward=out_feat, dropout=dropout,
                                                            activation=activation)
         self.transformer = nn.TransformerEncoder(
             encoder_layer,
-            num_layers=6,
+            num_layers=num_layers,
             norm=nn.modules.normalization.LayerNorm(in_feat))
         self.bad_transformer = False
         self._reset_parameters()
