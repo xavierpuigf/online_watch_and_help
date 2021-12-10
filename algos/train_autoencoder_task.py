@@ -26,9 +26,7 @@ from omegaconf import DictConfig, OmegaConf
 import pathlib
 from functools import partial
 import torch.multiprocessing as mp
-import matplotlib
-matplotlib.use("Agg")
-from matplotlib import pyplot as plt
+
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 def setup(rank, world_size):
@@ -111,7 +109,7 @@ def unmerge(tensor, firstdim):
 #     edges_something = edges
 
 
-def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False, verbose=False):
+def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False):
     (
         graph_info,
         program,
@@ -163,14 +161,12 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     # try:
     # print(len_mask.shape)
     # ipdb.set_trace()
-    if verbose:
-        ipdb.set_trace()
     if not evaluation:
-        output = model(inputs, verbose=verbose)
+        output = model(inputs)
         
     else:
         with torch.no_grad():
-            output = model(inputs, inference=not posterior, verbose=verbose)
+            output = model(inputs, inference=not posterior)
     # ipdb.set_trace()
     # except:
     #     print("ERROR!!!")
@@ -195,12 +191,15 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     losses_dict = {}
 
     # Loss state
-    loss_mask = criterions['mask'](
-        pred_mask,
-        gt_mask,
-    )
-    loss_mask = loss_mask.mean(-1)
-    loss_mask = (loss_mask * mask_length).mean(-1).mean(-1)
+    if args.model.use_only_input:
+        loss_mask = 0
+    else:   
+        loss_mask = criterions['mask'](
+            pred_mask,
+            gt_mask,
+        )
+        loss_mask = loss_mask.mean(-1)
+        loss_mask = (loss_mask * mask_length).mean(-1).mean(-1)
 
     if not args.model.predict_diff:
         loss_mask *= 0.
@@ -214,9 +213,12 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     loss_task = loss_task.mean(-1)
     loss_task = (loss_task * mask_length).mean(-1).mean(-1)
 
-    losses_dict['losses_task'] = loss_task.item()
-    losses_dict['losses_mask'] = loss_mask.item()
 
+    losses_dict['losses_task'] = loss_task.item()
+    if not args.model.use_only_input:
+        losses_dict['losses_mask'] = loss_mask.item()
+    else:
+        losses_dict['losses_mask'] = 0
 
     
     loss += loss_mask + loss_task
@@ -255,7 +257,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
 
 
 def plot_func(html_name, graph_helper, graph_info, len_mask, index, 
-              gt_task, gt_mask, input_task, pred_task, pred_mask, prog_gt, metrics_item, metrics_item_tstep, metrics_item_tstep_all):
+              gt_task, gt_mask, input_task, pred_task, pred_mask, prog_gt, metrics_item, metrics_item_tstep):
     program_gt = utils_models.decode_program(graph_helper, prog_gt, index=index)
     pred_graph_samples = []
     num_samples = len(pred_task)
@@ -288,8 +290,7 @@ def plot_func(html_name, graph_helper, graph_info, len_mask, index,
         'prog_gt': program_gt,
         'index': index,
         'metrics': metrics_item,
-        'metrics_tstep': metrics_item_tstep,
-        'metrics_tstep_all': metrics_item_tstep_all
+        'metrics_tstep': metrics_item_tstep
     }
 
     results = {'gt_task': [gt_graph, gt_task[index]], 
@@ -320,14 +321,6 @@ def inference(
 
 
     metric_dict = get_metrics(args)
-    
-    num_bins = 20
-    metric_over_time_dict = {
-        'recall': [[] for _ in range(num_bins)], 
-        'prec': [[] for _ in range(num_bins)], 
-        'accuracy': [[] for _ in range(num_bins)], 
-        'accuracy_pos': [[] for _ in range(num_bins)]
-    }
 
     progress = ProgressMeter(
         len(data_loader),
@@ -383,8 +376,7 @@ def inference(
             # Sample here:
 
             predicted_mask, predicted_graph = [], []
-            length_programs = misc['mask_length'].sum(-1)
-            
+
             if not 'VAE' in args.model.time_aggregate:
                 pred_mask = (nn.functional.sigmoid(predictions['pred_mask'], dim=3)).cpu().numpy()
                 pred_mask = np.concatenate([pred_mask, 1 - pred_mask], -1)
@@ -411,20 +403,8 @@ def inference(
             # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
             predicted_maskc = np.concatenate([x[None, :] for x in predicted_mask], 0)
             predicted_graphc = np.concatenate([x[None, :] for x in predicted_graph], 0)
-            metrics_item_tstep, metrics_item, metrics_item_tstep_all = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc, gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
+            metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc > 0., gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
 
-            # Update the metric over time plot
-            for index in range(ind.shape[0]):
-                current_length = int(length_programs[index])
-                # ipdb.set_trace()
-                for measure in metrics_item_tstep_all.keys():
-                    for tstep in range(current_length):
-                        index_bin = int(tstep * 1./current_length * num_bins)
-                        try:
-                            metric_over_time_dict[measure][index_bin] += list(metrics_item_tstep_all[measure][:, index, tstep])
-                        except:
-                            print(index_bin, index, tstep)
-            # ipdb.set_trace()
             # input_edges = misc['input_edges']
             # gt_state = gt['gt_state']
             # gt_change = gt['gt_change']
@@ -488,7 +468,6 @@ def inference(
                     'pred_mask': predicted_mask,
                     'prog_gt': prog_gt,
                     'metrics_item_tstep': metrics_item_tstep,
-                    'metrics_item_tstep_all': metrics_item_tstep_all,
                     'metrics_item': metrics_item
                        
                 }
@@ -501,13 +480,13 @@ def inference(
                     score_total_str = ''
                     rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
                     html_str_total = utils_models.build_table(rows_total, ['Link', 'Scores', 'Goals'])
+                    print(colored(result_name_html_total, 'cyan'))
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
                     with open(result_name_html_total, 'w+') as f:
                         f.write(html_str_total)
-                    # ipdb.set_trace()
 
-                    
+
 
 
 
@@ -528,7 +507,6 @@ def inference(
             # ipdb.set_trace()
             metric_dict['batch_time'].update(time.time() - end)
             end = time.time()
-            print(colored(result_name_html_total, 'cyan'))
             
             progress.display(it)
             # if it == 4:
@@ -540,27 +518,6 @@ def inference(
             continue
 
         progress.display(it)
-
-    # ipdb.set_trace()
-    x = [it*1./num_bins for it in range(num_bins)]
-    for metric_name in metric_over_time_dict:
-        stdes = []
-        means = []
-
-        result_plot_name = os.path.join(logger.results_path, f'{metric_name}.png')
-        plt.figure()
-        for timestep in range(num_bins):
-            samples = metric_over_time_dict[metric_name][timestep]
-            mean = np.mean(samples)
-            stde = np.std(samples) / np.sqrt(len(samples))
-            means.append(mean)
-            stdes.append(stde)
-        means = np.array(means)
-        stdes = np.array(stdes)
-        plt.errorbar(x, means, stdes)
-        plt.title(metric_name)
-        plt.savefig(result_plot_name)
-        # ipdb.set_trace()
 
 # def concat_predictions(pred_graph_samples):
 #     all_edges, all_from, all_to = [], [], []
@@ -635,8 +592,7 @@ def evaluate(
     args,
     logger,
     criterions,
-    use_posterior,
-    verbose=False
+    use_posterior
 ):
     model.eval()
 
@@ -668,7 +624,7 @@ def evaluate(
 
 
 
-            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior, verbose=verbose)
+            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior)
             # print(loss)
             # gt1, predictions1, misc1, losses_dict1, inp1, loss1 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=False)
             # gt2, predictions2, misc2, losses_dict2, inp2, loss2 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=True)
@@ -913,14 +869,6 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
         'accuracy_pos': accuracy_pos.max(0)
 
     }
-    metrics_item_tstep_all = {
-        'recall': recall, 
-        'prec': prec,
-        'accuracy': accuracy,
-        'accuracy_pos': accuracy_pos
-
-    }
-
     metrics_item = {
         'recall': recall_item.max(0), 
         'prec': prec_item.max(0),
@@ -933,7 +881,7 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
     # f1 = f1_item.mean(0)
 
 
-    return metrics_item_tstep, metrics_item, metrics_item_tstep_all
+    return metrics_item_tstep, metrics_item
 
 def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
     
@@ -1225,20 +1173,15 @@ def main(cfg: DictConfig):
     #         model = agent_pref_policy.GraphPredNetwork(config)
     #     else:
     
-    model = agent_pref_policy.GraphPredNetworkVAETask2(config)
+    model = agent_pref_policy.GraphPredNetworkVAETask3(config)
     print("CUDA: {}".format(cfg.cuda))
-
-    if len(cfg.ckpt_load) > 0:
-        model_params = torch.load(cfg.ckpt_load)['model']
-        model_params = {x.replace('module.', ''): y for x,y in model_params.items()}
-        model.load_state_dict(model_params)
-
     if cfg.cuda:
         model = model.cuda()
         model = nn.DataParallel(model)
 
-    # ipdb.set_trace()
-    # ipdb.set_trace()
+    if len(cfg.ckpt_load) > 0:
+        model.load_state_dict(torch.load(cfg.ckpt_load)['model'])
+
     # loss states
     
     criterion_task = torch.nn.CrossEntropyLoss(reduction='none')
@@ -1263,17 +1206,13 @@ def main(cfg: DictConfig):
     else:
         optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
         print("Failures: ", train_loader.dataset.get_failures())
-        if len(cfg.ckpt_load) > 0:
-            optimizer.load_state_dict(torch.load(cfg.ckpt_load)['optimizer'])
-        # ipdb.set_trace()
+
         logger = LoggerSteps(config, log_steps=config.logging)
 
         if config.logging:
             logger.save_model(0, model, optimizer)
 
         # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
-        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions, use_posterior=True, verbose=False)
-        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions, use_posterior=True, verbose=True)
         # ipdb.set_trace()
 
         evaluate(
@@ -1295,11 +1234,9 @@ def main(cfg: DictConfig):
             config,
             logger,
             criterions,
-            use_posterior=True,
-            verbose=False
+            use_posterior=True
         )
         # ipdb.set_trace()
-        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions, use_posterior=True, verbose=True)
         for epoch in range(config['train']['epochs']):
             # ipdb.set_trace()
             train_epoch(
@@ -1322,11 +1259,16 @@ def main(cfg: DictConfig):
                 use_posterior=False
             )
 
-            
-            # logger.save_model("testingthings", model, optimizer)
-            # ipdb.set_trace()
-            # evaluate(test_loader, train_loader, model, epoch, config, logger, criterions, use_posterior=True, verbose=True)
-            # ipdb.set_trace()
+            evaluate(
+                test_loader,
+                train_loader,
+                model,
+                epoch,
+                config,
+                logger,
+                criterions,
+                use_posterior=True
+            )
             if epoch % config.log.save_every == 0:
                 logger.save_model(epoch, model, optimizer)
 
