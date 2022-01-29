@@ -128,7 +128,6 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'graph': graph_info,
         'mask_len': len_mask,
         'goal': goal,
-        'label_agent': label_agent,
     }
     # ipdb.set_trace()
     # T = graph_info['mask_object'].shape[1]
@@ -179,6 +178,8 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     mask_length = len_mask[:, 1:].cuda()
     pred_mask = output['pred_mask'][:, :-1, ...]
     pred_task = output['pred_graph'][:, :-1, ...]
+    pred_task_total = output['pred_graph_total'][:, :-1, ...]
+
     tsteps = pred_mask.shape[1]
     gt_mask = inputs['task_graph']['mask_task_graph'][:, :-1, ...].float().cuda()
     # ipdb.set_trace()

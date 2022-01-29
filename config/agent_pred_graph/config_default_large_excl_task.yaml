@@ -50,12 +50,13 @@ model:
         num_attributes: 6
         hidden_size: 100
         max_tsteps: 75 #50
+        supervise_alltask: False
         goal_inp: False
         gated: False
         agent_embed: False
         num_agents: 100
         relative_coords: False
-        input_vae: 'none' # 'graph/task'
+        input_vae: 'task' # 'graph/task'
         time_aggregate: 'LSTM' # LSTM, none, firstcurr, fcVAE, seqVAE
         cond_prior: True
         zvec: 'node' # node / single
