@@ -407,12 +407,16 @@ def edge2name(edge):
 
 
 log_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_nohold_20_1.0_1.0/test_env_task_set_60_full_task.all"
+# log_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_20_1.0_1.0/test_env_task_set_60_full_task.all"
+log_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_action_freq_v2_20/test_env_task_set_60_full_task.all"
+log_dir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/heling_gt/test_env_task_set_60_full_task.all"
+
 
 results = pickle.load(open(log_dir + '/results_4.pik', 'rb'))
 
 # print(results)
 
-episode_ids = [3]  # , 290, 453, 600]
+episode_ids = [3]  # 3, 290, 453, 600]
 
 for episode_id in episode_ids:
     saved_info = pickle.load(
@@ -423,25 +427,27 @@ for episode_id in episode_ids:
     actions = saved_info['action']
     graph_results = saved_info['graph_results']
     print(task_name)
-    print(gt_goals)
+    # print(gt_goals)
+    for edge_class, ids in gt_goals.items():
+        print(edge_class, ids['count'])
     print(len(actions[1]), len(graph_results))
     T = len(actions[1])
 
     print(actions[0][0])
     print(actions[0][1])
     for steps in range(0, T):
-        # if steps < 29:
+        # if steps < 25:
         #     continue
         edge_pred_class_estimated = aggregate_multiple_pred(
             graph_results[steps], steps, change=True
         )
-        print("step ", steps + 2)
-        print('change pred:')
-        for edge_class, count in edge_pred_class_estimated.items():
-            if (
-                edge_pred_class_estimated[edge_class][0] < 1e-6
-                and edge_pred_class_estimated[edge_class][1] < 1e-6
-            ):
-                continue
-            print(edge_class, edge_pred_class_estimated[edge_class])
+        # print("step ", steps + 2)
+        # print('change pred:')
+        # for edge_class, count in edge_pred_class_estimated.items():
+        #     if (
+        #         edge_pred_class_estimated[edge_class][0] < 1e-6
+        #         and edge_pred_class_estimated[edge_class][1] < 1e-6
+        #     ):
+        #         continue
+        #     print(edge_class,edge_pred_class_estimated[edge_class])
         print(actions[0][2 + steps], actions[1][steps])

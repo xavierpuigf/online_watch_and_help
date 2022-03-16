@@ -759,6 +759,9 @@ def main(cfg: DictConfig):
             if episode_id not in episode_ids:
                 continue
 
+            if episode_id != 3:
+                continue
+
             log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
                 episode_id, iter_id
             )

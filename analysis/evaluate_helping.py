@@ -21,7 +21,7 @@ from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from utils import utils_models_wb, utils_rl_agent
 
-sys.path.append('.')
+sys.path.append(".")
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 
@@ -33,23 +33,23 @@ import torch
 
 
 def get_class_mode(agent_args):
-    mode_str = '{}_opencost{}_closecost{}_walkcost{}_forgetrate{}'.format(
-        agent_args['obs_type'],
-        agent_args['open_cost'],
-        agent_args['should_close'],
-        agent_args['walk_cost'],
-        agent_args['belief']['forget_rate'],
+    mode_str = "{}_opencost{}_closecost{}_walkcost{}_forgetrate{}".format(
+        agent_args["obs_type"],
+        agent_args["open_cost"],
+        agent_args["should_close"],
+        agent_args["walk_cost"],
+        agent_args["belief"]["forget_rate"],
     )
     return mode_str
 
 
-def get_edge_class0(pred, t, source='pred'):
+def get_edge_class0(pred, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
-    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id']  # if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id']  # if source == 'pred' else pred['to_id_input']
+    edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
+    pred_edge_names = pred["edge_names"]
+    pred_nodes = pred["nodes"]
+    pred_from_ids = pred["from_id"]  # if source == 'pred' else pred['from_id_input']
+    pred_to_ids = pred["to_id"]  # if source == 'pred' else pred['to_id_input']
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -64,18 +64,18 @@ def get_edge_class0(pred, t, source='pred'):
         to_node_name = pred_nodes[to_id]
         # if object_name in from_node_name or object_name in to_node_name:
         edge_name = pred_edge_names[edge_pred[edge_id]]
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
-            if to_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
             ]:
                 continue
             # if from_node_name.split('.')[0]
-            edge_class = '{}_{}_{}'.format(
-                edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+            edge_class = "{}_{}_{}".format(
+                edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
             )
             # print(from_node_name, to_node_name, edge_name)
             if edge_class not in edge_pred_class:
@@ -85,14 +85,14 @@ def get_edge_class0(pred, t, source='pred'):
     return edge_pred_class
 
 
-def get_edge_class(pred, t, source='pred'):
+def get_edge_class(pred, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+    edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
+    pred_edge_names = pred["edge_names"]
+    pred_nodes = pred["nodes"]
+    pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
+    pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -108,24 +108,24 @@ def get_edge_class(pred, t, source='pred'):
         to_node_name = pred_nodes[to_id]
         # if object_name in from_node_name or object_name in to_node_name:
         edge_name = pred_edge_names[edge_pred[edge_id]]
-        if to_node_name.split('.')[1] == '-1':
+        if to_node_name.split(".")[1] == "-1":
             continue
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
-            if to_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
             ]:
                 continue
         else:
             continue
-        if from_node_name.split('.')[0] not in [
-            'apple',
-            'cupcake',
-            'plate',
-            'waterglass',
+        if from_node_name.split(".")[0] not in [
+            "apple",
+            "cupcake",
+            "plate",
+            "waterglass",
         ]:
             continue
 
@@ -136,8 +136,8 @@ def get_edge_class(pred, t, source='pred'):
         #     ipdb.set_trace()
         #     edge_name = 'on'
 
-        edge_class = '{}_{}_{}'.format(
-            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+        edge_class = "{}_{}_{}".format(
+            edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
         )
         # print(from_node_name, to_node_name, edge_name)
         if edge_class not in edge_pred_class:
@@ -160,7 +160,7 @@ def aggregate_multiple_pred(preds, t, change=False):
             else:
                 edge_pred_class_all[edge_class] += [count]
     if change:
-        edge_input_class = get_edge_class(preds[0], t, 'input')
+        edge_input_class = get_edge_class(preds[0], t, "input")
         edge_classes += list(edge_input_class.keys())
 
     edge_classes = sorted(list(set(edge_classes)))
@@ -212,12 +212,12 @@ def get_metrics_reward(
                 pdb.set_trace()
                 # continue
             else:
-                if alice_results[episode_id]['S'][seed_alice] == '':
+                if alice_results[episode_id]["S"][seed_alice] == "":
                     print(episode_id, seed)
                     continue
 
-                S_A = alice_results[episode_id]['S'][seed_alice]
-                L_A = alice_results[episode_id]['L'][seed_alice]
+                S_A = alice_results[episode_id]["S"][seed_alice]
+                L_A = alice_results[episode_id]["L"][seed_alice]
                 L_A_seeds.append(L_A)
         if episode_id not in test_results:
             print(episode_id, seed)
@@ -229,17 +229,17 @@ def get_metrics_reward(
         Ls = []
         Ss = []
         for seed_bob in range(num_tries):
-            if seed_bob >= len(test_results[episode_id]['S']):
+            if seed_bob >= len(test_results[episode_id]["S"]):
                 continue
             try:
-                if test_results[episode_id]['S'][seed_bob] == '':
+                if test_results[episode_id]["S"][seed_bob] == "":
                     print(episode_id, seed)
                     continue
-                if test_results[episode_id]['S'][seed_bob] is None:
+                if test_results[episode_id]["S"][seed_bob] is None:
                     print(episode_id, seed)
                     continue
-                S_B = test_results[episode_id]['S'][seed_bob]
-                L_B = test_results[episode_id]['L'][seed_bob]
+                S_B = test_results[episode_id]["S"][seed_bob]
+                L_B = test_results[episode_id]["L"][seed_bob]
                 if L_B == time_limit:
                     S_B = 0.0
             except:
@@ -300,33 +300,34 @@ def main(cfg: DictConfig):
     num_proc = 0
 
     num_tries = 5
-    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
+    args.executable_file = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64"
     args.max_episode_length = 200
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
-    rootdir = ''
+    rootdir = ""
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik'
+    args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik"
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
-    cachedir = f'{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0'
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
-    cachedir_main = f'{get_original_cwd()}/outputs/main_agent_only_large'
+    cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
 
     agent_types = [
-        ['full', 0, 0.05, False, 0, "uniform"],  # 0
-        ['full', 0.5, 0.01, False, 0, "uniform"],  # 1
-        ['full', -5, 0.05, False, 0, "uniform"],  # 2
-        ['partial', 0, 0.05, False, 0, "uniform"],  # 3
-        ['partial', 0, 0.05, False, 0, "spiked"],  # 4
-        ['partial', 0, 0.05, False, 0.2, "uniform"],  # 5
-        ['partial', 0, 0.01, False, 0.01, "spiked"],  # 6
-        ['partial', -5, 0.05, False, 0.2, "uniform"],  # 7
-        ['partial', 0.5, 0.05, False, 0.2, "uniform"],  # 8
+        ["full", 0, 0.05, False, 0, "uniform"],  # 0
+        ["full", 0.5, 0.01, False, 0, "uniform"],  # 1
+        ["full", -5, 0.05, False, 0, "uniform"],  # 2
+        ["partial", 0, 0.05, False, 0, "uniform"],  # 3
+        ["partial", 0, 0.05, False, 0, "spiked"],  # 4
+        ["partial", 0, 0.05, False, 0.2, "uniform"],  # 5
+        ["partial", 0, 0.01, False, 0.01, "spiked"],  # 6
+        ["partial", -5, 0.05, False, 0.2, "uniform"],  # 7
+        ["partial", 0.5, 0.05, False, 0.2, "uniform"],  # 8
     ]
     random_start = random.Random()
     agent_id = 0
@@ -338,27 +339,27 @@ def main(cfg: DictConfig):
         forget_rate,
         belief_type,
     ) = agent_types[0]
-    datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
+    datafile = args.dataset_path.split("/")[-1].replace(".pik", "")
     agent_args = {
-        'obs_type': args.obs_type,
-        'open_cost': open_cost,
-        'should_close': should_close,
-        'walk_cost': walk_cost,
-        'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
+        "obs_type": args.obs_type,
+        "open_cost": open_cost,
+        "should_close": should_close,
+        "walk_cost": walk_cost,
+        "belief": {"forget_rate": forget_rate, "belief_type": belief_type},
     }
     # TODO: add num_samples to the argument
     num_samples = args.num_samples
     num_processes = args.num_processes
-    args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
+    args.mode = "{}_".format(agent_id + 1) + "action_freq_{}".format(num_samples)
     # args.mode += 'v9_particles_v2'
 
     # env_task_set = pickle.load(open(args.dataset_path, 'rb'))
     # # print(env_task_set)
     # print(len(env_task_set))
 
-    args.record_dir = '{}/{}'.format(cachedir, datafile)
-    record_dir_main = '{}/{}'.format(cachedir_main, datafile)
-    error_dir = '{}/logging/{}'.format(cachedir, datafile)
+    args.record_dir = "{}/{}".format(cachedir, datafile)
+    record_dir_main = "{}/{}".format(cachedir_main, datafile)
+    error_dir = "{}/logging/{}".format(cachedir, datafile)
     if not os.path.exists(args.record_dir):
         os.makedirs(args.record_dir)
 
@@ -366,9 +367,9 @@ def main(cfg: DictConfig):
         os.makedirs(error_dir)
 
     executable_args = {
-        'file_name': args.executable_file,
-        'x_display': 0,
-        'no_graphics': True,
+        "file_name": args.executable_file,
+        "x_display": 0,
+        "no_graphics": True,
     }
 
     id_run = 0
@@ -378,11 +379,11 @@ def main(cfg: DictConfig):
     # random_start.shuffle(episode_ids)
     # episode_ids = episode_ids[10:]
 
-    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
-    f = open(valid_set_path, 'r')
+    valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
+    f = open(valid_set_path, "r")
     episode_ids = []
     for filename in f:
-        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+        episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
     episode_ids = sorted(episode_ids)
     print(len(episode_ids))
     f.close()
@@ -411,21 +412,21 @@ def main(cfg: DictConfig):
         # test_results = {}
         print(args.record_dir)
 
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id)):
+        if not os.path.isfile(args.record_dir + "/results_{}.pik".format(iter_id)):
             test_results = {}
         else:
             test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'rb')
+                open(args.record_dir + "/results_{}.pik".format(iter_id), "rb")
             )
             help_results = dict(test_results)
 
         print(iter_id, len(test_results))
 
-        if not os.path.isfile(record_dir_main + '/results_{}.pik'.format(iter_id)):
+        if not os.path.isfile(record_dir_main + "/results_{}.pik".format(iter_id)):
             test_results = {}
         else:
             test_results = pickle.load(
-                open(record_dir_main + '/results_{}.pik'.format(iter_id), 'rb')
+                open(record_dir_main + "/results_{}.pik".format(iter_id), "rb")
             )
             main_results = dict(test_results)
 

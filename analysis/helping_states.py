@@ -20,7 +20,7 @@ from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from utils import utils_models_wb, utils_rl_agent
 
-sys.path.append('.')
+sys.path.append(".")
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
 
@@ -32,25 +32,25 @@ import torch
 
 
 def get_class_mode(agent_args):
-    mode_str = '{}_opencost{}_closecost{}_walkcost{}_forgetrate{}'.format(
-        agent_args['obs_type'],
-        agent_args['open_cost'],
-        agent_args['should_close'],
-        agent_args['walk_cost'],
-        agent_args['belief']['forget_rate'],
+    mode_str = "{}_opencost{}_closecost{}_walkcost{}_forgetrate{}".format(
+        agent_args["obs_type"],
+        agent_args["open_cost"],
+        agent_args["should_close"],
+        agent_args["walk_cost"],
+        agent_args["belief"]["forget_rate"],
     )
     return mode_str
 
 
-def get_edge_class(pred, t, source='pred'):
+def get_edge_class(pred, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    t = min(t, len(pred['edge_pred']) - 1)
-    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+    t = min(t, len(pred["edge_pred"]) - 1)
+    edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
+    pred_edge_names = pred["edge_names"]
+    pred_nodes = pred["nodes"]
+    pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
+    pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -66,23 +66,23 @@ def get_edge_class(pred, t, source='pred'):
         to_node_name = pred_nodes[to_id]
         # if object_name in from_node_name or object_name in to_node_name:
         edge_name = pred_edge_names[edge_pred[edge_id]]
-        if to_node_name.split('.')[1] == '-1':
+        if to_node_name.split(".")[1] == "-1":
             continue
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
-            if to_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
             ]:
                 continue
-            if from_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'character',
+            if from_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "character",
             ]:
                 continue
         else:
@@ -102,8 +102,8 @@ def get_edge_class(pred, t, source='pred'):
         #     ipdb.set_trace()
         #     edge_name = 'on'
 
-        edge_class = '{}_{}_{}'.format(
-            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+        edge_class = "{}_{}_{}".format(
+            edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
         )
         # print(from_node_name, to_node_name, edge_name)
         if edge_class not in edge_pred_class:
@@ -113,15 +113,15 @@ def get_edge_class(pred, t, source='pred'):
     return edge_pred_class
 
 
-def get_edge_instance(pred, t, source='pred'):
+def get_edge_instance(pred, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    t = min(t, len(pred['edge_pred']) - 1)
-    edge_pred = pred['edge_pred'][t] if source == 'pred' else pred['edge_input'][t]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id'] if source == 'pred' else pred['from_id_input']
-    pred_to_ids = pred['to_id'] if source == 'pred' else pred['to_id_input']
+    t = min(t, len(pred["edge_pred"]) - 1)
+    edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
+    pred_edge_names = pred["edge_names"]
+    pred_nodes = pred["nodes"]
+    pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
+    pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -137,23 +137,23 @@ def get_edge_instance(pred, t, source='pred'):
         to_node_name = pred_nodes[to_id]
         # if object_name in from_node_name or object_name in to_node_name:
         edge_name = pred_edge_names[edge_pred[edge_id]]
-        if to_node_name.split('.')[1] == '-1':
+        if to_node_name.split(".")[1] == "-1":
             continue
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
-            if to_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
             ]:
                 continue
-            if from_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'character',
+            if from_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "character",
             ]:
                 continue
         else:
@@ -166,20 +166,20 @@ def get_edge_instance(pred, t, source='pred'):
         # ]:
         #     continue
 
-        edge_class = '{}_{}_{}'.format(
-            edge_name, from_node_name.split('.')[0], to_node_name.split('.')[1]
+        edge_class = "{}_{}_{}".format(
+            edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
         )
 
         # print(from_node_name, to_node_name, edge_name)
         if edge_class not in edge_pred_ins:
             edge_pred_ins[edge_class] = {
-                'count': 0,
-                'grab_obj_ids': [],
-                'container_ids': [int(to_node_name.split('.')[1])],
+                "count": 0,
+                "grab_obj_ids": [],
+                "container_ids": [int(to_node_name.split(".")[1])],
             }
-        edge_pred_ins[edge_class]['count'] += 1
-        edge_pred_ins[edge_class]['grab_obj_ids'].append(
-            int(from_node_name.split('.')[1])
+        edge_pred_ins[edge_class]["count"] += 1
+        edge_pred_ins[edge_class]["grab_obj_ids"].append(
+            int(from_node_name.split(".")[1])
         )
     return edge_pred_ins
 
@@ -188,11 +188,11 @@ def get_edge_instance_from_pred(pred):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
 
-    edge_pred = pred['edge_pred'][-1]
-    pred_edge_names = pred['edge_names']
-    pred_nodes = pred['nodes']
-    pred_from_ids = pred['from_id']
-    pred_to_ids = pred['to_id']
+    edge_pred = pred["edge_pred"][-1]
+    pred_edge_names = pred["edge_names"]
+    pred_nodes = pred["nodes"]
+    pred_from_ids = pred["from_id"]
+    pred_to_ids = pred["to_id"]
 
     # edge_prob = pred_edge_prob[t]
     # edge_pred = np.argmax(edge_prob, 1)
@@ -205,66 +205,66 @@ def get_edge_instance_from_pred(pred):
     for edge_id in range(num_edges):
         from_id = pred_from_ids[-1][edge_id]
         to_id = pred_to_ids[-1][edge_id]
-        from_node_name = pred_nodes[from_id].split('.')[0]
-        to_node_name = pred_nodes[to_id].split('.')[0]
-        from_node_id = int(pred_nodes[from_id].split('.')[1])
-        to_node_id = int(pred_nodes[to_id].split('.')[1])
+        from_node_name = pred_nodes[from_id].split(".")[0]
+        to_node_name = pred_nodes[to_id].split(".")[0]
+        from_node_id = int(pred_nodes[from_id].split(".")[1])
+        to_node_id = int(pred_nodes[to_id].split(".")[1])
         edge_name = pred_edge_names[edge_pred[edge_id]]
 
-        if 'hold' in edge_name:  # ignore left or right hand
-            edge_name = 'offer'
+        if "hold" in edge_name:  # ignore left or right hand
+            edge_name = "offer"
             # ipdb.set_trace()
             # continue  # TODO: add handing over plan
 
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
             if to_node_name in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
             ]:
                 continue
 
         if from_node_name not in [
-            'plate',
-            'cutleryfork',
-            'waterglass',
-            'cupcake',
-            'salmon',
-            'apple',
-            'remotecontrol',
-            'chips',
-            'condimentbottle',
-            'condimentshaker',
-            'wineglass',
-            'pudding',
+            "plate",
+            "cutleryfork",
+            "waterglass",
+            "cupcake",
+            "salmon",
+            "apple",
+            "remotecontrol",
+            "chips",
+            "condimentbottle",
+            "condimentshaker",
+            "wineglass",
+            "pudding",
         ]:
             continue
-        elif edge_name in ['close']:
+        elif edge_name in ["close"]:
             continue
         # if from_node_name not in ['apple', 'cupcake', 'plate', 'waterglass']:
         #     continue
 
         edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
-        if edge_name == 'offer':
+        if edge_name == "offer":
             if edge_class not in edge_pred_ins:
                 edge_pred_ins[edge_class] = {
-                    'count': 0,
-                    'grab_obj_ids': [],
-                    'container_ids': [from_id],
+                    "count": 0,
+                    "grab_obj_ids": [],
+                    "container_ids": [from_id],
                 }
-            edge_pred_ins[edge_class]['count'] += 1
-            edge_pred_ins[edge_class]['grab_obj_ids'].append(to_node_id)
+            edge_pred_ins[edge_class]["count"] += 1
+            edge_pred_ins[edge_class]["grab_obj_ids"].append(to_node_id)
         else:
             if edge_class not in edge_pred_ins:
                 edge_pred_ins[edge_class] = {
-                    'count': 0,
-                    'grab_obj_ids': [],
-                    'container_ids': [to_id],
+                    "count": 0,
+                    "grab_obj_ids": [],
+                    "container_ids": [to_id],
                 }
-            edge_pred_ins[edge_class]['count'] += 1
-            edge_pred_ins[edge_class]['grab_obj_ids'].append(from_node_id)
+            edge_pred_ins[edge_class]["count"] += 1
+            edge_pred_ins[edge_class]["grab_obj_ids"].append(from_node_id)
         edge_list.append(
             "{}_{}.{}_{}.{}".format(
                 edge_name, from_node_name, from_node_id, to_node_name, to_node_id
@@ -276,63 +276,63 @@ def get_edge_instance_from_pred(pred):
 
 
 def get_edge_instance_from_state(state):
-    id2node = {node['id']: node['class_name'] for node in state['nodes']}
+    id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
     # print(id2node)
     edge_pred_ins = {}
     edge_list = []
-    for edge in state['edges']:
+    for edge in state["edges"]:
         edge_name, from_id, to_id = (
-            edge['relation_type'].lower(),
-            edge['from_id'],
-            edge['to_id'],
+            edge["relation_type"].lower(),
+            edge["from_id"],
+            edge["to_id"],
         )
-        if 'hold' in edge_name:  # ignore left or right hand
-            edge_name = 'offer'
+        if "hold" in edge_name:  # ignore left or right hand
+            edge_name = "offer"
             # ipdb.set_trace()
             # continue  # TODO: add handing over plan
         from_node_name = id2node[from_id]
         to_node_name = id2node[to_id]
-        if edge_name in ['inside', 'on']:  # disregard room locations + plate
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
             if to_node_name in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
             ]:
                 continue
-            if from_node_name.split('.')[0] in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'character',
+            if from_node_name.split(".")[0] in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "character",
             ]:
                 continue
-        elif edge_name in ['close']:
+        elif edge_name in ["close"]:
             continue
         # if from_node_name not in ['apple', 'cupcake', 'plate', 'waterglass']:
         #     continue
 
         edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_id)
-        if edge_name == 'offer':
+        if edge_name == "offer":
             if edge_class not in edge_pred_ins:
                 edge_pred_ins[edge_class] = {
-                    'count': 0,
-                    'grab_obj_ids': [],
-                    'container_ids': [from_id],
+                    "count": 0,
+                    "grab_obj_ids": [],
+                    "container_ids": [from_id],
                 }
-            edge_pred_ins[edge_class]['count'] += 1
-            edge_pred_ins[edge_class]['grab_obj_ids'].append(to_id)
+            edge_pred_ins[edge_class]["count"] += 1
+            edge_pred_ins[edge_class]["grab_obj_ids"].append(to_id)
         else:
             if edge_class not in edge_pred_ins:
                 edge_pred_ins[edge_class] = {
-                    'count': 0,
-                    'grab_obj_ids': [],
-                    'container_ids': [to_id],
+                    "count": 0,
+                    "grab_obj_ids": [],
+                    "container_ids": [to_id],
                 }
-            edge_pred_ins[edge_class]['count'] += 1
-            edge_pred_ins[edge_class]['grab_obj_ids'].append(from_id)
+            edge_pred_ins[edge_class]["count"] += 1
+            edge_pred_ins[edge_class]["grab_obj_ids"].append(from_id)
         edge_list.append(
             "{}_{}.{}_{}.{}".format(
                 edge_name, from_node_name, from_id, to_node_name, to_id
@@ -342,7 +342,7 @@ def get_edge_instance_from_state(state):
 
 
 def aggregate_multiple_pred(preds, t, change=False):
-    t = min(t, len(preds[0]['edge_pred']) - 1)
+    t = min(t, len(preds[0]["edge_pred"]) - 1)
     edge_classes = []
     edge_pred_class_all = {}
     N_preds = len(preds)
@@ -355,7 +355,7 @@ def aggregate_multiple_pred(preds, t, change=False):
             else:
                 edge_pred_class_all[edge_class] += [count]
     if change:
-        edge_input_class = get_edge_class(preds[0], t, 'input')
+        edge_input_class = get_edge_class(preds[0], t, "input")
         edge_classes += list(edge_input_class.keys())
 
     edge_classes = sorted(list(set(edge_classes)))
@@ -385,43 +385,43 @@ def aggregate_multiple_pred(preds, t, change=False):
 
 def edge2goal(edge):
     # edge format: edgeName_fromNodeName.id_toNodeName.id
-    elements = edge.split('_')
+    elements = edge.split("_")
     edge_name = elements[0]
-    from_node_id = int(elements[1].split('.')[-1])
-    from_node_name = elements[1].split('.')[0]
-    to_node_id = int(elements[2].split('.')[-1])
+    from_node_id = int(elements[1].split(".")[-1])
+    from_node_name = elements[1].split(".")[0]
+    to_node_id = int(elements[2].split(".")[-1])
 
-    goal_name = '{}_{}_{}'.format(edge_name, from_node_name, to_node_id)
-    if edge_name == 'offer':
+    goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
+    if edge_name == "offer":
         goal = {
             goal_name: {
-                'count': 1,
-                'grab_obj_ids': [to_node_id],
-                'container_ids': [from_node_id],
+                "count": 1,
+                "grab_obj_ids": [to_node_id],
+                "container_ids": [from_node_id],
             }
         }
     else:
         goal = {
             goal_name: {
-                'count': 1,
-                'grab_obj_ids': [from_node_id],
-                'container_ids': [to_node_id],
+                "count": 1,
+                "grab_obj_ids": [from_node_id],
+                "container_ids": [to_node_id],
             }
         }
     return goal
 
 
 def edge2name(edge):
-    elements = edge.split('_')
+    elements = edge.split("_")
     edge_name = elements[0]
-    from_node_id = int(elements[1].split('.')[-1])
-    from_node_name = elements[1].split('.')[0]
-    to_node_id = int(elements[2].split('.')[-1])
-    to_node_name = elements[2].split('.')[0]
-    if edge_name == 'offer':
-        goal_name = '{}_{}_{}'.format(edge_name, to_node_name, from_node_id)
+    from_node_id = int(elements[1].split(".")[-1])
+    from_node_name = elements[1].split(".")[0]
+    to_node_id = int(elements[2].split(".")[-1])
+    to_node_name = elements[2].split(".")[0]
+    if edge_name == "offer":
+        goal_name = "{}_{}_{}".format(edge_name, to_node_name, from_node_id)
     else:
-        goal_name = '{}_{}_{}'.format(edge_name, from_node_name, to_node_id)
+        goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
     return goal_name
 
 
@@ -437,7 +437,7 @@ def pred_main_agent_plan(
     res,
 ):
     inferred_goal = get_edge_instance(pred_graph, t)
-    print('pred {}:'.format(process_id), inferred_goal)
+    print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
         opponent_actions, opponent_info = pred_actions_fn(
@@ -447,14 +447,14 @@ def pred_main_agent_plan(
             agent_id=1 - agent_id,
             inferred_goal=inferred_goal,
         )
-        plan_states = opponent_info[1 - agent_id]['plan_states']
-        plan_cost = opponent_info[1 - agent_id]['plan_cost']
-        plan = opponent_info[1 - agent_id]['plan']
+        plan_states = opponent_info[1 - agent_id]["plan_states"]
+        plan_cost = opponent_info[1 - agent_id]["plan_cost"]
+        plan = opponent_info[1 - agent_id]["plan"]
         if (
-            opponent_info[1 - agent_id]['subgoals'] is not None
-            and len(opponent_info[1 - agent_id]['subgoals']) > 0
+            opponent_info[1 - agent_id]["subgoals"] is not None
+            and len(opponent_info[1 - agent_id]["subgoals"]) > 0
         ):
-            opponent_subgoal = opponent_info[1 - agent_id]['subgoals'][0][0]
+            opponent_subgoal = opponent_info[1 - agent_id]["subgoals"][0][0]
         else:
             opponent_subgoal = None
     # print('main pred {}:'.format(process_id), inferred_goal)
@@ -475,7 +475,7 @@ def get_helping_plan(
     res,
 ):
     inferred_goal = edge2goal(edge)
-    print('pred {}:'.format(process_id), inferred_goal)
+    print("pred {}:".format(process_id), inferred_goal)
     subgoal, action, plan, plan_states = None, None, None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
 
@@ -488,21 +488,21 @@ def get_helping_plan(
             opponent_subgoal=opponent_subgoal,
         )
         # print('actions:', actions)
-        print('pred {}:'.format(process_id), inferred_goal)
-        print('plan {}:'.format(process_id), opponent_subgoal, info[1]['subgoals'])
-        if info[1]['subgoals'] is None or len(info[1]['subgoals']) == 0:
+        print("pred {}:".format(process_id), inferred_goal)
+        print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
+        if info[1]["subgoals"] is None or len(info[1]["subgoals"]) == 0:
             res[process_id] = (None, None, None, None)
             return
 
         # Here you can get the intermediate states
-        plan_states = info[agent_id]['plan_states']
-        plan_cost = info[agent_id]['plan_cost']
-        plan = info[agent_id]['plan']
+        plan_states = info[agent_id]["plan_states"]
+        plan_cost = info[agent_id]["plan_cost"]
+        plan = info[agent_id]["plan"]
         action = actions[agent_id]
         subgoal = (
-            info[agent_id]['subgoals'][0][0]
-            if info[agent_id]['subgoals'] is not None
-            and len(info[agent_id]['subgoals']) > 0
+            info[agent_id]["subgoals"][0][0]
+            if info[agent_id]["subgoals"] is not None
+            and len(info[agent_id]["subgoals"]) > 0
             else None
         )
     res[process_id] = (subgoal, plan, plan_states, plan_cost)
@@ -523,36 +523,36 @@ def main(cfg: DictConfig):
     # args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
-    rootdir = curr_dir + '/../'
+    rootdir = curr_dir + "/../"
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     # args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
+    args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik"
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
-    f = open(valid_set_path, 'r')
+    valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
+    f = open(valid_set_path, "r")
     episode_ids = []
     for filename in f:
-        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+        episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
     episode_ids = sorted(episode_ids)
     print(len(episode_ids))
     f.close()
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}'
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}"
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
-        ['full', 0, 0.05, False, 0, "uniform"],  # 0
-        ['full', 0.5, 0.01, False, 0, "uniform"],  # 1
-        ['full', -5, 0.05, False, 0, "uniform"],  # 2
-        ['partial', 0, 0.05, False, 0, "uniform"],  # 3
-        ['partial', 0, 0.05, False, 0, "spiked"],  # 4
-        ['partial', 0, 0.05, False, 0.2, "uniform"],  # 5
-        ['partial', 0, 0.01, False, 0.01, "spiked"],  # 6
-        ['partial', -5, 0.05, False, 0.2, "uniform"],  # 7
-        ['partial', 0.5, 0.05, False, 0.2, "uniform"],  # 8
+        ["full", 0, 0.05, False, 0, "uniform"],  # 0
+        ["full", 0.5, 0.01, False, 0, "uniform"],  # 1
+        ["full", -5, 0.05, False, 0, "uniform"],  # 2
+        ["partial", 0, 0.05, False, 0, "uniform"],  # 3
+        ["partial", 0, 0.05, False, 0, "spiked"],  # 4
+        ["partial", 0, 0.05, False, 0.2, "uniform"],  # 5
+        ["partial", 0, 0.01, False, 0.01, "spiked"],  # 6
+        ["partial", -5, 0.05, False, 0.2, "uniform"],  # 7
+        ["partial", 0.5, 0.05, False, 0.2, "uniform"],  # 8
     ]
     random_start = random.Random()
     agent_id = 0
@@ -564,45 +564,45 @@ def main(cfg: DictConfig):
         forget_rate,
         belief_type,
     ) = agent_types[0]
-    datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
+    datafile = args.dataset_path.split("/")[-1].replace(".pik", "")
     agent_args = {
-        'obs_type': args.obs_type,
-        'open_cost': open_cost,
-        'should_close': should_close,
-        'walk_cost': walk_cost,
-        'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
+        "obs_type": args.obs_type,
+        "open_cost": open_cost,
+        "should_close": should_close,
+        "walk_cost": walk_cost,
+        "belief": {"forget_rate": forget_rate, "belief_type": belief_type},
     }
     # TODO: add num_samples to the argument
     num_samples = args.num_samples
     num_processes = args.num_processes
-    args.mode = '{}_'.format(agent_id + 1) + 'action_freq_{}'.format(num_samples)
+    args.mode = "{}_".format(agent_id + 1) + "action_freq_{}".format(num_samples)
     # args.mode += 'v9_particles_v2'
 
-    env_task_set = pickle.load(open(args.dataset_path, 'rb'))
+    env_task_set = pickle.load(open(args.dataset_path, "rb"))
     # print(env_task_set)
     print(len(env_task_set))
 
     for env in env_task_set:
-        init_gr = env['init_graph']
+        init_gr = env["init_graph"]
         gbg_can = [
-            node['id']
-            for node in init_gr['nodes']
-            if node['class_name'] in ['garbagecan', 'clothespile']
+            node["id"]
+            for node in init_gr["nodes"]
+            if node["class_name"] in ["garbagecan", "clothespile"]
         ]
-        init_gr['nodes'] = [
-            node for node in init_gr['nodes'] if node['id'] not in gbg_can
+        init_gr["nodes"] = [
+            node for node in init_gr["nodes"] if node["id"] not in gbg_can
         ]
-        init_gr['edges'] = [
+        init_gr["edges"] = [
             edge
-            for edge in init_gr['edges']
-            if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can
+            for edge in init_gr["edges"]
+            if edge["from_id"] not in gbg_can and edge["to_id"] not in gbg_can
         ]
-        for node in init_gr['nodes']:
-            if node['class_name'] == 'cutleryfork':
-                node['obj_transform']['position'][1] += 0.1
+        for node in init_gr["nodes"]:
+            if node["class_name"] == "cutleryfork":
+                node["obj_transform"]["position"][1] += 0.1
 
-    args.record_dir = '{}/{}'.format(cachedir, datafile)
-    error_dir = '{}/logging/{}'.format(cachedir, datafile)
+    args.record_dir = "{}/{}".format(cachedir, datafile)
+    error_dir = "{}/logging/{}".format(cachedir, datafile)
     if not os.path.exists(args.record_dir):
         os.makedirs(args.record_dir)
 
@@ -610,9 +610,9 @@ def main(cfg: DictConfig):
         os.makedirs(error_dir)
 
     executable_args = {
-        'file_name': args.executable_file,
-        'x_display': 0,
-        'no_graphics': True,
+        "file_name": args.executable_file,
+        "x_display": 0,
+        "no_graphics": True,
     }
 
     id_run = 0
@@ -656,19 +656,19 @@ def main(cfg: DictConfig):
         get_plan_states=True,
         get_plan_cost=True,
     )
-    if args.obs_type == 'full':
-        args_common['num_particles'] = 1
+    if args.obs_type == "full":
+        args_common["num_particles"] = 1
     else:
-        args_common['num_particles'] = 20
+        args_common["num_particles"] = 20
 
-    args_agent1 = {'agent_id': 1, 'char_index': 0}
+    args_agent1 = {"agent_id": 1, "char_index": 0}
     args_agent1.update(args_common)
-    args_agent1['agent_params'] = agent_args
+    args_agent1["agent_params"] = agent_args
 
-    args_agent2 = {'agent_id': 2, 'char_index': 1}
+    args_agent2 = {"agent_id": 2, "char_index": 1}
     args_agent2.update(args_common)
-    args_agent2['agent_params'] = agent_args
-    args_agent2['num_simulation'] = 50
+    args_agent2["agent_params"] = agent_args
+    args_agent2["num_simulation"] = 50
 
     agents = [
         lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1),
@@ -694,11 +694,11 @@ def main(cfg: DictConfig):
         current_tried = iter_id
 
         # test_results = {}
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id - 1)):
+        if not os.path.isfile(args.record_dir + "/results_{}.pik".format(iter_id - 1)):
             test_results = {}
         else:
             test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id - 1), 'rb')
+                open(args.record_dir + "/results_{}.pik".format(iter_id - 1), "rb")
             )
 
         logger = logging.getLogger()
@@ -717,17 +717,17 @@ def main(cfg: DictConfig):
         # gt_p = Path(gt_dir).glob("*.pik")
 
         model = agent_pref_policy.GraphPredNetwork(args_pred)
-        state_dict = torch.load(args_pred.ckpt_load)['model']
+        state_dict = torch.load(args_pred.ckpt_load)["model"]
         state_dict_new = {}
 
         for param_name, param_value in state_dict.items():
-            state_dict_new[param_name.replace('module.', '')] = param_value
+            state_dict_new[param_name.replace("module.", "")] = param_value
 
         model.load_state_dict(state_dict_new)
         model.eval()
 
         curr_file = (
-            '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah'
+            "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah"
         )
         # dataset_test = AgentTypeDataset(
         #     path_init='{}/agent_preferences/dataset/{}'.format(
@@ -736,8 +736,8 @@ def main(cfg: DictConfig):
         #     args_config=args_pred,
         # )
         graph_helper = utils_rl_agent.GraphHelper(
-            max_num_objects=args_pred['model']['max_nodes'],
-            toy_dataset=args_pred['model']['reduced_graph'],
+            max_num_objects=args_pred["model"]["max_nodes"],
+            toy_dataset=args_pred["model"]["reduced_graph"],
         )
 
         num_episodes = 0
@@ -759,10 +759,10 @@ def main(cfg: DictConfig):
             if episode_id not in episode_ids:
                 continue
 
-            log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
+            log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
                 episode_id, iter_id
             )
-            failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
+            failure_file = "{}/{}_{}.txt".format(error_dir, episode_id, iter_id)
 
             # if os.path.isfile(log_file_name):  # or os.path.isfile(failure_file):
             #     print(log_file_name)
@@ -770,11 +770,11 @@ def main(cfg: DictConfig):
 
             if os.path.isfile(failure_file):
                 os.remove(failure_file)
-            fileh = logging.FileHandler(failure_file, 'a')
+            fileh = logging.FileHandler(failure_file, "a")
             fileh.setLevel(logging.DEBUG)
             logger.addHandler(fileh)
 
-            print('episode:', episode_id)
+            print("episode:", episode_id)
 
             for it_agent, agent in enumerate(arena.agents):
                 agent.seed = (it_agent + current_tried * 2) * 5
@@ -799,22 +799,22 @@ def main(cfg: DictConfig):
                 history_action = []
 
                 saved_info = {
-                    'task_id': arena.env.task_id,
-                    'env_id': arena.env.env_id,
-                    'task_name': arena.env.task_name,
-                    'gt_goals': arena.env.task_goal[0],
-                    'goals': arena.task_goal,
-                    'action': {0: [], 1: []},
-                    'plan': {0: [], 1: []},
-                    'finished': None,
-                    'init_unity_graph': arena.env.init_graph,
-                    'goals_finished': [],
-                    'belief': {0: [], 1: []},
-                    'belief_room': {0: [], 1: []},
-                    'belief_graph': {0: [], 1: []},
-                    'graph': [arena.env.init_unity_graph],
-                    'obs': [],
-                    'graph_results': [],
+                    "task_id": arena.env.task_id,
+                    "env_id": arena.env.env_id,
+                    "task_name": arena.env.task_name,
+                    "gt_goals": arena.env.task_goal[0],
+                    "goals": arena.task_goal,
+                    "action": {0: [], 1: []},
+                    "plan": {0: [], 1: []},
+                    "finished": None,
+                    "init_unity_graph": arena.env.init_graph,
+                    "goals_finished": [],
+                    "belief": {0: [], 1: []},
+                    "belief_room": {0: [], 1: []},
+                    "belief_graph": {0: [], 1: []},
+                    "graph": [arena.env.init_unity_graph],
+                    "obs": [],
+                    "graph_results": [],
                 }
 
                 actions, curr_info = arena.get_actions(
@@ -823,23 +823,23 @@ def main(cfg: DictConfig):
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
-                prev_graph = infos['graph']
+                prev_graph = infos["graph"]
 
-                if 'satisfied_goals' in infos:
-                    saved_info['goals_finished'].append(infos['satisfied_goals'])
+                if "satisfied_goals" in infos:
+                    saved_info["goals_finished"].append(infos["satisfied_goals"])
                 for agent_id, action in actions.items():
-                    saved_info['action'][agent_id].append(action)
-                if 'graph' in infos:
-                    saved_info['graph'].append(infos['graph'])
+                    saved_info["action"][agent_id].append(action)
+                if "graph" in infos:
+                    saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
-                    if 'belief_room' in info:
-                        saved_info['belief_room'][agent_id].append(info['belief_room'])
-                    if 'belief' in info:
-                        saved_info['belief'][agent_id].append(info['belief'])
-                    if 'plan' in info:
-                        saved_info['plan'][agent_id].append(info['plan'][:3])
-                    if 'obs' in info:
-                        saved_info['obs'].append([node['id'] for node in info['obs']])
+                    if "belief_room" in info:
+                        saved_info["belief_room"][agent_id].append(info["belief_room"])
+                    if "belief" in info:
+                        saved_info["belief"][agent_id].append(info["belief"])
+                    if "plan" in info:
+                        saved_info["plan"][agent_id].append(info["plan"][:3])
+                    if "obs" in info:
+                        saved_info["obs"].append([node["id"] for node in info["obs"]])
 
                 actions, curr_info = arena.get_actions(
                     prev_obs,
@@ -858,29 +858,29 @@ def main(cfg: DictConfig):
                 print("agents' positions")
                 print(
                     [
-                        (node['id'], node['bounding_box']['center'])
-                        for node in curr_obs[0]['nodes']
-                        if node['id'] < 3
+                        (node["id"], node["bounding_box"]["center"])
+                        for node in curr_obs[0]["nodes"]
+                        if node["id"] < 3
                     ]
                 )
 
-                curr_graph = infos['graph']
+                curr_graph = infos["graph"]
 
-                if 'satisfied_goals' in infos:
-                    saved_info['goals_finished'].append(infos['satisfied_goals'])
+                if "satisfied_goals" in infos:
+                    saved_info["goals_finished"].append(infos["satisfied_goals"])
                 for agent_id, action in actions.items():
-                    saved_info['action'][agent_id].append(action)
-                if 'graph' in infos:
-                    saved_info['graph'].append(infos['graph'])
+                    saved_info["action"][agent_id].append(action)
+                if "graph" in infos:
+                    saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
-                    if 'belief_room' in info:
-                        saved_info['belief_room'][agent_id].append(info['belief_room'])
-                    if 'belief' in info:
-                        saved_info['belief'][agent_id].append(info['belief'])
-                    if 'plan' in info:
-                        saved_info['plan'][agent_id].append(info['plan'][:3])
-                    if 'obs' in info:
-                        saved_info['obs'].append([node['id'] for node in info['obs']])
+                    if "belief_room" in info:
+                        saved_info["belief_room"][agent_id].append(info["belief_room"])
+                    if "belief" in info:
+                        saved_info["belief"][agent_id].append(info["belief"])
+                    if "plan" in info:
+                        saved_info["plan"][agent_id].append(info["plan"][:3])
+                    if "obs" in info:
+                        saved_info["obs"].append([node["id"] for node in info["obs"]])
 
                 # history_obs.append([node['id'] for node in curr_info[0]['obs']])
                 # history_graph.append(prev_graph)
@@ -910,16 +910,16 @@ def main(cfg: DictConfig):
                             print(pred_id)
                             print(
                                 get_edge_class(
-                                    proposal['pred'],
-                                    len(proposal['pred']['edge_pred']) - 1,
+                                    proposal["pred"],
+                                    len(proposal["pred"]["edge_pred"]) - 1,
                                 )
                             )
-                            print(last_observed_main_action, proposal['plan'])
-                            if last_observed_main_action in proposal['plan']:
+                            print(last_observed_main_action, proposal["plan"])
+                            if last_observed_main_action in proposal["plan"]:
                                 remained_proposals[pred_id] = proposal
-                                print('accept')
+                                print("accept")
                             else:
-                                print('reject')
+                                print("reject")
                         proposals = dict(remained_proposals)
                         if len(proposals) == 0:
                             all_reject = True
@@ -929,19 +929,19 @@ def main(cfg: DictConfig):
 
                     # new proposals
                     if new_action:
-                        history_obs.append([node['id'] for node in curr_info[0]['obs']])
+                        history_obs.append([node["id"] for node in curr_info[0]["obs"]])
                         history_graph.append(prev_graph)
 
                     replan_for_helper = True
-                    if last_goal_edge is not None and 'offer' not in last_goal_edge:
+                    if last_goal_edge is not None and "offer" not in last_goal_edge:
                         in_helper_hands = [
                             edge
-                            for edge in curr_obs[1]['edges']
-                            if edge['from_id'] == 2 and 'HOLD' in edge['relation_type']
+                            for edge in curr_obs[1]["edges"]
+                            if edge["from_id"] == 2 and "HOLD" in edge["relation_type"]
                         ]
                         if len(in_helper_hands) > 0:
                             inferred_goal = edge2goal(last_goal_edge)
-                            print('last helper goal:', inferred_goal)
+                            print("last helper goal:", inferred_goal)
                             if (
                                 len(inferred_goal) > 0
                             ):  # if no edge prediction then None action
@@ -988,38 +988,38 @@ def main(cfg: DictConfig):
                                 output_func = model(inputs_func)
 
                             edge_dict = utils_models_wb.build_gt_edge(
-                                inputs_func['graph'], graph_helper, exclusive_edge=True
+                                inputs_func["graph"], graph_helper, exclusive_edge=True
                             )
-                            b, t, n = inputs_func['graph']['mask_obs_node'].shape
-                            pred_edge = output_func['edges'].reshape([b, t, n, n])
+                            b, t, n = inputs_func["graph"]["mask_obs_node"].shape
+                            pred_edge = output_func["edges"].reshape([b, t, n, n])
                             graph_result = utils_models_wb.obtain_graph_3(
                                 graph_helper,
-                                inputs_func['graph'],
+                                inputs_func["graph"],
                                 torch.nn.functional.softmax(pred_edge, dim=-1)
                                 .cpu()
                                 .numpy(),
-                                output_func['states'].cpu(),
-                                inputs_func['graph']['mask_obs_node'],
+                                output_func["states"].cpu(),
+                                inputs_func["graph"]["mask_obs_node"],
                                 [
                                     torch.nn.functional.softmax(
-                                        output_func['node_change'], dim=-1
+                                        output_func["node_change"], dim=-1
                                     )
                                     .cpu()
                                     .numpy(),
                                     torch.nn.functional.one_hot(
-                                        edge_dict['gt_edges'], n
+                                        edge_dict["gt_edges"], n
                                     )
                                     .cpu()
                                     .numpy(),
                                 ],
-                                inputs_func['mask_len'],
+                                inputs_func["mask_len"],
                                 include_last=False,
                                 samples=num_samples,
                             )
                         # ipdb.set_trace()
 
                         # get helper action
-                        print('planning for the helper agent')
+                        print("planning for the helper agent")
                         action_freq = {}
                         opponent_subgoal_freq = {}
                         manager = mp.Manager()
@@ -1077,12 +1077,12 @@ def main(cfg: DictConfig):
                             plan_cost,
                         ) in res.items():
                             proposals[pred_id] = {
-                                'pred': graph_result[pred_id],
-                                'subgoal': subgoal,
-                                'plan': plan,
-                                'plan_states': plan_states,
-                                'plan_cost': plan_cost,
-                                'edge_steps': {},
+                                "pred": graph_result[pred_id],
+                                "subgoal": subgoal,
+                                "plan": plan,
+                                "plan_states": plan_states,
+                                "plan_cost": plan_cost,
+                                "edge_steps": {},
                             }
                             if subgoal is not None:
                                 if subgoal not in opponent_subgoal_freq:
@@ -1112,7 +1112,7 @@ def main(cfg: DictConfig):
                                                 if edge not in edge_steps:
                                                     edge_steps[edge] = []
                                                 edge_steps[edge].append(estimated_steps)
-                                                proposals[pred_id]['edge_steps'][
+                                                proposals[pred_id]["edge_steps"][
                                                     edge
                                                 ] = estimated_steps
 
@@ -1127,7 +1127,7 @@ def main(cfg: DictConfig):
                                         if edge not in edge_steps:
                                             edge_steps[edge] = []
                                         edge_steps[edge].append(estimated_steps)
-                                        proposals[pred_id]['edge_steps'][
+                                        proposals[pred_id]["edge_steps"][
                                             edge
                                         ] = estimated_steps
 
@@ -1149,10 +1149,10 @@ def main(cfg: DictConfig):
                         opponent_subgoal_freq = {}
                         for pred_id, proposal in proposals.items():
                             subgoal, plan, plan_states, plan_cost = (
-                                proposal['subgoal'],
-                                proposal['plan'],
-                                proposal['plan_states'],
-                                proposal['plan_cost'],
+                                proposal["subgoal"],
+                                proposal["plan"],
+                                proposal["plan_states"],
+                                proposal["plan_cost"],
                             )
 
                             if subgoal is not None:
@@ -1183,7 +1183,7 @@ def main(cfg: DictConfig):
                                                     edge_steps[edge] = []
                                                 edge_steps[edge].append(estimated_steps)
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    proposal['pred']
+                                    proposal["pred"]
                                 )
                                 # print(edge_list)
                                 # ipdb.set_trace()
@@ -1195,7 +1195,7 @@ def main(cfg: DictConfig):
                                         if edge not in edge_steps:
                                             edge_steps[edge] = []
                                         edge_steps[edge].append(estimated_steps)
-                                        proposals[pred_id]['edge_steps'][
+                                        proposals[pred_id]["edge_steps"][
                                             edge
                                         ] = estimated_steps
                                 all_edges = list(set(all_edges))
@@ -1210,7 +1210,7 @@ def main(cfg: DictConfig):
                     # ======================================================
                     # get main agent's action
                     # arena.task_goal = None
-                    print('planning for the main agent')
+                    print("planning for the main agent")
                     selected_actions, curr_info = arena.get_actions(
                         curr_obs,
                         length_plan=10,
@@ -1219,36 +1219,36 @@ def main(cfg: DictConfig):
                     )
 
                     if (
-                        'chips' in selected_actions[0]
-                        or 'remotecontrol' in selected_actions[0]
-                        or 'condimentbottle' in selected_actions[0]
-                        or 'condimentshaker' in selected_actions[0]
+                        "chips" in selected_actions[0]
+                        or "remotecontrol" in selected_actions[0]
+                        or "condimentbottle" in selected_actions[0]
+                        or "condimentshaker" in selected_actions[0]
                     ):
                         tv = True
                     if (
-                        'salmon' in selected_actions[0]
-                        or 'apple' in selected_actions[0]
-                        or 'cupcake' in selected_actions[0]
-                        or 'pudding' in selected_actions[0]
+                        "salmon" in selected_actions[0]
+                        or "apple" in selected_actions[0]
+                        or "cupcake" in selected_actions[0]
+                        or "pudding" in selected_actions[0]
                     ):
                         food = True
                     if (
-                        'plate' in selected_actions[0]
-                        or 'glass' in selected_actions[0]
-                        or 'fork' in selected_actions[0]
+                        "plate" in selected_actions[0]
+                        or "glass" in selected_actions[0]
+                        or "fork" in selected_actions[0]
                     ):
                         dish = True
 
-                    print('main agent subgoal:', curr_info[0]['subgoals'])
+                    print("main agent subgoal:", curr_info[0]["subgoals"])
 
                     if replan_for_helper:
 
                         # ======================================================
                         # get helper agent's action
 
-                        saved_info['graph_results'].append(graph_result)
-                        print('gt goal:', gt_goal)
-                        print('pred goal')
+                        saved_info["graph_results"].append(graph_result)
+                        print("gt goal:", gt_goal)
+                        print("pred goal")
                         edge_pred_class_estimated = aggregate_multiple_pred(
                             graph_result, steps - 3, change=True
                         )
@@ -1259,7 +1259,7 @@ def main(cfg: DictConfig):
                             ):
                                 continue
                             print(edge_class, edge_pred_class_estimated[edge_class])
-                        print('edge freq:')
+                        print("edge freq:")
                         _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
                         goal_edges = []
                         for edge in edge_freq:
@@ -1271,27 +1271,27 @@ def main(cfg: DictConfig):
                             ):
                                 if tv and (
                                     not (
-                                        'chips' in edge
-                                        or 'remotecontrol' in edge
-                                        or 'condimentbottle' in edge
-                                        or 'condimentshaker' in edge
+                                        "chips" in edge
+                                        or "remotecontrol" in edge
+                                        or "condimentbottle" in edge
+                                        or "condimentshaker" in edge
                                     )
                                 ):
                                     continue
                                 if food and (
                                     not (
-                                        'salmon' in edge
-                                        or 'apple' in edge
-                                        or 'cupcake' in edge
-                                        or 'pudding' in edge
+                                        "salmon" in edge
+                                        or "apple" in edge
+                                        or "cupcake" in edge
+                                        or "pudding" in edge
                                     )
                                 ):
                                     continue
                                 if dish and (
                                     not (
-                                        'plate' in edge
-                                        or 'fork' in edge
-                                        or 'glass' in edge
+                                        "plate" in edge
+                                        or "fork" in edge
+                                        or "glass" in edge
                                     )
                                 ):
                                     continue
@@ -1305,7 +1305,7 @@ def main(cfg: DictConfig):
                                 max_freq = count
                                 opponent_subgoal = subgoal
                             print(subgoal, count / len(proposals))
-                        print('predicted main\'s subgoal:', opponent_subgoal)
+                        print("predicted main's subgoal:", opponent_subgoal)
                         # ipdb.set_trace()
                         del res
 
@@ -1370,12 +1370,12 @@ def main(cfg: DictConfig):
                                 else:
                                     first_walk_steps = 0
                                     for action, cost in zip(plan, plan_cost):
-                                        if 'walk' in action:
+                                        if "walk" in action:
                                             if (
-                                                'kitchen' in action
-                                                or 'livingroom' in action
-                                                or 'bedroom' in action
-                                                or 'bathroom' in action
+                                                "kitchen" in action
+                                                or "livingroom" in action
+                                                or "bedroom" in action
+                                                or "bathroom" in action
                                             ):
                                                 if estimated_steps == 0:
                                                     first_walk_steps += int(cost + 0.5)
@@ -1462,7 +1462,7 @@ def main(cfg: DictConfig):
                                     # print('accept', last_goal_edge)
                                     if value > 19:
                                         print(
-                                            'accept',
+                                            "accept",
                                             value,
                                             best_value,
                                             estimated_steps,
@@ -1479,10 +1479,10 @@ def main(cfg: DictConfig):
                             )
 
                             # for goal_object in goal_objects:
-                            print('-------------------------------------')
-                            print('gt goal')
+                            print("-------------------------------------")
+                            print("gt goal")
                             print(gt_goal)
-                            print('pred goal')
+                            print("pred goal")
                             for edge_class, count in edge_pred_class_estimated.items():
                                 if (
                                     edge_pred_class_estimated[edge_class][0] < 1e-6
@@ -1493,8 +1493,8 @@ def main(cfg: DictConfig):
                     else:
                         selected_actions[1] = helper_action
 
-                    print('selected_actions:', selected_actions, best_value)
-                    print('last_goal_edge:', last_goal_edge)
+                    print("selected_actions:", selected_actions, best_value)
+                    print("last_goal_edge:", last_goal_edge)
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
@@ -1502,7 +1502,7 @@ def main(cfg: DictConfig):
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
                     )
-                    curr_graph = infos['graph']
+                    curr_graph = infos["graph"]
                     # history_obs.append(curr_obs[0])
                     # history_graph.append(curr_graph)
                     if prev_action != selected_actions[0]:
@@ -1512,36 +1512,36 @@ def main(cfg: DictConfig):
                     else:
                         new_action = False
 
-                    if 'satisfied_goals' in infos:
-                        saved_info['goals_finished'].append(infos['satisfied_goals'])
+                    if "satisfied_goals" in infos:
+                        saved_info["goals_finished"].append(infos["satisfied_goals"])
                     for agent_id, action in selected_actions.items():
-                        saved_info['action'][agent_id].append(action)
-                    if 'graph' in infos:
-                        saved_info['graph'].append(infos['graph'])
+                        saved_info["action"][agent_id].append(action)
+                    if "graph" in infos:
+                        saved_info["graph"].append(infos["graph"])
                     for agent_id, info in curr_info.items():
-                        if 'belief_room' in info:
-                            saved_info['belief_room'][agent_id].append(
-                                info['belief_room']
+                        if "belief_room" in info:
+                            saved_info["belief_room"][agent_id].append(
+                                info["belief_room"]
                             )
-                        if 'belief' in info:
-                            saved_info['belief'][agent_id].append(info['belief'])
-                        if 'plan' in info:
-                            saved_info['plan'][agent_id].append(info['plan'][:3])
-                        if 'obs' in info:
-                            saved_info['obs'].append(
-                                [node['id'] for node in info['obs']]
+                        if "belief" in info:
+                            saved_info["belief"][agent_id].append(info["belief"])
+                        if "plan" in info:
+                            saved_info["plan"][agent_id].append(info["plan"][:3])
+                        if "obs" in info:
+                            saved_info["obs"].append(
+                                [node["id"] for node in info["obs"]]
                             )
 
-                    print('success:', infos['finished'])
+                    print("success:", infos["finished"])
                     # pdb.set_trace()
-                    if infos['finished']:
+                    if infos["finished"]:
                         success = True
                         break
 
-                print('-------------------------------------')
-                print('success' if success else 'failure')
-                print('steps:', steps)
-                print('-------------------------------------')
+                print("-------------------------------------")
+                print("success" if success else "failure")
+                print("steps:", steps)
+                print("-------------------------------------")
                 # ipdb.set_trace()
 
                 if not success:
@@ -1550,14 +1550,14 @@ def main(cfg: DictConfig):
                     steps_list.append(steps)
                 is_finished = 1 if success else 0
 
-                saved_info['obs'].append([node['id'] for node in curr_obs[0]['nodes']])
-                saved_info['finished'] = success
+                saved_info["obs"].append([node["id"] for node in curr_obs[0]["nodes"]])
+                saved_info["finished"] = success
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                if len(saved_info['obs']) > 0:
-                    pickle.dump(saved_info, open(log_file_name, 'wb'))
+                if len(saved_info["obs"]) > 0:
+                    pickle.dump(saved_info, open(log_file_name, "wb"))
                 else:
-                    with open(log_file_name, 'w+') as f:
+                    with open(log_file_name, "w+") as f:
                         f.write(json.dumps(saved_info, indent=4))
 
                 logger.removeHandler(logger.handlers[0])
@@ -1586,10 +1586,10 @@ def main(cfg: DictConfig):
                 continue
 
             except Exception as e:
-                with open(failure_file, 'w+') as f:
-                    error_str = 'Failure'
-                    error_str += '\n'
-                    stack_form = ''.join(traceback.format_stack())
+                with open(failure_file, "w+") as f:
+                    error_str = "Failure"
+                    error_str += "\n"
+                    stack_form = "".join(traceback.format_stack())
                     error_str += stack_form
 
                     f.write(error_str)
@@ -1604,23 +1604,23 @@ def main(cfg: DictConfig):
                 continue
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
-            test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
+            test_results[episode_id] = {"S": S[episode_id], "L": L[episode_id]}
             # pdb.set_trace()
 
             print(test_results)
             pickle.dump(
                 test_results,
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+                open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
             )
 
         print(
-            'average steps (finishing the tasks):',
+            "average steps (finishing the tasks):",
             np.array(steps_list).mean() if len(steps_list) > 0 else None,
         )
-        print('failed_tasks:', failed_tasks)
+        print("failed_tasks:", failed_tasks)
         pickle.dump(
             test_results,
-            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+            open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
         )
 
 
