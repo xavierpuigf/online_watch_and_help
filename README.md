@@ -191,5 +191,18 @@ export ckpt_excl_vae="/data/vision/torralba/frames/data_acquisition/SyntheticSto
 
 python analysis/helping_states.py agent_pred_graph.ckpt_load=$ckpt_excl"/290.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True  num_processes=0 num_samples=1 agent_pred_graph.model.time_aggregate='seqVAE' agent_pred_graph.model.cond_prior=False
 
+
+# Analysis autoencoder tasks
+
+
+
+
+```
+
+```
+export ckpt_excl_vae="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl-agentsall/lr0.001-bs.16-goalenc.False_predchange.node_inputgoal.False_excledge.True_preddiff.True_goodactionreduced_walk_logname.autoencoder_VAE_withfs_noklloss_condprior.False_zvec.node"
+
+python analysis/helping_states_predicate_goals.py agent_pred_graph.ckpt_load=$ckpt_excl_vae"/90.pt"   agent_pred_graph.model.predict_node_change=True  agent_pred_graph.model.exclusive_edge=True  num_processes=0 num_samples=1 agent_pred_graph.model.time_aggregate='seqVAE' agent_pred_graph.model.cond_prior=False
+
 ```
 

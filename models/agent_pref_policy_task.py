@@ -43,7 +43,7 @@ class TaskTransformerEncoder(nn.Module):
         self.pos_encoding = PositionalEncoding(d_model=self.interm_embedding, max_len=300)        
         in_feat = out_dim
         self.out_feat = out_dim 
-        self.transformer_encoder = Transformer(None, None, in_feat, self.out_feat, nhead=1)
+        self.transformer_encoder = Transformer(None, None, in_feat, self.out_feat, nhead=1, num_layers=3)
 
     def forward(self, task_graph_curr, task_graph_init=None):
         if task_graph_init is not None:
@@ -76,7 +76,7 @@ class TaskTransformerEncoder(nn.Module):
 class GraphPredNetworkVAETask2(nn.Module):
     def mlp2l(self, dim_in, dim_out):
         return nn.Sequential(
-            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+            nn.Linear(dim_in, dim_in), nn.ReLU(), nn.Linear(dim_in, dim_out)
         )
 
     def __init__(self, args):
@@ -107,14 +107,10 @@ class GraphPredNetworkVAETask2(nn.Module):
 
         self.global_repr = args['global_repr']
         
-        self.use_agent_embedding = args['agent_embed']
 
         # Combine previous action and graph
         multi = 2
-        if self.use_agent_embedding:
-            raise Exception
-            multi = 3
-
+        
         # Used to transform the goal encoding into features that we will use for action/object prediction
         '''
         self.fc_att_action = self.mlp2l(self.hidden_size , self.hidden_size)
@@ -132,6 +128,7 @@ class GraphPredNetworkVAETask2(nn.Module):
         # VAE related
         self.cond_prior = False
         self.args = args
+        self.use_vae = self.args.input_vae != 'none'
         if args['cond_prior']:
             self.cond_prior = True
             self.prior_net = nn.Sequential(
@@ -177,12 +174,7 @@ class GraphPredNetworkVAETask2(nn.Module):
 
         self.goal_inp = args['goal_inp']
         self.edge_pred_mode = args['edge_pred']
-        if args['goal_inp']:
-            self.goal_encoder = base_nets.GoalEncoder(
-                self.max_num_classes,
-                self.hidden_size,
-                obj_class_encoder=self.graph_encoder.object_class_encoding,
-            )
+
 
 
 
@@ -196,12 +188,14 @@ class GraphPredNetworkVAETask2(nn.Module):
         z = eps * std + mu
         return z
 
-    def forward(self, inputs, cond=None, inference=False, seed=None):
+    def forward(self, inputs, cond=None, inference=False, seed=None, verbose=False):
         # ipdb.set_trace()
         # Cond is an embedding of the past, optionally used
-        # ipdb.set_trace()
+        if verbose:
+            ipdb.set_trace()
 
         inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
+
         B, T, numpreds, nc = inp_task_graph.shape
 
         task_graph_init = inp_task_graph[:, :1, ...]
@@ -218,7 +212,6 @@ class GraphPredNetworkVAETask2(nn.Module):
         # ipdb.set_trace()
         encoded_goal_task = end_task_transformer[:, 0, :]
         
-
         q_post = self.posterior(encoded_goal_task)
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 
@@ -230,21 +223,22 @@ class GraphPredNetworkVAETask2(nn.Module):
         d = p_prior.shape[-1] // 2
         mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
         mu_posterior, logvar_posterior =q_post[..., :d], q_post[..., d:]
-        
-
-        if not inference:
-            
-            z_vec = self.sample_param(q_post)
+        # ipdb.set_trace()
+        if self.use_vae:
+            if not inference:
+                
+                z_vec = self.sample_param(q_post)
+            else:
+                # print("sampling...")
+                z_vec = self.sample_param(p_prior) 
+                # print('sampled')
+            # ipdb.set_trace()
+            z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
+            # ipdb.set_trace()
+            z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+            z_and_input = self.z_projection(z_and_input)
         else:
-            # print("sampling...")
-            z_vec = self.sample_param(p_prior) 
-            # print('sampled')
-        # ipdb.set_trace()
-        z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
-        # ipdb.set_trace()
-        z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
-        z_and_input = self.z_projection(z_and_input)
-
+            z_and_input = embeddings_input_graph
         # ipdb.set_trace()
         pred_graph = self.task_pred(z_and_input)
         pred_mask = self.mask_pred(z_and_input)[..., 0]
@@ -253,7 +247,7 @@ class GraphPredNetworkVAETask2(nn.Module):
         inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
 
         # ipdb.set_trace()
-        
+
 
         if self.predict_diff:
             pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
@@ -263,6 +257,239 @@ class GraphPredNetworkVAETask2(nn.Module):
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
         # loss_o1 = None
         # loss_o2 = None
+
+
+
+
+
+
+class GraphPredNetworkVAETask3(nn.Module):
+    # Similar to VAE2, but the decoder decodes to the 136
+    def mlp2l(self, dim_in, dim_out):
+
+        return nn.Sequential(
+            nn.Linear(dim_in, dim_in), nn.ReLU(), nn.Linear(dim_in, dim_out)
+        )
+
+    def __init__(self, args):
+        super(GraphPredNetworkVAETask3, self).__init__()
+        args = args['model']
+        self.use_only_input = args['use_only_input']
+        self.predict_diff = args['predict_diff']
+        self.max_counts = args['num_counts']
+        self.num_task_preds = args['num_task_preds']
+
+        self.max_actions = args['max_actions']
+        self.max_nodes = args['max_nodes']
+        self.max_timesteps = args['max_tsteps']
+        self.max_num_classes = args['max_class_objects']
+        self.hidden_size = args['hidden_size']
+        self.num_states = args['num_states']
+
+        self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+        self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
+        self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
+        
+
+        self.task_pred = self.mlp2l(self.hidden_size, self.max_counts)
+        self.mask_pred = self.mlp2l(self.hidden_size, 1)
+        
+        self.input_vae = args['input_vae']
+        # if self.input_vae:
+
+        self.global_repr = args['global_repr']
+        
+
+        # Combine previous action and graph
+        multi = 2
+        
+        # Used to transform the goal encoding into features that we will use for action/object prediction
+        '''
+        self.fc_att_action = self.mlp2l(self.hidden_size , self.hidden_size)
+        self.fc_att_object = self.mlp2l(self.hidden_size , self.hidden_size)
+        self.fc_att_object2 = self.mlp2l(self.hidden_size, self.hidden_size)
+        '''
+
+        self.comb_layer = nn.Linear(self.hidden_size * multi, self.hidden_size)
+        self.comb_out_layer = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.num_layer_lstm = 2
+        self.time_aggregate = args['time_aggregate']
+
+
+
+        # VAE related
+        self.cond_prior = False
+        self.args = args
+        self.use_vae = self.args.input_vae != 'none'
+        if args['cond_prior']:
+            self.cond_prior = True
+            self.prior_net = nn.Sequential(
+                nn.Linear(self.hidden_size, self.hidden_size),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size, 128 * 2)
+            )
+        self.posterior = nn.Sequential(
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, 128 * 2)
+        )
+
+
+        if self.args['cond_prior']:
+            input_dim_zproj = 128
+        else:
+            input_dim_zproj = 128 + self.hidden_size
+        self.z_projection = nn.Sequential(
+            nn.Linear(input_dim_zproj, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size)
+        )
+
+
+        multi_edge = 1
+        if args['edge_pred'] == 'concat':
+            multi_edge = 2
+
+
+        self.z_projection_out = self.mlp2l(128, 128*self.num_task_preds)
+
+        # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
+        # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+        # self.object2_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
+
+        # self.pred_close_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+        #                            nn.ReLU(),
+        #                            nn.Linear(self.hidden_size, 1))
+        # self.pred_goal_net = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size),
+        #                                    nn.ReLU(),
+        #                                    nn.Linear(self.hidden_size, 1))
+
+        self.goal_inp = args['goal_inp']
+        self.edge_pred_mode = args['edge_pred']
+
+
+
+
+    def sample_param(self, qvec):
+        # ipdb.set_trace()
+        mids = qvec.shape[-1] // 2
+        mu = qvec[..., :mids]
+        logvar = qvec[..., mids:]
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = eps * std + mu
+        # z = mu
+        return z
+
+    def z_vec_project(self, z_vec):
+        # output B x num_task_preds x dim
+        
+        # This blows up
+
+        z_vec_flat = self.z_projection_out(z_vec)
+        B = z_vec.shape[0]
+        z_vec_reshape = z_vec_flat.reshape(B, self.num_task_preds, 128)
+        return z_vec_reshape
+
+    def forward(self, inputs, cond=None, inference=False, seed=None, verbose=False):
+        # ipdb.set_trace()
+        # Cond is an embedding of the past, optionally used
+        if verbose:
+            ipdb.set_trace()
+        inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
+        B, T, numpreds, nc = inp_task_graph.shape
+
+        task_graph_init = inp_task_graph[:, :1, ...]
+
+        # ipdb.set_trace()
+        # B x T x num_preds x dim
+        embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init.float())
+        
+        if not inference:
+            # We need the GT graph to understand the embedding
+            end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
+            # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
+            end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+
+            # B x T x D we just take one embedding
+            # ipdb.set_trace()
+            encoded_goal_task = end_task_transformer[:, 0, :]
+            q_post = self.posterior(encoded_goal_task)
+
+
+        if self.cond_prior:
+            p_prior = self.prior_net(graph_output) 
+        else:
+
+            mean_logvar = torch.zeros([B, T, 128*2])
+            p_prior = mean_logvar.to(embeddings_input_graph.device)
+            # p_prior = torch.cat([mean, log_var], -1)
+
+        d = p_prior.shape[-1] // 2
+        mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
+        if not inference:
+            mu_posterior, logvar_posterior = q_post[..., :d], q_post[..., d:]
+        else:
+            mu_posterior, logvar_posterior = mu_prior, logvar_prior
+        # ipdb.set_trace()
+        if self.use_vae:
+            if not inference:
+                
+                z_vec = self.sample_param(q_post)
+            else:
+                # print("sampling...")
+                z_vec = self.sample_param(p_prior) 
+                # print('sampled')
+
+
+            # Main change with VAE2
+            # z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
+            z_vec = self.z_vec_project(z_vec)
+            z_vec = z_vec[:, None, ...].repeat(1, T, 1, 1)
+
+            if self.use_only_input:
+                z_and_input = torch.cat([z_vec, torch.zeros_like(embeddings_input_graph)], -1)
+            else:
+                z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+            z_and_input = self.z_projection(z_and_input)
+        else:
+            z_and_input = embeddings_input_graph
+
+
+        # ipdb.set_trace()
+        pred_graph = self.task_pred(z_and_input)
+        
+        if self.use_only_input:
+            # Use gt_mask as pred_mask, since it is impossibel to derive the mask
+            pred_mask = inputs['task_graph']['mask_task_graph']
+        else:
+            pred_mask = self.mask_pred(z_and_input)[..., 0]
+
+        # ipdb.set_trace()
+
+        # ipdb.set_trace()
+
+        prev_pred_graph = pred_graph
+        if self.predict_diff:
+            if not inference:
+                inp_mask = inputs['task_graph']['mask_task_graph'][..., None].float()
+                pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
+            else:
+                inp_mask = (pred_mask[..., None] > 0.).float()
+                pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
+        # ipdb.set_trace()
+        return {'pred_mask': pred_mask, 'pred_graph': pred_graph, 'pred_graph_total': prev_pred_graph, 
+                'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
+
+        # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
+        # loss_o1 = None
+        # loss_o2 = None
+
+
+
+
+
+
 
 
 
@@ -519,7 +746,7 @@ class GraphPredNetworkVAETask(nn.Module):
 
         d = p_prior.shape[-1] // 2
         mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
-        mu_posterior, logvar_posterior =q_post[..., :d], q_post[..., d:]
+        mu_posterior, logvar_posterior = q_post[..., :d], q_post[..., d:]
         if not inference:
             
             z_vec = self.sample_param(q_post)

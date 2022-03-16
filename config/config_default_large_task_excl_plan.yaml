@@ -1,0 +1,18 @@
+defaults:
+        - agent_pred_graph: config_default_large_excl_task
+
+executable_file: "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64"
+max_episode_length: 250
+num_per_apartment: 20
+dataset_path: ""
+obs_type: "full"
+mode: ""
+record_dir: ""
+base_port: 8080
+use_editor: False
+num_processes: 10
+num_samples: 10
+alpha: 1.0
+beta: 1.0
+max_benefit: 20.0
+
