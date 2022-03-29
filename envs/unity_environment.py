@@ -347,7 +347,18 @@ class UnityEnvironment(BaseUnityEnvironment):
                 ]
                 updated_graph['nodes'] += nodes_trash
                 updated_graph['edges'] += edges_trash
-            success, m = self.comm.expand_scene(updated_graph)
+            try:
+                success, m = self.comm.expand_scene(updated_graph)
+            except:
+                print("Failure starting graph")
+                content_dict = {
+                        'env_id': self.env_id,
+                        'graph': updated_graph
+                }
+                import pickle as pkl
+                with open("debug_wah.pkl", "wb") as f:
+                    pkl.dump(content_dict, f)
+                ipdb.set_trace()
 
         if not success:
             ipdb.set_trace()

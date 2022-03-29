@@ -1,3 +1,5 @@
+Make sure you have the virtualhome wah branch
+
 Copy the folder: `/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/`
 
 

@@ -1,4 +1,6 @@
 import sys
+
+sys.path.append(".")
 import shutil
 import os
 import logging
@@ -20,7 +22,6 @@ from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from utils import utils_models_wb, utils_rl_agent
 
-sys.path.append(".")
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
 
@@ -1498,10 +1499,13 @@ def main(cfg: DictConfig):
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
-
-                    (curr_obs, reward, done, infos) = arena.step_given_action(
-                        selected_actions
-                    )
+                    
+                    try:
+                        (curr_obs, reward, done, infos) = arena.step_given_action(
+                            selected_actions
+                        )
+                    except:
+                        ipdb.set_trace()
                     curr_graph = infos["graph"]
                     # history_obs.append(curr_obs[0])
                     # history_graph.append(curr_graph)

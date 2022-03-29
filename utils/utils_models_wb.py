@@ -5,13 +5,7 @@ import yaml
 import os
 import random
 import wandb
-import tensorflow as tf
-import tensorflow as tf
 from hydra.utils import get_original_cwd, to_absolute_path
-import tensorboard as tb
-
-tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
-from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
 import torch

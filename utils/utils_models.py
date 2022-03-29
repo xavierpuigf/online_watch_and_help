@@ -4,11 +4,6 @@ from omegaconf import DictConfig, OmegaConf
 import yaml
 import os
 import wandb
-import tensorflow as tf
-import tensorflow as tf
-import tensorboard as tb
-tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
-from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
 import torch
