@@ -993,7 +993,7 @@ def main(cfg: DictConfig):
                             )
                             b, t, n = inputs_func["graph"]["mask_obs_node"].shape
                             pred_edge = output_func["edges"].reshape([b, t, n, n])
-                            graph_result = utils_models_wb.obtain_graph_3(
+                            graph_result = utils_models_wb.obtain_graph_3_2(
                                 graph_helper,
                                 inputs_func["graph"],
                                 torch.nn.functional.softmax(pred_edge, dim=-1)
