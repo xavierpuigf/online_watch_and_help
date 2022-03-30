@@ -114,6 +114,123 @@ def get_edge_class(pred, t, source="pred"):
     return edge_pred_class
 
 
+def get_class_from_state(state):
+    id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
+    edges = state["edges"]
+    nodes = state["nodes"]
+
+    edge_class_count = {}
+
+    num_edges = len(edges)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = edges[edge_id]["from_id"]
+        to_id = edges[edge_id]["to_id"]
+        from_node_name = id2node[from_id]
+        to_node_name = id2node[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = edges[edge_id]["relation_type"].lower()
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
+            ]:
+                continue
+            if from_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "character",
+            ]:
+                continue
+        else:
+            continue
+
+        edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_node_name)
+        if edge_class not in edge_class_count:
+            edge_class_count[edge_class] = 1
+        else:
+            edge_class_count[edge_class] += 1
+    return edge_class_count
+
+
+def compute_dist_instance(init_state, curr_state, subgoal_instance):
+    init_edge_class = get_class_from_state(init_state)
+    curr_edge_class = get_class_from_state(curr_state)
+    base_dist = 0
+    for edge in init_edge_class:
+        if edge not in curr_edge_class:
+            curr_edge_class[edge] = 0
+    for edge in curr_edge_class:
+        if edge not in init_edge_class:
+            init_edge_class[edge] = 0
+    for edge in init_edge_class:
+        # if init_edge_class[edge] != curr_edge_class[edge]:
+        #     print(edge, init_edge_class[edge], curr_edge_class[edge])
+        base_dist += abs(init_edge_class[edge] - curr_edge_class[edge])
+
+    id2node = {node["id"]: node["class_name"] for node in curr_state["nodes"]}
+
+    elements = subgoal_instance.split("_")
+    edge_type, from_id, to_id = (
+        elements[0],
+        int(elements[1].split(".")[1]),
+        int(elements[2].split(".")[1]),
+    )
+    object_id = from_id if edge_type in ["on", "inside"] else to_id
+    found = False
+    for edge in curr_state["edges"]:
+        if edge["from_id"] == object_id:
+            edge_class = "{}_{}_{}".format(
+                edge["relation_type"].lower(),
+                id2node[edge["from_id"]],
+                id2node[edge["to_id"]],
+            )
+            # print(edge_class)
+            if edge["relation_type"] in ["ON", "INSIDE"]:
+                if id2node[edge["to_id"]] in [
+                    "kitchen",
+                    "livingroom",
+                    "bedroom",
+                    "bathroom",
+                    "plate",
+                ]:
+                    continue
+
+                curr_edge_class[edge_class] -= 1
+                print(edge_class, "-")
+                found = True
+    if edge_type in ["on", "inside"]:
+        edge_class = "{}_{}_{}".format(
+            edge_type, elements[1].split(".")[0], elements[2].split(".")[0]
+        )
+        print(edge_class, "+")
+        if edge_class not in curr_edge_class:
+            curr_edge_class[edge_class] = 1
+        else:
+            curr_edge_class[edge_class] += 1
+    dist = -base_dist
+    for edge in init_edge_class:
+        if edge not in curr_edge_class:
+            curr_edge_class[edge] = 0
+    for edge in curr_edge_class:
+        if edge not in init_edge_class:
+            init_edge_class[edge] = 0
+    for edge in init_edge_class:
+        # if init_edge_class[edge] != curr_edge_class[edge]:
+        #     print(edge, init_edge_class[edge], curr_edge_class[edge])
+        dist += abs(init_edge_class[edge] - curr_edge_class[edge])
+
+    if dist == 1 and edge_type in ["on", "inside"]:
+        if not found:
+            dist += 1
+    return dist
+
+
 def get_edge_instance(pred, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
@@ -540,7 +657,7 @@ def main(cfg: DictConfig):
     print(len(episode_ids))
     f.close()
 
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}.{args.lam}"
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
@@ -782,6 +899,7 @@ def main(cfg: DictConfig):
 
             try:
                 obs = arena.reset(episode_id)
+                init_state = obs[1]
                 arena.task_goal = None
                 gt_goal = arena.env.task_goal[0]
                 tv = False
@@ -1386,6 +1504,9 @@ def main(cfg: DictConfig):
                                         # else:
                                         #     estimated_steps += 1
                                         estimated_steps += max(int(cost + 0.5), 1)
+                                dist = compute_dist_instance(
+                                    init_state, curr_obs[1], goal_edges[pred_id]
+                                )
                                 if estimated_steps is None:
                                     value = -1e6
                                     estimated_steps_back = None
@@ -1394,16 +1515,20 @@ def main(cfg: DictConfig):
                                         estimated_steps - first_walk_steps
                                     )
                                     edge_goal_name = edge2name(goal_edges[pred_id])
-                                    value = args.alpha * (
-                                        min(
-                                            edge_steps[goal_edges[pred_id]]
-                                            - estimated_steps,
-                                            args.max_benefit,
+                                    value = (
+                                        args.alpha
+                                        * (
+                                            min(
+                                                edge_steps[goal_edges[pred_id]]
+                                                - estimated_steps,
+                                                args.max_benefit,
+                                            )
                                         )
-                                    ) * min(
-                                        1, combined_edge_freq[edge_goal_name]
-                                    ) - args.beta * estimated_steps_back * max(
-                                        0, 1 - combined_edge_freq[edge_goal_name]
+                                        * min(1, combined_edge_freq[edge_goal_name])
+                                        - args.beta
+                                        * estimated_steps_back
+                                        * max(0, 1 - combined_edge_freq[edge_goal_name])
+                                        - args.lam * dist
                                     )
                                 print(
                                     goal_edges[pred_id],
@@ -1411,6 +1536,7 @@ def main(cfg: DictConfig):
                                     edge_steps[goal_edges[pred_id]],
                                     estimated_steps,
                                     estimated_steps_back,
+                                    dist,
                                     value,
                                 )
                                 # if (
@@ -1499,7 +1625,7 @@ def main(cfg: DictConfig):
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
-                    
+
                     try:
                         (curr_obs, reward, done, infos) = arena.step_given_action(
                             selected_actions
