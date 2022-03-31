@@ -1,4 +1,6 @@
 import torch
+import sys
+sys.path.append('.')
 import time
 import os
 import glob
@@ -39,56 +41,8 @@ def setup(rank, world_size):
 def cleanup():
     dist.destroy_process_group()
 
-def decode_graphs(graph_helper, graph_info, pred_edge, pred_state, pred_change, mask_edges, input_edges, len_mask, index):
-    result_graph = utils_models.obtain_graph_3(
-        graph_helper, graph_info, predicted_edge, predicted_state, predicted_change, mask_edges, input_edges,
-        len_mask, index
-    )
-    return result_graph
 
 
-
-def build_goal_graph(graph_info, len_mask):
-    num_nodes = graph_info['mask_object'].shape[2]
-    T = graph_info['mask_object'].shape[1]
-    object_coords_dim = graph_info['object_coords'].shape[3]
-    states_objects_dim = graph_info['states_objects'].shape[3]
-    goal_graph = {}
-
-    tsteps = len_mask.sum(-1)[:, None, None].repeat(1, 1, num_nodes).long() - 1
-    goal_graph['mask_object'] = (
-        torch.gather(graph_info['mask_object'].cuda(), 1, tsteps.cuda())
-        .repeat(1, T, 1)
-        .cuda()
-    )
-    goal_graph['class_objects'] = (
-        torch.gather(graph_info['class_objects'].cuda(), 1, tsteps.cuda())
-        .repeat(1, T, 1)
-        .cuda()
-    )
-    tsteps = (
-        len_mask.sum(-1)[:, None, None, None]
-        .repeat(1, 1, num_nodes, object_coords_dim)
-        .long()
-        - 1
-    )
-    goal_graph['object_coords'] = (
-        torch.gather(graph_info['object_coords'].cuda(), 1, tsteps.cuda())
-        .repeat(1, T, 1, 1)
-        .cuda()
-    )
-    tsteps = (
-        len_mask.sum(-1)[:, None, None, None]
-        .repeat(1, 1, num_nodes, states_objects_dim)
-        .long()
-        - 1
-    )
-    goal_graph['states_objects'] = (
-        torch.gather(graph_info['states_objects'].cuda(), 1, tsteps.cuda())
-        .repeat(1, T, 1, 1)
-        .cuda()
-    )
-    return goal_graph
 
 def merge2d(tensor):
     dim = list(tensor.shape)
@@ -110,22 +64,18 @@ def unmerge(tensor, firstdim):
 
 
 def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False):
+
     (
-        graph_info,
         program,
-        label,
         len_mask,
         goal,
-        label_agent,
-        real_label_agent,
         task_graph,
-        ind
+        ind,
     ) = data_item
 
     inputs = {
         'program': program,
         'task_graph': task_graph,
-        'graph': graph_info,
         'mask_len': len_mask,
         'goal': goal,
     }
@@ -181,7 +131,13 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     pred_task_total = output['pred_graph_total'][:, :-1, ...]
 
     tsteps = pred_mask.shape[1]
-    gt_mask = inputs['task_graph']['mask_task_graph'][:, :-1, ...].float().cuda()
+
+
+    if args.model.predict_diff:
+        gt_mask = inputs['task_graph']['mask_task_graph'][:, :-1, ...].float().cuda()
+    else:
+         gt_mask = torch.ones_like(inputs['task_graph']['mask_task_graph'][:, :-1, ...].float()).cuda()
+
     # ipdb.set_trace()
     gt_task = inputs['task_graph']['gt_task_graph'][:, None, ...].repeat(1, tsteps, 1).long().cuda()
     input_task = inputs['task_graph']['task_graph'][:, :-1, ...].long().cuda()
@@ -192,7 +148,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     losses_dict = {}
 
     # Loss state
-    if args.model.use_only_input:
+    if args.model.use_only_input or not args.model.predict_diff:
         loss_mask = 0
     else:   
         loss_mask = criterions['mask'](
@@ -202,8 +158,6 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         loss_mask = loss_mask.mean(-1)
         loss_mask = (loss_mask * mask_length).mean(-1).mean(-1)
 
-    if not args.model.predict_diff:
-        loss_mask *= 0.
 
 
     loss_task = criterions['task'](
@@ -216,10 +170,12 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
 
 
     losses_dict['losses_task'] = loss_task.item()
-    if not args.model.use_only_input:
-        losses_dict['losses_mask'] = loss_mask.item()
-    else:
+
+    if args.model.use_only_input or not args.model.predict_diff:
         losses_dict['losses_mask'] = 0
+    else:
+        
+        losses_dict['losses_mask'] = loss_mask.item()
 
     
     loss += loss_mask + loss_task
@@ -229,7 +185,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'losses': loss.item()
     })
 
-    if 'VAE' in args.model.time_aggregate:
+    if 'VAE' in args.model.time_aggregate and args.model.input_vae != 'none':
         loss_kl = compute_kl_loss(output, len_mask)
         losses_dict['kldiv'] = loss_kl.item()
         # loss += loss_kl
@@ -343,13 +299,9 @@ def inference(
             metric_dict['data_time'].update(time.time() - end)
 
             (
-                graph_info,
                 program,
-                label,
                 len_mask,
                 goal,
-                label_agent,
-                real_label_agent,
                 task_graph,
                 ind,
             ) = data_item
@@ -364,13 +316,14 @@ def inference(
             index_label_obj1 = program['indobj1']
             index_label_obj2 = program['indobj2']
 
-            prog_gt = {
-                'action': label_action,
-                'o1': index_label_obj1,
-                'o2': index_label_obj2,
-                'graph': graph_info,
-                'mask_len': len_mask,
-            }
+            prog_gt = None 
+            # {
+            #     'action': label_action,
+            #     'o1': index_label_obj1,
+            #     'o2': index_label_obj2,
+            #     'graph': graph_info,
+            #     'mask_len': len_mask,
+            # }
             # ipdb.set_trace()
             num_samples = args.samples_per_graph
 
@@ -459,7 +412,7 @@ def inference(
                 dict_plot = {
                     'html_name': result_name_html,
                     'graph_helper': data_loader.dataset.graph_helper,
-                    'graph_info': graph_info,
+                    #'graph_info': graph_info,
                     'len_mask': len_mask,
                     'index': index,
                     'gt_task': gt_task,
@@ -546,8 +499,8 @@ def inference(
 def get_metrics(args):
     metric_dict = {}    
     metric_dict['batch_time'] = AverageMeter('Time', ':6.3f')
-    metric_dict['batch_time'] = AverageMeter('Time', ':6.3f')
-    metric_dict['data_time'] = AverageMeter('Data', ':6.3f')
+    metric_dict['data_time'] = AverageMeter('DataTime', ':6.3f')
+    metric_dict['model_time'] = AverageMeter('ModelTime', ':6.3f')
     metric_dict['losses'] = AverageMeter('Loss', ':.4e')
     metric_dict['losses_task'] = AverageMeter('LossTask', ':.4e')
     metric_dict['losses_mask'] = AverageMeter('LossMask', ':.4e')
@@ -612,20 +565,18 @@ def evaluate(
             metric_dict['data_time'].update(time.time() - end)
 
             (
-                graph_info,
                 program,
-                label,
                 len_mask,
                 goal,
-                label_agent,
-                real_label_agent,
                 task_graph,
-                ind
+                ind,
             ) = data_item
 
 
-
+            t1 = time.time()
             gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior)
+
+            metric_dict['model_time'].update(time.time() - t1)
             # print(loss)
             # gt1, predictions1, misc1, losses_dict1, inp1, loss1 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=False)
             # gt2, predictions2, misc2, losses_dict2, inp2, loss2 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=True)
@@ -933,38 +884,43 @@ def train_epoch(
         metric_dict['data_time'].update(time.time() - end)
 
         (
-            graph_info,
             program,
-            label,
             len_mask,
             goal,
-            label_agent,
-            real_label_agent,
             task_graph,
             ind,
         ) = data_item
 
 
+        t1 = time.time()
         gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(
             args, data_item, data_loader, model, criterions, evaluation=False)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+
+        metric_dict['model_time'].update(time.time() - t1)
 
         label_action = program['action']
         index_label_obj1 = program['indobj1']
         index_label_obj2 = program['indobj2']
 
-        prog_gt = {
-            'action': label_action,
-            'o1': index_label_obj1,
-            'o2': index_label_obj2,
-            'graph': graph_info,
-            'mask_len': len_mask,
-        }
-        # if int(len_mask[0,:].sum()) == 30:
-        #     ipdb.set_trace()
-        # ipdb.set_trace()
-        program_gt = utils_models.decode_program(
-            data_loader.dataset.graph_helper, prog_gt
-        )
+        # TODO: uncomment?        
+        # prog_gt = {
+        #     'action': label_action,
+        #     'o1': index_label_obj1,
+        #     'o2': index_label_obj2,
+        #     'graph': graph_info,
+        #     'mask_len': len_mask,
+        # }
+        # # if int(len_mask[0,:].sum()) == 30:
+        # #     ipdb.set_trace()
+        # # ipdb.set_trace()
+        # program_gt = utils_models.decode_program(
+        #     data_loader.dataset.graph_helper, prog_gt
+        # )
 
 
 
@@ -974,9 +930,7 @@ def train_epoch(
         # pred_change_c = predictions['pred_change'].argmax(-1)[None, :].cpu().numpy()
         # update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        
 
         metric_dict['batch_time'].update(time.time() - end)
         end = time.time()
@@ -1156,8 +1110,9 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     # ipdb.set_trace()
 
-    assert not (cfg.model.predict_edge_change)
+    # assert not (cfg.model.predict_edge_change)
     assert cfg['model']['exclusive_edge']
+
     cfg.model.input_goal = False
 
     # cfg.num_gpus = torch.cuda.device_count()
@@ -1215,17 +1170,17 @@ def main(cfg: DictConfig):
 
         # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
         # ipdb.set_trace()
-
-        evaluate(
-            test_loader,
-            train_loader,
-            model,
-            0,
-            config,
-            logger,
-            criterions,
-            use_posterior=False
-        )
+        if not config.model.autoencoder_type == 'pure_autoencoder':
+            evaluate(
+                test_loader,
+                train_loader,
+                model,
+                0,
+                config,
+                logger,
+                criterions,
+                use_posterior=False
+            )
 
         evaluate(
             test_loader,
@@ -1249,16 +1204,18 @@ def main(cfg: DictConfig):
                 logger,
                 criterions
             )
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                epoch,
-                config,
-                logger,
-                criterions,
-                use_posterior=False
-            )
+
+            if not config.model.autoencoder_type == 'pure_autoencoder':
+                evaluate(
+                    test_loader,
+                    train_loader,
+                    model,
+                    epoch,
+                    config,
+                    logger,
+                    criterions,
+                    use_posterior=False
+                )
 
             evaluate(
                 test_loader,
