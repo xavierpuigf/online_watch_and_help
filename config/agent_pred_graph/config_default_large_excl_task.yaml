@@ -19,7 +19,7 @@ log:
 train:
         epochs: 300
         batch_size: 64
-        num_workers: 32
+        num_workers: 16
         lr: 0.0001
         overfit: False
         agents: 'all'
@@ -49,6 +49,7 @@ model:
         num_task_preds: -1
         num_attributes: 6
         hidden_size: 100
+        z_dim: 128
         max_tsteps: 75 #50
         supervise_alltask: False
         goal_inp: False

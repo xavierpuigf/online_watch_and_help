@@ -70,7 +70,7 @@ class AgentTypeDataset(Dataset):
         return len(self.pkl_files)
 
     def failure(self, index, print_index=False):
-        
+
         if print_index:
             print(colored(f"Failure at {index}"))
         file_name = self.pkl_files[index]
@@ -83,6 +83,8 @@ class AgentTypeDataset(Dataset):
         return sum(cont)
 
     def __getitem__(self, index):
+        include_time_graph = False
+
         if self.overfit:
             index = 0
         # index = 2349
@@ -154,7 +156,8 @@ class AgentTypeDataset(Dataset):
         
 
         attributes_include = ['class_objects', 'node_ids']
-        time_graph = {attr_name: [] for attr_name in attributes_include}
+        if include_time_graph:
+            time_graph = {attr_name: [] for attr_name in attributes_include}
         # print(list(content.keys()))
 
         program = content['action'][0]
@@ -166,6 +169,9 @@ class AgentTypeDataset(Dataset):
         # time_graph['mask_goal'] = []
         
         # print("Building graph")
+        # num_tsteps = len(program)
+
+
         num_tsteps = len(program)
         steps_keep = list(range(num_tsteps))
 
@@ -201,11 +207,12 @@ class AgentTypeDataset(Dataset):
                 #raise Exception("Error building graph")
 
             # class names
-            for attribute_name in attributes_include:
-                if attribute_name not in graph_info:
-                    print("Failure with attr name", attribute_name, index, self.pkl_files[index])
-                    return self.failure(index)
-                time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
+            if include_time_graph:    
+                for attribute_name in attributes_include:
+                    if attribute_name not in graph_info:
+                        print("Failure with attr name", attribute_name, index, self.pkl_files[index])
+                        return self.failure(index)
+                    time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
 
 
             
@@ -240,67 +247,74 @@ class AgentTypeDataset(Dataset):
         #     'indobj2': [indexgraph2ind[-1]],
         # }
 
-        program_batch = {
-            'action': [],
-            'obj1': [],
-            'obj2': [],
-            'indobj1': [],
-            'indobj2': [],
-        }
-
-        contit = 0
-        # We start at 1 to skip the first instruction
-        if self.first_last:
-            steps_keep = [0]
-        for it, instr in enumerate(program):
-            if it not in steps_keep:
-                continue
-            # we want to add an ending action
-            if contit >= self.max_tsteps - 1:
-                print("PROGRAM TOO LONG")
-                # ipdb.set_trace()
-                return self.failure(index, print_index=False)
-            instr_item = self.graph_helper.actionstr2index(instr)
-            program_batch['action'].append(instr_item[0])
-            program_batch['obj1'].append(instr_item[1])
-            program_batch['obj2'].append(instr_item[2])
-            try:
-                program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
-                program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
-            except:
-                #print("Index", index, program, it)
-                # ipdb.set_trace()
-                # if self.args_config.train.num_workers == 0:
-                #     ipdb.set_trace()
-                # Open pinter ??
-                return self.failure(index, print_index=True)
-            contit += 1
-
-
-        program_batch['action'].append(self.max_actions - 1)
-        program_batch['obj1'].append(-1)
-        program_batch['obj2'].append(-1)
-        program_batch['indobj1'].append(indexgraph2ind[-1])
-        program_batch['indobj2'].append(indexgraph2ind[-1])
-
-        num_tsteps = len(program_batch['action'])
-        # if len(program_batch['action']) != len(time_graph['mask_close']):
-        #     ipdb.set_trace()
-        for key in program_batch.keys():
-            unpadded_tensor = torch.tensor(program_batch[key])
-
-            # The program has an extra step
-            padding_amount = self.max_tsteps - num_tsteps
-            padding = [0] * unpadded_tensor.dim() * 2
-            padding[-1] = padding_amount
-            tuple_pad = tuple(padding)
-            program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
-
         
+        # Do not encode program
+        encode_program = True
+        if encode_program:
+            program_batch = {
+                'action': [],
+                'obj1': [],
+                'obj2': [],
+                'indobj1': [],
+                'indobj2': [],
+            }
+
+            contit = 0
+            # We start at 1 to skip the first instruction
+            if self.first_last:
+                steps_keep = [0]
+            for it, instr in enumerate(program):
+                if it not in steps_keep:
+                    continue
+                # we want to add an ending action
+                if contit >= self.max_tsteps - 1:
+                    print("PROGRAM TOO LONG")
+                    # ipdb.set_trace()
+                    return self.failure(index, print_index=False)
+                instr_item = self.graph_helper.actionstr2index(instr)
+                program_batch['action'].append(instr_item[0])
+                program_batch['obj1'].append(instr_item[1])
+                program_batch['obj2'].append(instr_item[2])
+                try:
+                    program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
+                    program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+                except:
+                    #print("Index", index, program, it)
+                    # ipdb.set_trace()
+                    # if self.args_config.train.num_workers == 0:
+                    #     ipdb.set_trace()
+                    # Open pinter ??
+                    return self.failure(index, print_index=True)
+                contit += 1
+
+            num_tsteps = len(program_batch['action'])
+            program_batch['action'].append(self.max_actions - 1)
+            program_batch['obj1'].append(-1)
+            program_batch['obj2'].append(-1)
+            program_batch['indobj1'].append(indexgraph2ind[-1])
+            program_batch['indobj2'].append(indexgraph2ind[-1])
+            # if len(program_batch['action']) != len(time_graph['mask_close']):
+            #     ipdb.set_trace()
+            for key in program_batch.keys():
+                unpadded_tensor = torch.tensor(program_batch[key])
+
+                # The program has an extra step
+                padding_amount = self.max_tsteps - num_tsteps
+                padding = [0] * unpadded_tensor.dim() * 2
+                padding[-1] = padding_amount
+                tuple_pad = tuple(padding)
+                try:
+                    program_batch[key] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
+                except:
+                    ipdb.set_trace()
+
+        # num actions = num states - 1            
+        num_tsteps = len(task_graphs)
         padding_amount = self.max_tsteps - num_tsteps
         padding = [0] * 2 * 2
         padding[-1] = padding_amount
         tuple_pad = tuple(padding)
+
         task_graph_time = F.pad(task_graph_time, pad=tuple_pad, mode='constant', value=0.)
         mask_task_graphs = F.pad(mask_task_graphs, pad=tuple_pad, mode='constant', value=0.)
 
@@ -312,18 +326,19 @@ class AgentTypeDataset(Dataset):
         length_mask[:num_tsteps] = 1.
 
         # Batch across time
-        for attribute_name in time_graph.keys():
-            # print(attribute_name, len(time_graph[attribute_name]))
-            unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
-            # Do padding
-            padding_amount = self.max_tsteps - num_tsteps
-            # ipdb.set_trace()
-            padding = [0] * unpadded_tensor.dim() * 2
-            padding[-1] = padding_amount
-            tuple_pad = tuple(padding)
-            time_graph[attribute_name] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
-            # if time_graph[attribute_name].shape[0] > self.max_tsteps:
-            #     print(self.max_tsteps, num_tsteps, len(content['graph']), unpadded_tensor.shape[0])
+        if include_time_graph:
+            for attribute_name in time_graph.keys():
+                # print(attribute_name, len(time_graph[attribute_name]))
+                unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
+                # Do padding
+                padding_amount = self.max_tsteps - num_tsteps
+                # ipdb.set_trace()
+                padding = [0] * unpadded_tensor.dim() * 2
+                padding[-1] = padding_amount
+                tuple_pad = tuple(padding)
+                time_graph[attribute_name] = F.pad(unpadded_tensor, pad=tuple_pad, mode='constant', value=0.)
+                # if time_graph[attribute_name].shape[0] > self.max_tsteps:
+                #     print(self.max_tsteps, num_tsteps, len(content['graph']), unpadded_tensor.shape[0])
         
         # for attribute in program_graph.keys():
         #     print(attribute, program_graph[attribute].shape)
@@ -331,18 +346,18 @@ class AgentTypeDataset(Dataset):
 
         # Add one hot info
 
-        if self.args_config.model.state_encoder == 'GNN':
-            ne_ind2 = torch.arange(0, self.max_num_edges)[None, :].repeat(self.max_tsteps, 1)[..., None]
-            ne_ind = torch.arange(0, self.max_tsteps)[:, None].repeat(1, self.max_num_edges)[..., None] # 0 0 0 0 
-            ind_from = time_graph['edge_tuples'][ ..., 0, None]
-            ind_to = time_graph['edge_tuples'][..., 1, None]     
-            # ipdb.set_trace()
+        if self.args_config.model.state_encoder == 'GNN' and include_time_graph:
+                ne_ind2 = torch.arange(0, self.max_num_edges)[None, :].repeat(self.max_tsteps, 1)[..., None]
+                ne_ind = torch.arange(0, self.max_tsteps)[:, None].repeat(1, self.max_num_edges)[..., None] # 0 0 0 0 
+                ind_from = time_graph['edge_tuples'][ ..., 0, None]
+                ind_to = time_graph['edge_tuples'][..., 1, None]     
+                # ipdb.set_trace()
 
-            from_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_from], dim=-1).long()
-            to_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_to], dim=-1).long()
+                from_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_from], dim=-1).long()
+                to_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_to], dim=-1).long()
 
-            time_graph['from_indices_onehot'] = from_indices_onehot
-            time_graph['to_indices_onehot'] = to_indices_onehot
+                time_graph['from_indices_onehot'] = from_indices_onehot
+                time_graph['to_indices_onehot'] = to_indices_onehot
 
 
         label_agent = seed_number + self.labels[index] * 5
@@ -355,7 +370,11 @@ class AgentTypeDataset(Dataset):
         task_graph = {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graphs, 'gt_task_graph': final_task_graph}
         # ipdb.set_trace()
         # print("Loaded")
-        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
+        return program_batch, length_mask, goal, task_graph, index 
+        # if encode_program:
+        #     return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
+        # else:
+        #     return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
 
 def build_graph(time_graph):
     graphs = []

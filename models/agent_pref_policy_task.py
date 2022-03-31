@@ -287,6 +287,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         self.max_timesteps = args['max_tsteps']
         self.max_num_classes = args['max_class_objects']
         self.hidden_size = args['hidden_size']
+        self.z_dim = args['z_dim']
         self.num_states = args['num_states']
 
         # Converts conts to some dimension
@@ -335,12 +336,12 @@ class GraphPredNetworkVAETask3(nn.Module):
             self.prior_net = nn.Sequential(
                 nn.Linear(self.hidden_size, self.hidden_size),
                 nn.ReLU(),
-                nn.Linear(self.hidden_size, 128 * 2)
+                nn.Linear(self.hidden_size, self.z_dim * 2)
             )
         self.posterior = nn.Sequential(
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.ReLU(),
-            nn.Linear(self.hidden_size, 128 * 2)
+            nn.Linear(self.hidden_size, self.z_dim * 2)
         )
 
 
@@ -620,19 +621,19 @@ class GraphPredNetworkVAETask(nn.Module):
             self.prior_net = nn.Sequential(
                 nn.Linear(self.hidden_size, self.hidden_size),
                 nn.ReLU(),
-                nn.Linear(self.hidden_size, 128 * 2)
+                nn.Linear(self.hidden_size, self.z_dim * 2)
             )
         self.posterior = nn.Sequential(
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.ReLU(),
-            nn.Linear(self.hidden_size, 128 * 2)
+            nn.Linear(self.hidden_size, self.z_dim * 2)
         )
 
 
         if self.args['cond_prior']:
-            input_dim_zproj = 128
+            input_dim_zproj = self.z_dim
         else:
-            input_dim_zproj = 128 + self.hidden_size
+            input_dim_zproj = self.z_dim + self.hidden_size
         self.z_projection = nn.Sequential(
             nn.Linear(input_dim_zproj, self.hidden_size),
             nn.ReLU(),
