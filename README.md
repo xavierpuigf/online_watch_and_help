@@ -8,6 +8,19 @@ Symlink the folder: `/data/vision/torralba/frames/data_acquisition/SyntheticStor
 
 Run training
 
+# Latest experiments
+
+## Train
+CUDA_VISIBLE_DEVICES=4,5 python algos/train_autoencoder_task.py name_log=autoencoder_task_graph \
+model.predict_node_change=True model.exclusive_edge=True train.lr=0.001 \
+model.cond_prior=False model.time_aggregate='seqVAE' model.state_encoder="" logging=False model.max_tsteps=2 train.batch_size=64 \
+model.autoencoder_type=pure_autoencoder
+
+## Eval
+
+
+
+
 
 
 ## Latest Antonio Exps

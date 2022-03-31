@@ -70,6 +70,7 @@ class AgentTypeDataset(Dataset):
         return len(self.pkl_files)
 
     def failure(self, index, print_index=False):
+        
         if print_index:
             print(colored(f"Failure at {index}"))
         file_name = self.pkl_files[index]
@@ -256,7 +257,7 @@ class AgentTypeDataset(Dataset):
                 continue
             # we want to add an ending action
             if contit >= self.max_tsteps - 1:
-                # print("PROGRAM TOO LONG")
+                print("PROGRAM TOO LONG")
                 # ipdb.set_trace()
                 return self.failure(index, print_index=False)
             instr_item = self.graph_helper.actionstr2index(instr)
@@ -353,6 +354,7 @@ class AgentTypeDataset(Dataset):
         # ipdb.set_trace()
         task_graph = {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graphs, 'gt_task_graph': final_task_graph}
         # ipdb.set_trace()
+        # print("Loaded")
         return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
 
 def build_graph(time_graph):

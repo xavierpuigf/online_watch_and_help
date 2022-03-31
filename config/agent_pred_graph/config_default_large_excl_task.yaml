@@ -5,7 +5,7 @@ inference: False
 save_inference: False
 plot_inference: False
 inference_sample: False
-inference_posterior: False
+inference_posterior: True
 samples_per_graph: 2
 ckpt_load: ''
 data:
@@ -18,7 +18,7 @@ log:
         save_every: 10
 train:
         epochs: 300
-        batch_size: 16
+        batch_size: 64
         num_workers: 32
         lr: 0.0001
         overfit: False
@@ -33,9 +33,9 @@ model:
         condense_walking: True
         exclusive_edge: True # Whether to predict edges or container relations
         predict_last: True
-        predict_diff: True
+        predict_diff: False
         predict_edge_change: False
-        predict_node_change: True
+        predict_node_change: False
         input_goal: True
         reduced_graph: False
         global_repr: 'pool'
@@ -56,8 +56,9 @@ model:
         agent_embed: False
         num_agents: 100
         relative_coords: False
-        input_vae: 'task' # 'graph/task'
+        input_vae: 'task' # 'graph/task/none'
         time_aggregate: 'LSTM' # LSTM, none, firstcurr, fcVAE, seqVAE
         cond_prior: True
         zvec: 'node' # node / single
         state_encoder: 'TF' # GNN
+        autoencoder_type: 'pure_autoencoder'

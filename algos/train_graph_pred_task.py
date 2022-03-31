@@ -1133,7 +1133,7 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     # ipdb.set_trace()
 
-    assert not (cfg.model.predict_edge_change)
+    # assert not (cfg.model.predict_edge_change)
     assert cfg['model']['exclusive_edge']
     cfg.model.input_goal = False
 

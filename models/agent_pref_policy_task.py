@@ -55,13 +55,15 @@ class TaskTransformerEncoder(nn.Module):
         # B x T x num_preds x dim
         numpreds = task_graph_curr.shape[2]
         B, T = task_graph_curr.shape[:2]
+        
+        # B x T x 2*preds x dim
         input_embed = self.task_count_encoder(task_graph_curr)
-        # print(input_embed.shape)
-        # ipdb.set_trace()
-        # ipdb.set_trace()
+        
 
         input_embed = input_embed.reshape(-1, numpreds, self.interm_embedding).permute(1, 0, 2)
+        
         embed = self.pos_encoding(input_embed).transpose(0,1)
+
 
         one_mask = torch.ones((B*T, numpreds)).to(embed.device)
         output = self.transformer_encoder(embed, one_mask).reshape(B, T, numpreds, -1)
@@ -198,12 +200,13 @@ class GraphPredNetworkVAETask2(nn.Module):
 
         B, T, numpreds, nc = inp_task_graph.shape
 
-        task_graph_init = inp_task_graph[:, :1, ...]
+
+
 
         # ipdb.set_trace()
         # B x T x num_preds x dim
         embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init.float())
-        
+        ipdb.set_trace()
         end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
         # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
         end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
@@ -286,8 +289,14 @@ class GraphPredNetworkVAETask3(nn.Module):
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
 
+        # Converts conts to some dimension
         self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+        
+        # Adds positional encoding + transformer
         self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
+        
+
+        # Encoder for the z vector
         self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
         
 
@@ -335,7 +344,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         )
 
 
-        if self.args['cond_prior']:
+        if self.args['cond_prior'] or self.args.autoencoder_type == 'pure_autoencoder':
             input_dim_zproj = 128
         else:
             input_dim_zproj = 128 + self.hidden_size
@@ -399,12 +408,23 @@ class GraphPredNetworkVAETask3(nn.Module):
         inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
         B, T, numpreds, nc = inp_task_graph.shape
 
+        # Take the graph at step 0 + Graph at steps 0 -- N-1
+
         task_graph_init = inp_task_graph[:, :1, ...]
 
-        # ipdb.set_trace()
-        # B x T x num_preds x dim
-        embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init.float())
+
+        if self.args.autoencoder_type == 'pure_autoencoder':
+            task_graph_init = None
+            # Let's encode the last step
+            inp_task_graph = inp_task_graph[:, -1:, ...]
+        else:
+            task_graph_init = inp_task_graph[:, :1, ...].float()
+            # B x T x num_preds x dim
+            # Note we will not use this in the pure decoder mode 
+            embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init)
         
+        # ipdb.set_trace()
+
         if not inference:
             # We need the GT graph to understand the embedding
             end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
@@ -422,7 +442,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         else:
 
             mean_logvar = torch.zeros([B, T, 128*2])
-            p_prior = mean_logvar.to(embeddings_input_graph.device)
+            p_prior = mean_logvar.to(inp_task_graph.device)
             # p_prior = torch.cat([mean, log_var], -1)
 
         d = p_prior.shape[-1] // 2
@@ -453,17 +473,25 @@ class GraphPredNetworkVAETask3(nn.Module):
                 z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
             z_and_input = self.z_projection(z_and_input)
         else:
-            z_and_input = embeddings_input_graph
+            if self.args.autoencoder_type == 'pure_autoencoder': # autoencode output
+                # from z to predicates
+                # ipdb.set_trace()
+                z_vec = self.z_vec_project(q_post[:, :d])[:, None, ...].repeat(1, T, 1, 1)
+                # z_and_input = torch.cat([z_vec, torch.zeros_like(embeddings_input_graph)], -1)
+                z_and_input = self.z_projection(z_vec) 
+            else:
+                # Use input to decode output
+                z_and_input = embeddings_input_graph
 
-
-        # ipdb.set_trace()
         pred_graph = self.task_pred(z_and_input)
-        
-        if self.use_only_input:
-            # Use gt_mask as pred_mask, since it is impossibel to derive the mask
-            pred_mask = inputs['task_graph']['mask_task_graph']
+        if self.predict_diff:
+            if self.use_only_input:
+                # Use gt_mask as pred_mask, since it is impossibel to derive the mask
+                pred_mask = inputs['task_graph']['mask_task_graph']
+            else:
+                pred_mask = self.mask_pred(z_and_input)[..., 0]
         else:
-            pred_mask = self.mask_pred(z_and_input)[..., 0]
+            pred_mask = torch.ones_like(inputs['task_graph']['mask_task_graph'])
 
         # ipdb.set_trace()
 

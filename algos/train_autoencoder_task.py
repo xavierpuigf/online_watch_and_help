@@ -1,4 +1,6 @@
 import torch
+import sys
+sys.path.append('.')
 import time
 import os
 import glob
@@ -181,7 +183,13 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     pred_task_total = output['pred_graph_total'][:, :-1, ...]
 
     tsteps = pred_mask.shape[1]
-    gt_mask = inputs['task_graph']['mask_task_graph'][:, :-1, ...].float().cuda()
+
+
+    if args.model.predict_diff:
+        gt_mask = inputs['task_graph']['mask_task_graph'][:, :-1, ...].float().cuda()
+    else:
+         gt_mask = torch.ones_like(inputs['task_graph']['mask_task_graph'][:, :-1, ...].float()).cuda()
+
     # ipdb.set_trace()
     gt_task = inputs['task_graph']['gt_task_graph'][:, None, ...].repeat(1, tsteps, 1).long().cuda()
     input_task = inputs['task_graph']['task_graph'][:, :-1, ...].long().cuda()
@@ -192,7 +200,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     losses_dict = {}
 
     # Loss state
-    if args.model.use_only_input:
+    if args.model.use_only_input or not args.model.predict_diff:
         loss_mask = 0
     else:   
         loss_mask = criterions['mask'](
@@ -202,8 +210,6 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         loss_mask = loss_mask.mean(-1)
         loss_mask = (loss_mask * mask_length).mean(-1).mean(-1)
 
-    if not args.model.predict_diff:
-        loss_mask *= 0.
 
 
     loss_task = criterions['task'](
@@ -216,10 +222,12 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
 
 
     losses_dict['losses_task'] = loss_task.item()
-    if not args.model.use_only_input:
-        losses_dict['losses_mask'] = loss_mask.item()
-    else:
+
+    if args.model.use_only_input or not args.model.predict_diff:
         losses_dict['losses_mask'] = 0
+    else:
+        
+        losses_dict['losses_mask'] = loss_mask.item()
 
     
     loss += loss_mask + loss_task
@@ -229,7 +237,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'losses': loss.item()
     })
 
-    if 'VAE' in args.model.time_aggregate:
+    if 'VAE' in args.model.time_aggregate and args.model.input_vae != 'none':
         loss_kl = compute_kl_loss(output, len_mask)
         losses_dict['kldiv'] = loss_kl.item()
         # loss += loss_kl
@@ -546,8 +554,8 @@ def inference(
 def get_metrics(args):
     metric_dict = {}    
     metric_dict['batch_time'] = AverageMeter('Time', ':6.3f')
-    metric_dict['batch_time'] = AverageMeter('Time', ':6.3f')
-    metric_dict['data_time'] = AverageMeter('Data', ':6.3f')
+    metric_dict['data_time'] = AverageMeter('DataTime', ':6.3f')
+    metric_dict['model_time'] = AverageMeter('ModelTime', ':6.3f')
     metric_dict['losses'] = AverageMeter('Loss', ':.4e')
     metric_dict['losses_task'] = AverageMeter('LossTask', ':.4e')
     metric_dict['losses_mask'] = AverageMeter('LossMask', ':.4e')
@@ -624,8 +632,10 @@ def evaluate(
             ) = data_item
 
 
-
+            t1 = time.time()
             gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior)
+
+            metric_dict['model_time'].update(time.time() - t1)
             # print(loss)
             # gt1, predictions1, misc1, losses_dict1, inp1, loss1 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=False)
             # gt2, predictions2, misc2, losses_dict2, inp2, loss2 = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=True)
@@ -945,8 +955,16 @@ def train_epoch(
         ) = data_item
 
 
+        t1 = time.time()
         gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(
             args, data_item, data_loader, model, criterions, evaluation=False)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+
+        metric_dict['model_time'].update(time.time() - t1)
 
         label_action = program['action']
         index_label_obj1 = program['indobj1']
@@ -974,9 +992,7 @@ def train_epoch(
         # pred_change_c = predictions['pred_change'].argmax(-1)[None, :].cpu().numpy()
         # update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        
 
         metric_dict['batch_time'].update(time.time() - end)
         end = time.time()
@@ -1156,8 +1172,9 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     # ipdb.set_trace()
 
-    assert not (cfg.model.predict_edge_change)
+    # assert not (cfg.model.predict_edge_change)
     assert cfg['model']['exclusive_edge']
+
     cfg.model.input_goal = False
 
     # cfg.num_gpus = torch.cuda.device_count()
@@ -1215,17 +1232,17 @@ def main(cfg: DictConfig):
 
         # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
         # ipdb.set_trace()
-
-        evaluate(
-            test_loader,
-            train_loader,
-            model,
-            0,
-            config,
-            logger,
-            criterions,
-            use_posterior=False
-        )
+        if not config.model.autoencoder_type == 'pure_autoencoder':
+            evaluate(
+                test_loader,
+                train_loader,
+                model,
+                0,
+                config,
+                logger,
+                criterions,
+                use_posterior=False
+            )
 
         evaluate(
             test_loader,
@@ -1249,16 +1266,18 @@ def main(cfg: DictConfig):
                 logger,
                 criterions
             )
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                epoch,
-                config,
-                logger,
-                criterions,
-                use_posterior=False
-            )
+
+            if not config.model.autoencoder_type == 'pure_autoencoder':
+                evaluate(
+                    test_loader,
+                    train_loader,
+                    model,
+                    epoch,
+                    config,
+                    logger,
+                    criterions,
+                    use_posterior=False
+                )
 
             evaluate(
                 test_loader,
