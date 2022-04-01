@@ -1573,6 +1573,8 @@ def main(cfg: DictConfig):
                                     value = -1e6
                                     estimated_steps_back = None
                                 else:
+                                    if dist < 0:  # remove accidental retuning subgoals?
+                                        continue
                                     estimated_steps_back = (
                                         estimated_steps - first_walk_steps
                                     )

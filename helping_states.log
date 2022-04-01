@@ -707,3 +707,17 @@ bdb.BdbQuit
 [2022-04-01 16:43:46,403][urllib3.connectionpool][WARNING] - Retrying (Retry(total=4, connect=4, read=5, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f84e6a61370>: Failed to establish a new connection: [Errno 111] Connection refused')': /
 [2022-04-01 16:44:03,933][urllib3.connectionpool][WARNING] - Retrying (Retry(total=4, connect=4, read=5, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f9c12f47c10>: Failed to establish a new connection: [Errno 111] Connection refused')': /
 [2022-04-01 16:44:07,938][urllib3.connectionpool][WARNING] - Retrying (Retry(total=3, connect=3, read=5, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f9c12f47400>: Failed to establish a new connection: [Errno 111] Connection refused')': /
+[2022-04-01 16:55:13,012][root][ERROR] - Error
+Traceback (most recent call last):
+  File "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/analysis/helping_states.py", line 1743, in main
+    print("success:", infos["finished"])
+  File "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/analysis/helping_states.py", line 1743, in main
+    print("success:", infos["finished"])
+  File "/data/vision/torralba/frames/tools/anaconda3/envs/online_wah/lib/python3.9/bdb.py", line 88, in trace_dispatch
+    return self.dispatch_line(frame)
+  File "/data/vision/torralba/frames/tools/anaconda3/envs/online_wah/lib/python3.9/bdb.py", line 113, in dispatch_line
+    if self.quitting: raise BdbQuit
+bdb.BdbQuit
+[2022-04-01 16:55:13,192][urllib3.connectionpool][WARNING] - Retrying (Retry(total=4, connect=4, read=5, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f9bdd32ac10>: Failed to establish a new connection: [Errno 111] Connection refused')': /
+[2022-04-01 16:55:29,072][urllib3.connectionpool][WARNING] - Retrying (Retry(total=4, connect=4, read=5, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f118b5c0430>: Failed to establish a new connection: [Errno 111] Connection refused')': /
+[2022-04-01 16:55:33,075][urllib3.connectionpool][WARNING] - Retrying (Retry(total=3, connect=3, read=5, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f118b5c06d0>: Failed to establish a new connection: [Errno 111] Connection refused')': /
