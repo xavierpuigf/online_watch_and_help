@@ -3,7 +3,12 @@ from torch.utils.data.dataloader import default_collate
 import dgl
 import torch
 import ipdb
-
+import sys
+sys.path.append('.')
+import os
+import p_tqdm
+import hydra
+from omegaconf import DictConfig, OmegaConf
 from termcolor import colored
 import glob
 from tqdm import tqdm
@@ -14,6 +19,9 @@ import yaml
 import torch.nn.functional as F
 import multiprocessing as mp
 import numpy as np
+from hydra.utils import get_original_cwd, to_absolute_path
+from multiprocessing import Pool
+
 
 
 class AgentTypeDataset(Dataset):
@@ -57,7 +65,6 @@ class AgentTypeDataset(Dataset):
         self.overfit = args_config['train']['overfit']
         self.max_tsteps = args_config['model']['max_tsteps']
         self.max_actions = args_config['model']['max_actions']
-        self.failed_items = mp.Array('i', len(self.pkl_files))
         self.condense_walking = args_config['model']['condense_walking']
         self.args_config = args_config
         
@@ -74,13 +81,12 @@ class AgentTypeDataset(Dataset):
         if print_index:
             print(colored(f"Failure at {index}"))
         file_name = self.pkl_files[index]
-        if index not in self.failed_items:
-            self.failed_items[index] = 1
-        return self.__getitem__(0)
+        new_file_name = file_name.replace('.pik', '_reduced.pik')
+        with open(new_file_name, 'wb') as f:
+            pkl.dump({'valid': False}, f)
 
-    def get_failures(self):
-        cont = [item for item in self.failed_items]
-        return sum(cont)
+        return 0
+
 
     def __getitem__(self, index):
         include_time_graph = False
@@ -90,11 +96,15 @@ class AgentTypeDataset(Dataset):
         # index = 2349
         file_name = self.pkl_files[index]
         seed_number = int(file_name.split('.')[-2]) 
-        ipdb.set_trace()
-        with open(file_name, 'rb') as f:
-            content = pkl.load(f)
+        # ipdb.set_trace()
+        new_file_name = file_name.replace('.pik', '_reduced.pik')
+        try:
+            with open(file_name, 'rb') as f:
+                content = pkl.load(f)
 
-
+        except:
+            print(file_name)
+            return self.failure(index)
 
         ##############################
         #### Inputs high level policy
@@ -377,7 +387,18 @@ class AgentTypeDataset(Dataset):
         task_graph = {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graphs, 'gt_task_graph': final_task_graph}
         # ipdb.set_trace()
         # print("Loaded")
-        return program_batch, length_mask, goal, task_graph, index 
+        # return program_batch, length_mask, goal, task_graph, index 
+        # print("here")
+        new_dict = {
+            'valid': True,
+            'task_graph_time': task_graph_time,
+            'mask_task_graphs': mask_task_graphs,
+            'gt_task_graph': final_task_graph
+        }
+        with open(new_file_name, 'wb') as f:
+            pkl.dump(new_dict, f
+                )
+        return 1
         # if encode_program:
         #     return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
         # else:
@@ -399,50 +420,6 @@ def build_graph(time_graph):
     return graphs
 
 
-def collate_fn(inputs):
-    special_collate_keys = ['from_indices_onehot', 'to_indices_onehot']
-    time_graph = [inp[0] for inp in inputs]
-
-    collate_timegraph = {}
-    keys_timegraph = time_graph[0].keys()
-    for key in keys_timegraph:
-        if key not in special_collate_keys:
-            collate_timegraph[key] = default_collate([tgraph[key] for tgraph in time_graph])
-        
-    # Special collate for timegraph
-    index_t = lambda ind: torch.tensor([ind, 0, 0])
-    tstep = time_graph[0]['from_indices_onehot'].shape[0]
-    from_indices = [(time_graph[i]['from_indices_onehot']+(index_t(i)*tstep))[None, :] for i in range(len(time_graph))]
-    to_indices = [(time_graph[i]['to_indices_onehot']+(index_t(i)*tstep))[None, :] for i in range(len(time_graph))]
-
-    collate_timegraph['from_indices_onehot'] = torch.cat(from_indices, 0)
-    collate_timegraph['to_indices_onehot'] = torch.cat(to_indices, 0)
-
-
-
-    program_batch_l = [inp[1] for inp in inputs] 
-    label_one_hot_l = [inp[2] for inp in inputs]
-    length_mask_l = [inp[3] for inp in inputs]
-    goal_l = [inp[4] for inp in inputs]
-    label_agent_l = [inp[5] for inp in inputs] 
-    real_label_l = [inp[6] for inp in inputs]
-    task_graph_l = [inp[7] for inp in inputs] 
-    index_l = [inp[8] for inp in inputs]
-
-    
-
-    program_batch = default_collate(program_batch_l)
-    label_one_hot = default_collate(label_one_hot_l)
-    length_mask = default_collate(length_mask_l)
-    goal = default_collate(goal_l)
-    label_agent = default_collate(label_agent_l)
-    real_label = default_collate(real_label_l)
-    task_graph = default_collate(task_graph_l)
-    index = default_collate(index_l)
-    # ipdb.set_trace()
-
-    return collate_timegraph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
-
 
 # def collate_fn(inputs):
 #     new_inputs = []
@@ -462,10 +439,82 @@ def collate_fn(inputs):
 #     new_inputs = [first_inp] + new_inputs
 #     return new_inputs
 
-if __name__ == '__main__':
-    arguments = get_args_pref_agent()
-    with open(arguments.config, 'r') as f:
-        config = yaml.load(f)
-    dataset = AgentTypeDataset(path_init='../dataset/dataset_agent_model_v0_train.pkl', args_config=config)
-    data = dataset[0]
+
+
+def get_loaders(args):
+    print("Loading dataset...")
+    print("Train: {}".format(args['data']['train_data']))
+    print("Test: {}".format(args['data']['test_data']))
+    curr_file = os.path.dirname(get_original_cwd())
+    first_last = False
+    dataset = AgentTypeDataset(
+        path_init='{}/agent_preferences/dataset/{}'.format(
+            curr_file, args['data']['train_data'] 
+        ),
+        first_last=first_last,
+        args_config=args,
+    )
+    if not args['train']['overfit']:
+        dataset_test = AgentTypeDataset(
+            path_init='{}/agent_preferences/dataset/{}'.format(
+                curr_file, args['data']['test_data']
+            ),
+            first_last=first_last,
+            args_config=args,
+        )
+    else:
+        dataset_test = AgentTypeDataset(
+            path_init='{}/agent_preferences/dataset/{}'.format(
+                curr_file, args['data']['train_data']
+            ),
+            first_last=first_last,
+            args_config=args,
+        )
+
+
+    return dataset, dataset_test
+
+def get_elems(curr_dataset, i):
+    a = curr_dataset[i]
+    return 1
+
+def process(dataset):
+
+
+    # manager = mp.Manager()
+    num_process = 8
+    num_elems = len(dataset)
+    
+    elem_ids = [(dataset, i) for i in list(range(len(dataset)))]
+    print(elem_ids)
+    with Pool(num_process) as p:
+        res = p.starmap(get_elems, elem_ids)
+
+    print(len(res), sum(res))
+    # for process_id in range(0, num_elems, num_process):
+    #     p = mp.Process(target=get_elem, args=(process_id))
+    #     jobs.append(p)
+    #     p.start()
+
+@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_large_excl_task")
+def main(cfg: DictConfig):
+    config = cfg
+    print("Config")
+    print(OmegaConf.to_yaml(cfg))
     # ipdb.set_trace()
+
+    # assert not (cfg.model.predict_edge_change)
+    assert cfg['model']['exclusive_edge']
+
+    cfg.model.input_goal = False
+
+    # cfg.num_gpus = torch.cuda.device_count()
+    
+    train_dataset, test_dataset = get_loaders(config)
+    process(train_dataset)
+    process(test_dataset)    
+
+
+if __name__ == '__main__':
+    main()
+

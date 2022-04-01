@@ -350,6 +350,217 @@ class GraphHelper:
                 pass
         return task_graph
 
+    def build_graph_for_task(
+        self,
+        graph,
+        character_id,
+        ids=None,
+        include_edges=False,
+        plot_graph=False,
+        action_space_ids=None,
+        obs_ids=None,
+        level=1,
+        relative_coords=True,
+        unique_from=False,
+    ):
+        if ids is None:
+            ids = [
+                node['id']
+                for node in graph['nodes']
+                if self.object_dict.valid_el(node['class_name'])
+            ]
+
+        for node in graph['nodes']:
+            if node['category'] == 'Rooms':
+                assert node['class_name'] in self.rooms
+        room_ids = [
+            node['id'] for node in graph['nodes'] if node['category'] == 'Rooms'
+        ]
+        if level > 0:
+            # Include other rooms
+            ids = room_ids + ids
+
+        ids = [idi for idi in ids if idi != character_id]
+        ids = list(set(ids))
+        id2node = {node['id']: node for node in graph['nodes']}
+
+        nodes = [id2node[idi] for idi in ids]
+        nodes.append({'id': -1, 'class_name': 'no_obj', 'states': []})
+        node_ids = [node['id'] for node in nodes]
+
+        # TODO: remove
+        # ids =[idi for idi in ids if id2node[idi]['class_name'] not in self.rooms]
+        # action_space_ids = [idi for idi in action_space_ids if id2node[idi]['class_name'] not in self.rooms]
+
+        # Character is always the first one
+        ids = [character_id] + ids
+        max_nodes = self.num_objects
+        max_edges = self.num_edges
+
+        edges = [edge.copy() for edge in graph['edges']]
+
+        # Add a holding edge
+        holding_object = []
+        inside_object = []
+        for edge in edges:
+            if 'hold' in edge['relation_type'].lower():
+                edge['relation_type'] = 'hold'
+                holding_object.append(edge['to_id'])
+            if 'inside' in edge['relation_type'].lower():
+                inside_object.append((edge['from_id'], edge['to_id']))
+
+        # If holding an object, remove close edge
+        edges = [
+            edge
+            for edge in edges
+            if edge['from_id'] in ids
+            and edge['to_id'] in ids
+            and edge['relation_type'].lower() in self.relations
+        ]
+        edges = [
+            edge
+            for edge in edges
+            if (
+                edge['relation_type'].lower() != 'close'
+                or edge['to_id'] not in holding_object
+            )
+            and not (edge['from_id'] < 10 and edge['relation_type'].lower() == 'on')
+            and (
+                edge['relation_type'].lower() != 'close'
+                or edge['from_id'] not in holding_object
+            )
+        ]
+
+        # an object cannot be inside and on a given object
+        edges = [
+            edge
+            for edge in edges
+            if not (
+                edge['relation_type'].lower() == 'on'
+                and (edge['from_id'], edge['to_id']) in inside_object
+            )
+        ]
+
+        # reverse holding directions
+        for it, edge in enumerate(edges):
+            if edge['relation_type'] == 'hold':
+                # print(edges[it])
+                edges[it] = {
+                    'from_id': edge['to_id'],
+                    'to_id': edge['from_id'],
+                    'relation_type': edge['relation_type'],
+                }
+                # print(edges[it])
+        # print("UNIQUE")
+        if unique_from:
+            try:
+                edges = make_edges_unique(edges, room_ids, id2node)
+            except:
+                "Failure in making edges unique"
+                raise Exception
+        # Check if there is more than one edge between two nodes
+        edge_tup = [(edge['from_id'], edge['to_id']) for edge in edges]
+
+        if unique_from:
+            # print("CHECK")
+            repeated = []
+            edge_from = [edge['from_id'] for edge in edges]
+            if len(set(edge_from)) != len(edge_from):
+
+                for el in list(set(edge_from)):
+                    if edge_from.count(el) > 1:
+                        repeated.append(el)
+                print("Repeated elems: ", repeated)
+                print([edge for edge in edges if edge['from_id'] in repeated])
+                # ipdb.set_trace()
+                raise Exception
+        # print("DONE")
+        try:
+            assert len(set(edge_tup)) == len(edge_tup)
+        except:
+            print("Fail edges")
+            print(sorted(edge_tup))
+            print('\n')
+            print(sorted(set(edge_tup)))
+            raise Exception("duplicated edges")
+
+        nodes = [id2node[idi] for idi in ids]
+        nodes.append({'id': -1, 'class_name': 'no_obj', 'states': []})
+
+
+        id2index = {node['id']: it for it, node in enumerate(nodes)}
+
+        class_names_str = [node['class_name'] for node in nodes]
+        # print(set(class_names_str))
+        node_ids = [node['id'] for node in nodes]
+        # print(nodes)
+
+        # The self agent is equal to no_obj
+        # class_names_str[0] = 'no_obj'
+
+
+
+        class_names = np.array(
+            [self.object_dict.get_id(class_name) for class_name in class_names_str]
+        )
+
+        if len(class_names) > max_nodes:
+            print(
+                "Error, more nodes than allowed ({}): found {}".format(
+                    max_nodes, len(class_names)
+                )
+            )
+            print(class_names_str)
+            print('----')
+
+
+        
+
+        if len(edges) > 0:
+            # print([edge for edge in edges if edge['relation_type'] == 'CLOSE'])
+            edge_ids = np.concatenate(
+                [
+                    np.array([id2index[edge['from_id']], id2index[edge['to_id']]])[
+                        None, :
+                    ]
+                    for edge in edges
+                ],
+                axis=0,
+            )
+
+        # else:
+        #     pdb.set_trace()
+
+        if include_edges and len(edges) > max_edges:
+            pdb.set_trace()
+
+        mask_edges = np.zeros(max_edges)
+        all_edge_ids = np.zeros((max_edges, 2)).astype(np.int32)
+        
+        all_class_names = np.zeros((max_nodes)).astype(np.int32)
+        
+        if len(edges) > 0 and include_edges:
+            mask_edges[: len(edges)] = 1.0
+            all_edge_ids[: len(edges), :] = edge_ids
+
+
+        all_node_ids = np.zeros((max_nodes)).astype(np.int32)
+
+        all_class_names[: len(nodes)] = class_names
+        all_node_ids[: len(nodes)] = node_ids
+        
+
+
+        # pdb.set_trace()
+        output = {
+            'class_objects': all_class_names,
+            'edge_tuples': all_edge_ids,
+            'mask_edge': mask_edges,
+            'node_ids': all_node_ids
+        }
+
+        return output, None
+
     def build_graph(
         self,
         graph,

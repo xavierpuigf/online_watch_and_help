@@ -9,8 +9,8 @@ import pickle as pkl
 from tqdm import tqdm
 import ipdb
 import numpy as np
-from dataloader.dataloader_v2_task_reduced import AgentTypeDataset
-from dataloader import dataloader_v2_task_reduced as dataloader_v2
+from dataloader.dataloader_v2_task import AgentTypeDataset
+from dataloader import dataloader_v2_task as dataloader_v2
 from arguments import *
 from torch import nn
 import torch.optim as optim
@@ -856,6 +856,7 @@ def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
 
 
 def train_epoch(
+    data_item,
     data_loader,
     model,
     epoch,
@@ -879,7 +880,8 @@ def train_epoch(
 
     end = time.time()
 
-    for it, data_item in enumerate(data_loader):
+    
+    for it in range(500):
         # ipdb.set_trace()
         metric_dict['data_time'].update(time.time() - end)
 
@@ -1170,32 +1172,13 @@ def main(cfg: DictConfig):
 
         # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
         # ipdb.set_trace()
-        if not config.model.autoencoder_type == 'pure_autoencoder':
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                0,
-                config,
-                logger,
-                criterions,
-                use_posterior=False
-            )
 
-        evaluate(
-            test_loader,
-            train_loader,
-            model,
-            0,
-            config,
-            logger,
-            criterions,
-            use_posterior=True
-        )
         # ipdb.set_trace()
+        data_item = next(iter(train_loader))
         for epoch in range(config['train']['epochs']):
             # ipdb.set_trace()
             train_epoch(
+                data_item,
                 train_loader,
                 model,
                 epoch,
@@ -1205,30 +1188,6 @@ def main(cfg: DictConfig):
                 criterions
             )
 
-            if not config.model.autoencoder_type == 'pure_autoencoder':
-                evaluate(
-                    test_loader,
-                    train_loader,
-                    model,
-                    epoch,
-                    config,
-                    logger,
-                    criterions,
-                    use_posterior=False
-                )
-
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                epoch,
-                config,
-                logger,
-                criterions,
-                use_posterior=True
-            )
-            if epoch % config.log.save_every == 0 and config.logging:
-                logger.save_model(epoch, model, optimizer)
 
 
 if __name__ == '__main__':
