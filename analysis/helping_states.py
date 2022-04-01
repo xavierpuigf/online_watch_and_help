@@ -202,13 +202,13 @@ def compute_dist_instance(init_state, curr_state, subgoal_instance):
                     continue
 
                 curr_edge_class[edge_class] -= 1
-                print(edge_class, "-")
+                # print(edge_class, "-")
                 found = True
     if edge_type in ["on", "inside"]:
         edge_class = "{}_{}_{}".format(
             edge_type, elements[1].split(".")[0], elements[2].split(".")[0]
         )
-        print(edge_class, "+")
+        # print(edge_class, "+")
         if edge_class not in curr_edge_class:
             curr_edge_class[edge_class] = 1
         else:
@@ -300,6 +300,47 @@ def get_edge_instance(pred, t, source="pred"):
             int(from_node_name.split(".")[1])
         )
     return edge_pred_ins
+
+
+def get_subgoals_from_init_state(state):
+    id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
+    subgoals = []
+    for edge in state["edges"]:
+        edge_name = edge["relation_type"].lower()
+        from_node_id = edge["from_id"]
+        from_node_name = id2node[from_node_id]
+        to_node_id = edge["to_id"]
+        to_node_name = id2node[edge["to_id"]]
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
+            ]:
+                continue
+
+            if from_node_name not in [
+                "plate",
+                "cutleryfork",
+                "waterglass",
+                "cupcake",
+                "salmon",
+                "apple",
+                "remotecontrol",
+                "chips",
+                "condimentbottle",
+                "condimentshaker",
+                "wineglass",
+                "pudding",
+            ]:
+                continue
+            edge_instance = "{}_{}.{}_{}.{}_init".format(
+                edge_name, from_node_name, from_node_id, to_node_name, to_node_id
+            )
+            subgoals.append(edge_instance)
+    return subgoals
 
 
 def get_edge_instance_from_pred(pred):
@@ -1428,6 +1469,17 @@ def main(cfg: DictConfig):
                         # ipdb.set_trace()
                         del res
 
+                        return_subgoals = get_subgoals_from_init_state(init_state)
+                        # print(goal_edges)
+                        # print(return_subgoals)
+                        # ipdb.set_trace()
+
+                        num_pred_goal_edges = len(goal_edges)
+
+                        goal_edges += list(
+                            return_subgoals
+                        )  # add returning objects subgoals
+
                         res = manager.dict()
                         num_goals = len(goal_edges)
                         if num_processes == 0:
@@ -1485,7 +1537,10 @@ def main(cfg: DictConfig):
                             ) in res.items():
                                 estimated_steps = 0
                                 if plan is None:
-                                    estimated_steps = None
+                                    if pred_id >= num_pred_goal_edges:
+                                        estimated_steps = 0
+                                    else:
+                                        estimated_steps = None
                                 else:
                                     first_walk_steps = 0
                                     for action, cost in zip(plan, plan_cost):
@@ -1507,7 +1562,12 @@ def main(cfg: DictConfig):
                                 dist = compute_dist_instance(
                                     init_state, curr_obs[1], goal_edges[pred_id]
                                 )
-                                if estimated_steps is None:
+                                if goal_edges[pred_id].endswith("init"):
+                                    value = (
+                                        -args.beta * estimated_steps - args.lam * dist
+                                    )
+                                    estimated_steps_back = 0
+                                elif estimated_steps is None:
                                     value = -1e6
                                     estimated_steps_back = None
                                 else:
@@ -1530,15 +1590,26 @@ def main(cfg: DictConfig):
                                         * max(0, 1 - combined_edge_freq[edge_goal_name])
                                         - args.lam * dist
                                     )
-                                print(
-                                    goal_edges[pred_id],
-                                    combined_edge_freq[edge_goal_name],
-                                    edge_steps[goal_edges[pred_id]],
-                                    estimated_steps,
-                                    estimated_steps_back,
-                                    dist,
-                                    value,
-                                )
+                                if goal_edges[pred_id].endswith("init"):
+                                    print(
+                                        goal_edges[pred_id],
+                                        combined_edge_freq[edge_goal_name],
+                                        0,
+                                        0,
+                                        estimated_steps,
+                                        dist,
+                                        value,
+                                    )
+                                else:
+                                    print(
+                                        goal_edges[pred_id],
+                                        combined_edge_freq[edge_goal_name],
+                                        edge_steps[goal_edges[pred_id]],
+                                        estimated_steps,
+                                        estimated_steps_back,
+                                        dist,
+                                        value,
+                                    )
                                 # if (
                                 #     value > best_value
                                 #     or abs(value - best_value) < 1e-6
@@ -1599,7 +1670,7 @@ def main(cfg: DictConfig):
                                             last_goal_edge,
                                         )
                             last_goal_edge = last_goal_edge_curr
-                            # ipdb.set_trace()
+                            ipdb.set_trace()
 
                             edge_pred_class_estimated = aggregate_multiple_pred(
                                 graph_result, steps - 3, change=True
@@ -1608,7 +1679,9 @@ def main(cfg: DictConfig):
                             # for goal_object in goal_objects:
                             print("-------------------------------------")
                             print("gt goal")
-                            print(gt_goal)
+                            # print(gt_goal)
+                            for pred, count in gt_goal.items():
+                                print(pred, count)
                             print("pred goal")
                             for edge_class, count in edge_pred_class_estimated.items():
                                 if (
@@ -1621,6 +1694,7 @@ def main(cfg: DictConfig):
                         selected_actions[1] = helper_action
 
                     print("selected_actions:", selected_actions, best_value)
+                    print("opponent_subgoal:", opponent_subgoal)
                     print("last_goal_edge:", last_goal_edge)
 
                     prev_obs = copy.deepcopy(curr_obs)
@@ -1663,7 +1737,7 @@ def main(cfg: DictConfig):
                             )
 
                     print("success:", infos["finished"])
-                    # pdb.set_trace()
+                    pdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
