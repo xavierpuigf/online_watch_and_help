@@ -21,6 +21,7 @@ import multiprocessing as mp
 import numpy as np
 from hydra.utils import get_original_cwd, to_absolute_path
 from multiprocessing import Pool
+from p_tqdm import p_map
 
 
 
@@ -393,7 +394,10 @@ class AgentTypeDataset(Dataset):
             'valid': True,
             'task_graph_time': task_graph_time,
             'mask_task_graphs': mask_task_graphs,
-            'gt_task_graph': final_task_graph
+            'gt_task_graph': final_task_graph,
+            'length_mask': length_mask,
+            'program_batch': program_batch,
+            'goal': goal
         }
         with open(new_file_name, 'wb') as f:
             pkl.dump(new_dict, f
@@ -482,13 +486,14 @@ def process(dataset):
 
 
     # manager = mp.Manager()
-    num_process = 8
+    num_process = 16
     num_elems = len(dataset)
     
     elem_ids = [(dataset, i) for i in list(range(len(dataset)))]
     print(elem_ids)
     with Pool(num_process) as p:
         res = p.starmap(get_elems, elem_ids)
+    # res = p_map(get_elems, elem_ids, num_cpus=num_process)
 
     print(len(res), sum(res))
     # for process_id in range(0, num_elems, num_process):

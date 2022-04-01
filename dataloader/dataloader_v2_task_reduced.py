@@ -13,6 +13,7 @@ from arguments import *
 import yaml
 import torch.nn.functional as F
 import multiprocessing as mp
+import random
 import numpy as np
 
 
@@ -70,13 +71,14 @@ class AgentTypeDataset(Dataset):
         return len(self.pkl_files)
 
     def failure(self, index, print_index=False):
-
+        # ipdb.set_trace()
         if print_index:
             print(colored(f"Failure at {index}"))
         file_name = self.pkl_files[index]
         if index not in self.failed_items:
             self.failed_items[index] = 1
-        return self.__getitem__(0)
+        new_index = random.randint(0, len(self.pkl_files)-1)
+        return self.__getitem__(new_index)
 
     def get_failures(self):
         cont = [item for item in self.failed_items]
@@ -93,17 +95,19 @@ class AgentTypeDataset(Dataset):
         with open(file_name.replace('.pik', '_reduced.pik'), 'rb') as f:
             content = pkl.load(f)
 
-        try:
-            task_graph_time = content['task_graph_time']
-            mask_task_graphs = content['mask_task_graphs']
-            gt_task_graph = content['gt_task_graph']
-            length_mask = content['length_mask']
-            goal = content['goal']
-            program_batch = content['program_batch']
+        # try:
+        if not content['valid']:
+            return self.failure(index)
+        task_graph_time = content['task_graph_time']
+        mask_task_graphs = content['mask_task_graphs']
+        gt_task_graph = content['gt_task_graph']
+        length_mask = content['length_mask']
+        goal = content['goal']
+        program_batch = content['program_batch']
 
-            task_graph = {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graphs, 'gt_task_graph': final_task_graph}
-        except:
-            self.failure(index)
+        task_graph = {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graphs, 'gt_task_graph': gt_task_graph}
+        # except:
+        #     self.failure(index)
         # ipdb.set_trace()
         # print("Loaded")
         return program_batch, length_mask, goal, task_graph, index 
