@@ -1563,6 +1563,8 @@ def main(cfg: DictConfig):
                                     init_state, curr_obs[1], goal_edges[pred_id]
                                 )
                                 if goal_edges[pred_id].endswith("init"):
+                                    if dist == 0:  # still in the initial location
+                                        continue
                                     value = (
                                         -args.beta * estimated_steps - args.lam * dist
                                     )
@@ -1658,7 +1660,7 @@ def main(cfg: DictConfig):
                                     last_goal_edge_curr = goal_edges[pred_id]
                                     best_estimated_steps = estimated_steps
                                     # print('accept', last_goal_edge)
-                                    if value > 19:
+                                    if value > 0:
                                         print(
                                             "accept",
                                             value,
