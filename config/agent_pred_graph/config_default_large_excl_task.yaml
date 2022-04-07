@@ -1,3 +1,13 @@
+defaults:  
+  - _self_  
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .
+
 cuda: True
 logging: True
 name_log: ''
@@ -64,3 +74,5 @@ model:
         state_encoder: 'TF' # GNN/FC
         autoencoder_type: 'pure_autoencoder'
         predict_category: True
+        predict_diff_preds: True
+

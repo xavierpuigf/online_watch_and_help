@@ -20,6 +20,7 @@ import numpy as np
 class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False, first_last=False):
         self.path_init = path_init
+        self.predict_diff_preds = args_config.model.predict_diff_preds
         self.max_num_edges = 200
         self.first_last = first_last
         self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], toy_dataset=args_config['model']['reduced_graph'])
@@ -109,6 +110,17 @@ class AgentTypeDataset(Dataset):
         goal = content['goal']
         program_batch = content['program_batch']
 
+        
+
+        if self.predict_diff_preds:
+            init_task_graph = task_graph_time[0].clone()
+            # Compute the difference between current step and init, forget about negatives
+            curr_len = int(length_mask.sum())
+            # for ind_t in range(curr_len):
+            task_graph_time[:curr_len] = torch.nn.functional.threshold(
+                task_graph_time[:curr_len] - init_task_graph[None, :], 0, 0, inplace=False)
+            # ipdb.set_trace()
+            gt_task_graph = torch.nn.functional.threshold(gt_task_graph - init_task_graph, 0, 0, inplace=False)
         task_graph = {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graphs, 'gt_task_graph': gt_task_graph}
         # except:
         #     self.failure(index)
