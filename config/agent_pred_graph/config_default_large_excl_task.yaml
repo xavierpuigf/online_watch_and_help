@@ -61,5 +61,6 @@ model:
         time_aggregate: 'LSTM' # LSTM, none, firstcurr, fcVAE, seqVAE
         cond_prior: True
         zvec: 'node' # node / single
-        state_encoder: 'TF' # GNN
+        state_encoder: 'TF' # GNN/FC
         autoencoder_type: 'pure_autoencoder'
+        predict_category: True

@@ -61,7 +61,11 @@ class AgentTypeDataset(Dataset):
         self.failed_items = mp.Array('i', len(self.pkl_files))
         self.condense_walking = args_config['model']['condense_walking']
         self.args_config = args_config
-        
+
+        self.list_category_classes = ['put_dishwasher', 'put_fridge', 'watch_tv', 'prepare_food', 'setup_table']
+        self.dict_category_classes = {class_name: class_id+1 for class_id, class_name in enumerate(self.list_category_classes)}
+        self.num_categories = len(self.list_category_classes)
+
         print("Loading data...")
         print("Filename: {}. Episodes: {}. Objects: {}".format(path_init, len(self.pkl_files), len(self.graph_helper.object_dict)))
         print("---------------")
@@ -110,7 +114,11 @@ class AgentTypeDataset(Dataset):
         #     self.failure(index)
         # ipdb.set_trace()
         # print("Loaded")
-        return program_batch, length_mask, goal, task_graph, index 
+        if content['task_name'] in self.dict_category_classes:
+            class_id = self.dict_category_classes[content['task_name']]
+        else:
+            class_id = 0
+        return program_batch, length_mask, goal, task_graph, index, class_id 
         # if encode_program:
         #     return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
         # else:

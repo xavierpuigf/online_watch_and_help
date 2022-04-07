@@ -10,7 +10,7 @@ import ipdb
 class TaskEncoder(nn.Module):
     def mlp2l(self, dim_in, dim_out):
         return nn.Sequential(
-            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out)
+            nn.Linear(dim_in, dim_out), nn.ReLU(), nn.Linear(dim_out, dim_out), nn.ReLU()
         )
     def __init__(self, num_preds, num_counts, out_dim):
         super(TaskEncoder, self).__init__()
@@ -33,6 +33,31 @@ class TaskEncoder(nn.Module):
         return embedding
 
 
+
+
+class TaskFCEncoder(nn.Module):
+    def __init__(self, num_preds, num_counts, out_dim, task_encoder):
+        super(TaskFCEncoder, self).__init__()
+        self.task_count_encoder = task_encoder
+        self.hidden_size = out_dim
+        self.fc_enc = nn.Sequential(
+            nn.Linear(num_preds*self.hidden_size, self.hidden_size),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size, self.hidden_size)
+        )
+
+    def forward(self, task_graph_curr):
+        # ipdb.set_trace()
+        # B x T x num_preds x max_count
+        B, T = task_graph_curr.shape[:2]
+        out1 = self.task_count_encoder(task_graph_curr)
+        # B x T x num_preds x dim
+        out1 = out1.reshape(B, T, -1)
+        output = self.fc_enc(out1)
+        # ipdb.set_trace()
+
+        # B x T x ndim
+        return output
 
 
 class TaskTransformerEncoder(nn.Module):
@@ -95,11 +120,16 @@ class GraphPredNetworkVAETask2(nn.Module):
         self.hidden_size = args['hidden_size']
         self.num_states = args['num_states']
         
+        if args['task_encoder'] == 'TF':
+            self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+            self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
+            self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
+        else:
+            self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+            self.task_input_encoder = TaskFCEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count) 
+            self.task_z_encoder = TaskFCEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count) 
 
-        self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
-        self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
-        self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
-        
+            
 
         self.task_pred = self.mlp2l(self.hidden_size, self.max_counts)
         self.mask_pred = self.mlp2l(self.hidden_size, 1)
@@ -277,6 +307,8 @@ class GraphPredNetworkVAETask3(nn.Module):
     def __init__(self, args):
         super(GraphPredNetworkVAETask3, self).__init__()
         args = args['model']
+        self.num_categories = 6
+        self.predict_category = args['predict_category']
         self.use_only_input = args['use_only_input']
         self.predict_diff = args['predict_diff']
         self.max_counts = args['num_counts']
@@ -290,15 +322,22 @@ class GraphPredNetworkVAETask3(nn.Module):
         self.z_dim = args['z_dim']
         self.num_states = args['num_states']
 
-        # Converts conts to some dimension
-        self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+        self.latent_size = 128
         
-        # Adds positional encoding + transformer
-        self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
-        
+        if self.predict_category:
+            self.category_pred = nn.Linear(self.hidden_size, self.num_categories)
 
-        # Encoder for the z vector
-        self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
+
+        if args['state_encoder'] == 'TF':
+            self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+            self.task_input_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)
+            self.task_z_encoder = TaskTransformerEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count)  
+        else:
+            self.task_encoder_count = TaskEncoder(self.num_task_preds, self.max_counts, self.hidden_size)
+            self.task_input_encoder = TaskFCEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count) 
+            self.task_z_encoder = TaskFCEncoder(self.num_task_preds, self.max_counts, self.hidden_size, self.task_encoder_count) 
+
+
         
 
         self.task_pred = self.mlp2l(self.hidden_size, self.max_counts)
@@ -346,9 +385,9 @@ class GraphPredNetworkVAETask3(nn.Module):
 
 
         if self.args['cond_prior'] or self.args.autoencoder_type == 'pure_autoencoder':
-            input_dim_zproj = 128
+            input_dim_zproj = self.latent_size
         else:
-            input_dim_zproj = 128 + self.hidden_size
+            input_dim_zproj = self.latent_size + self.hidden_size
         self.z_projection = nn.Sequential(
             nn.Linear(input_dim_zproj, self.hidden_size),
             nn.ReLU(),
@@ -430,14 +469,23 @@ class GraphPredNetworkVAETask3(nn.Module):
             # We need the GT graph to understand the embedding
             end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
             # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
-            end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+            
 
-            # B x T x D we just take one embedding
-            # ipdb.set_trace()
-            encoded_goal_task = end_task_transformer[:, 0, :]
+            if self.args['state_encoder'] == 'TF':
+                end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+
+                # B x T x D we just take one embedding
+                encoded_goal_task = end_task_transformer[:, 0, :]
+            else:
+                end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+
+                # B x T x D we just take one embedding
+                encoded_goal_task = end_task_transformer
+
             q_post = self.posterior(encoded_goal_task)
 
-
+        if self.predict_category:
+            predicted_category = self.category_pred(encoded_goal_task)
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 
         else:
@@ -507,8 +555,11 @@ class GraphPredNetworkVAETask3(nn.Module):
                 inp_mask = (pred_mask[..., None] > 0.).float()
                 pred_graph = inp_task_graph * (1 - inp_mask) + inp_mask * pred_graph
         # ipdb.set_trace()
-        return {'pred_mask': pred_mask, 'pred_graph': pred_graph, 'pred_graph_total': prev_pred_graph, 
+        output = {'pred_mask': pred_mask, 'pred_graph': pred_graph, 'pred_graph_total': prev_pred_graph, 
                 'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
+        if self.predict_category:
+            output['predict_category'] = predicted_category
+        return output
 
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
         # loss_o1 = None

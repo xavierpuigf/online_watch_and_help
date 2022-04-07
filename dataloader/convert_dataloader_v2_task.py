@@ -86,7 +86,7 @@ class AgentTypeDataset(Dataset):
         with open(new_file_name, 'wb') as f:
             pkl.dump({'valid': False}, f)
 
-        return 0
+        return 0, ""
 
 
     def __getitem__(self, index):
@@ -104,7 +104,7 @@ class AgentTypeDataset(Dataset):
                 content = pkl.load(f)
 
         except:
-            print(file_name)
+            #print(file_name)
             return self.failure(index)
 
         ##############################
@@ -393,6 +393,7 @@ class AgentTypeDataset(Dataset):
         new_dict = {
             'valid': True,
             'task_graph_time': task_graph_time,
+            'task_name': content['task_name'],
             'mask_task_graphs': mask_task_graphs,
             'gt_task_graph': final_task_graph,
             'length_mask': length_mask,
@@ -402,7 +403,7 @@ class AgentTypeDataset(Dataset):
         with open(new_file_name, 'wb') as f:
             pkl.dump(new_dict, f
                 )
-        return 1
+        return 1, content['task_name']
         # if encode_program:
         #     return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, task_graph, index
         # else:
@@ -480,7 +481,7 @@ def get_loaders(args):
 
 def get_elems(curr_dataset, i):
     a = curr_dataset[i]
-    return 1
+    return a
 
 def process(dataset):
 
@@ -490,11 +491,13 @@ def process(dataset):
     num_elems = len(dataset)
     
     elem_ids = [(dataset, i) for i in list(range(len(dataset)))]
-    print(elem_ids)
+    # print(elem_ids)
     with Pool(num_process) as p:
-        res = p.starmap(get_elems, elem_ids)
+        res2 = p.starmap(get_elems, elem_ids)
     # res = p_map(get_elems, elem_ids, num_cpus=num_process)
-
+    res = [r[0] for r in res2]
+    task_names = [r[1] for r in res2]
+    print(set(task_names))
     print(len(res), sum(res))
     # for process_id in range(0, num_elems, num_process):
     #     p = mp.Process(target=get_elem, args=(process_id))
@@ -516,7 +519,7 @@ def main(cfg: DictConfig):
     # cfg.num_gpus = torch.cuda.device_count()
     
     train_dataset, test_dataset = get_loaders(config)
-    process(train_dataset)
+    #process(train_dataset)
     process(test_dataset)    
 
 

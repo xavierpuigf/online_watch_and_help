@@ -1977,7 +1977,7 @@ class LoggerSteps:
         self.wandb = None
         self.save_dir = os.path.dirname(get_original_cwd())
 
-        self.name_log = None if len(args.name_log) == 0 else args.name_log+str(random.randint(0,100))
+        self.name_log = None if len(args.name_log) == 0 else args.name_log+str(random.randint(0,100)) + '_{}'.format(args.train.lr)
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
         self.results_path = os.path.join(self.save_dir, 'results', self.experiment_name)
@@ -2003,7 +2003,7 @@ class LoggerSteps:
     def set_tensorboard(self):
         if self.log_steps:
             self.wandb = wandb.init(
-                project="graph-prediction",
+                project="task-prediction",
                 name=self.name_log,
                 entity='virtualhome',
                 config=OmegaConf.to_container(self.args),

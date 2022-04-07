@@ -71,6 +71,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         goal,
         task_graph,
         ind,
+        task_id,
     ) = data_item
 
     inputs = {
@@ -78,6 +79,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'task_graph': task_graph,
         'mask_len': len_mask,
         'goal': goal,
+        'task_id': task_id
     }
     # ipdb.set_trace()
     # T = graph_info['mask_object'].shape[1]
@@ -123,7 +125,7 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     ##################
     # Get Predictions
     ##################
-
+    # B x T x P x #count 
 
     mask_length = len_mask[:, 1:].cuda()
     pred_mask = output['pred_mask'][:, :-1, ...]
@@ -180,6 +182,12 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     
     loss += loss_mask + loss_task
 
+    if args.model.predict_category:
+        predict_category = output['predict_category']
+        # ipdb.set_trace()
+        loss_category = criterions['category'](predict_category, inputs['task_id'].cuda()).mean(0)
+        losses_dict['losses_category'] = loss_category.item()
+        loss += loss_category
 
     losses_dict.update({
         'losses': loss.item()
@@ -200,7 +208,10 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'pred_mask': pred_mask
         
     }
-
+    if args.model.predict_category:
+        # B x num_cat
+        predictions['predict_category'] = output['predict_category']
+        gt['gt_category'] = task_id
     misc = {
         # 'input_edges': input_edges,
         # 'id_nothing': edge_dict['id_nothing'].cuda(),
@@ -210,19 +221,21 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
         'vae_params': output['vae_params'],
         # 'edge_interest': edge_dict['edge_interest']
     }
+    # ipdb.set_trace()
     return gt, predictions, misc, losses_dict, inputs, loss
 
 
-def plot_func(html_name, graph_helper, graph_info, len_mask, index, 
+def plot_func(html_name, graph_helper, len_mask, index, 
               gt_task, gt_mask, input_task, pred_task, pred_mask, prog_gt, metrics_item, metrics_item_tstep):
-    program_gt = utils_models.decode_program(graph_helper, prog_gt, index=index)
+    # print(prog_gt)
+    # program_gt = utils_models.decode_program(graph_helper, prog_gt, index=index)
     pred_graph_samples = []
     num_samples = len(pred_task)
 
     # Obtain GT Graph
     gt_graph = utils_models.obtain_task_graph(
             graph_helper,
-            graph_info,
+            None,
             gt_task,
             gt_mask,
             input_task,
@@ -230,11 +243,12 @@ def plot_func(html_name, graph_helper, graph_info, len_mask, index,
             len_mask
     )  
     # ipdb.set_trace()
-  
+    
+    program_gt = ['' for _ in gt_graph]
     for sample_num in range(num_samples):
         pred_graph = utils_models.obtain_task_graph(
             graph_helper,
-            graph_info,
+            None,
             pred_task[sample_num],
             pred_mask[sample_num],
             input_task,
@@ -304,6 +318,7 @@ def inference(
                 goal,
                 task_graph,
                 ind,
+                task_index
             ) = data_item
 
             
@@ -359,6 +374,11 @@ def inference(
             predicted_graphc = np.concatenate([x[None, :] for x in predicted_graph], 0)
             metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc > 0., gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
 
+            if args.model.predict_category:
+                # B x T
+                category_accuracy = (gt['gt_category'].cuda() == predictions['predict_category'].argmax(-1)).float().cpu().numpy()
+
+                metrics_item['category_accuracy'] = category_accuracy
             # input_edges = misc['input_edges']
             # gt_state = gt['gt_state']
             # gt_change = gt['gt_change']
@@ -412,7 +432,6 @@ def inference(
                 dict_plot = {
                     'html_name': result_name_html,
                     'graph_helper': data_loader.dataset.graph_helper,
-                    #'graph_info': graph_info,
                     'len_mask': len_mask,
                     'index': index,
                     'gt_task': gt_task,
@@ -431,10 +450,13 @@ def inference(
                     # goal_str = '<br>'.join([f'{elem}: x{cont}' for elem, cont in ct.items()])
                     threaded_plotter.put_plot_dict(dict_plot)
                     # score_total_str = '<br>'.join(['{}: {:03f}'.format(name, value[index]) for name, value in metrics_item.items()])
-                    score_total_str = ''
+                    score_total_str = '<br>'.join(['{}: {:.03f}'.format(name, value[index]) for name, value in metrics_item.items()])
+                    # ipdb.set_trace()
                     rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
-                    html_str_total = utils_models.build_table(rows_total, ['Link', 'Scores', 'Goals'])
-                    print(colored(result_name_html_total, 'cyan'))
+                    metric_names = list(metrics_item.keys())
+                    html_str_total = utils_models.build_table(rows_total, ['Link']+metric_names+['Goals'])
+                    if index == 0:
+                        print(colored(result_name_html_total, 'cyan'))
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
                     with open(result_name_html_total, 'w+') as f:
@@ -508,8 +530,13 @@ def get_metrics(args):
     metric_dict['prec_change'] = AverageMeter('Prec Change', ':6.2f')
     metric_dict['recall_change'] = AverageMeter('Rec Change', ':6.2f')
     
-    metric_dict['task_accuracy'] = AverageMeter('Accuracy Task', ':6.2f')
-    metric_dict['task_accuracy_pos'] = AverageMeter('Accuracy Task Pos', ':6.2f')
+    metric_dict['task_accuracy'] = AverageMeter('Acc. Task', ':6.2f')
+    metric_dict['task_accuracy_pos'] = AverageMeter('Acc. Task Pos', ':6.2f')
+
+    if args.model.predict_category:
+        metric_dict['category_accuracy'] = AverageMeter('Acc. Category', ':6.2f')
+        metric_dict['losses_category'] = AverageMeter('LossCategory', ':6.2f')
+
     
     # metric_dict['precision_edge_sample'] = AverageMeter('Precision Edge Sample', ':6.2f')
     # metric_dict['recall_edge_sample'] = AverageMeter('Recall Edge Sample', ':6.2f')
@@ -560,6 +587,7 @@ def evaluate(
 
     end = time.time()
     print("Evaluation")
+    # ipdb.set_trace()
     for it, data_item in enumerate(data_loader):
         if it < args['test']['num_iters']:
             metric_dict['data_time'].update(time.time() - end)
@@ -570,6 +598,7 @@ def evaluate(
                 goal,
                 task_graph,
                 ind,
+                category_index
             ) = data_item
 
 
@@ -744,6 +773,9 @@ def evaluate(
         info_log['losses']['kldiv_'+suffix] = metric_dict['kldiv'].avg
 
 
+    if args.model.predict_category:
+        info_log['accuracy']['category_accuracy_'+suffix] = metric_dict['category_accuracy'].avg
+
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
 def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mask_task, gt_task, misc):
@@ -828,6 +860,8 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
         'accuracy_pos': accuracy_pos_item.max(0)
 
     }
+
+
     # recall = recall_item.mean(0)
     # prec = prec_item.mean(0)
     # f1 = f1_item.mean(0)
@@ -853,6 +887,11 @@ def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
     metric_dict['recall_change'].update(change_recall.item())
     metric_dict['task_accuracy'].update(task_accuracy.item())
     metric_dict['task_accuracy_pos'].update(task_accuracy_change.item())
+    if args.model.predict_category:
+        # B x T
+        category_accuracy = (gt['gt_category'].cuda() == predictions['predict_category'].argmax(-1)).float().mean()
+
+        metric_dict['category_accuracy'].update(category_accuracy.item())
 
 
 def train_epoch(
@@ -889,6 +928,7 @@ def train_epoch(
             goal,
             task_graph,
             ind,
+            task_index,
         ) = data_item
 
 
@@ -971,7 +1011,8 @@ def train_epoch(
             if 'VAE' in args.model.time_aggregate:
                 info_log['losses']['kldiv'] = metric_dict['kldiv'].val
 
-     
+            if args.model.predict_category:
+                info_log['accuracy']['category_accuracy'] = metric_dict['category_accuracy'].val
 
             logger.log_data(it + len(data_loader) * epoch, info_log)
 
@@ -1115,6 +1156,8 @@ def main(cfg: DictConfig):
 
     cfg.model.input_goal = False
 
+    if cfg.train.overfit:
+        cfg.train.batch_size = 1
     # cfg.num_gpus = torch.cuda.device_count()
     
     train_loader, test_loader = get_loaders(config)
@@ -1147,6 +1190,8 @@ def main(cfg: DictConfig):
         'task': criterion_task,
         'mask': criterion_mask
     }
+    if config.model.predict_category:
+        criterions['category'] = criterion_task
     if config.inference:
         logger = LoggerSteps(config, log_steps=False)
         print("Saving results at")
@@ -1227,6 +1272,14 @@ def main(cfg: DictConfig):
                 criterions,
                 use_posterior=True
             )
+            if epoch % 10 == 0:
+                inference(
+                    test_loader,
+                    model,
+                    config,
+                    logger,
+                    criterions
+                )
             if epoch % config.log.save_every == 0 and config.logging:
                 logger.save_model(epoch, model, optimizer)
 
