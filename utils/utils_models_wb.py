@@ -1977,7 +1977,7 @@ class LoggerSteps:
         self.wandb = None
         self.save_dir = os.path.dirname(get_original_cwd())
 
-        curr_name_log = '{}_kl.{}_h.{}'.format(args.name_log+str(random.randint(0,100)), args.train.lr, args.model.hidden_size)
+        curr_name_log = '{}_lr.{}_kl.{}_h.{}'.format(args.name_log+str(random.randint(0,100)), args.train.lr, args.model.kl_coeff, args.model.hidden_size)
         self.name_log = None if len(args.name_log) == 0 else curr_name_log
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
@@ -2019,15 +2019,15 @@ class LoggerSteps:
         if args['model']['predict_node_change']:
             pred_change = 'node'
         experiment_name = (
-            'predict_graph/train_data.{}-agents{}/'
-            'lr{}-bs.{}-'
-            'goalenc.{}_predchange.{}_inputgoal.{}_excledge.{}_preddiff.{}_goodaction'
+            'predict_graph/train_data.{}/'
+            'lr{}-bs.{}-klcoff.{}-'
+            'goalenc.{}_predchange.{}_inputgoal.{}_excledge.{}_preddiff.{}'
             '{}_logname.{}'
         ).format(
             args['data']['train_data'],
-            args['train']['agents'],
             args['train']['lr'],
             args['train']['batch_size'],
+            args['model']['kl_coeff'],
             args['model']['goal_inp'],
             pred_change,
             args['model']['input_goal'],

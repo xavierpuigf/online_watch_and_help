@@ -42,6 +42,16 @@ def cleanup():
     dist.destroy_process_group()
 
 
+def set_kl_coeff(args, epoch):
+    kl_coeff_max = args.model.kl_coeff
+    if epoch >= args.model.kl_anneal_epoch:
+        return kl_coeff_max
+    else:
+        # do cosine annealing
+        val = np.pi * epoch * 1./args.model.kl_anneal_epoch
+        curr_kl_coeff = (-np.cos(val)*0.5 + 0.5) * kl_coeff_max
+        return curr_kl_coeff
+
 
 
 def merge2d(tensor):
@@ -63,7 +73,7 @@ def unmerge(tensor, firstdim):
 #     edges_something = edges
 
 
-def compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=False, posterior=False):
+def compute_forward_pass(args, data_item, data_loader, model, criterions, misc={}, evaluation=False, posterior=False):
 
     (
         program,
@@ -200,7 +210,10 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     if 'VAE' in args.model.time_aggregate and args.model.input_vae != 'none':
         loss_kl = compute_kl_loss(output, len_mask)
         losses_dict['kldiv'] = loss_kl.item()
-        # loss += loss_kl
+        if args.model.kl_annealing and 'kl_coeff' in misc:
+            loss += misc['kl_coeff']*loss_kl
+        else:
+            loss += args.model.kl_coeff*loss_kl
 
     gt = {
         'gt_task': gt_task,
@@ -327,7 +340,7 @@ def inference(
 
             
 
-            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=args.inference_posterior)
+            gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=args.inference_posterior, misc={})
 
     
             update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
@@ -592,6 +605,11 @@ def evaluate(
     end = time.time()
     print("Evaluation")
     # ipdb.set_trace()
+
+    if args.model.kl_annealing:
+        misc_dict = {}
+        misc_dict['kl_coeff'] = set_kl_coeff(args, epoch) 
+
     for it, data_item in enumerate(data_loader):
         if it < args['test']['num_iters']:
             metric_dict['data_time'].update(time.time() - end)
@@ -607,7 +625,7 @@ def evaluate(
 
 
             t1 = time.time()
-            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior)
+            gt, predictions, misc, losses_dict, inp, loss = compute_forward_pass(args, data_item, data_loader, model, criterions, evaluation=True, posterior=use_posterior, misc=misc_dict)
 
             metric_dict['model_time'].update(time.time() - t1)
             # print(loss)
@@ -772,7 +790,8 @@ def evaluate(
     }
 
 
-
+    if args.model.kl_annealing:
+        info_log['misc']['kl_coeff'] = set_kl_coeff(args, epoch) 
     if 'VAE' in args.model.time_aggregate:
         info_log['losses']['kldiv_'+suffix] = metric_dict['kldiv'].avg
 
@@ -916,7 +935,9 @@ def train_epoch(
         list(metric_dict.values()),
         prefix="Epoch: [{}]".format(epoch),
     )
-    
+    if args.model.kl_annealing:
+        misc_dict = {}
+        misc_dict['kl_coeff'] = set_kl_coeff(args, epoch) 
 
     model.train()
 
@@ -938,7 +959,7 @@ def train_epoch(
 
         t1 = time.time()
         gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(
-            args, data_item, data_loader, model, criterions, evaluation=False)
+                args, data_item, data_loader, model, criterions, evaluation=False, misc=misc_dict)
 
         optimizer.zero_grad()
         loss.backward()
@@ -1010,6 +1031,9 @@ def train_epoch(
                     'logvar_posterior': logvar_posterior
                 }
             }
+
+            if args.model.kl_annealing:
+                info_log['misc']['kl_coeff'] = set_kl_coeff(args, epoch) 
 
 
             if 'VAE' in args.model.time_aggregate:
