@@ -39,7 +39,7 @@ train:
 test:
         num_iters: 20
 model:
-        use_only_input: False
+        use_only_input: True
         condense_walking: True
         exclusive_edge: True # Whether to predict edges or container relations
         predict_last: True

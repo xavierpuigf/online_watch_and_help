@@ -311,6 +311,9 @@ class GraphPredNetworkVAETask3(nn.Module):
         self.predict_category = args['predict_category']
         self.use_only_input = args['use_only_input']
         self.predict_diff = args['predict_diff']
+        
+        # predict_diff_preds: We dont predict a mask explicitly, the data itself just represents the pred difference
+        self.predict_diff_preds = args['predict_diff_preds'] 
         self.max_counts = args['num_counts']
         self.num_task_preds = args['num_task_preds']
 
@@ -384,7 +387,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         )
 
 
-        if self.args['cond_prior'] or self.args.autoencoder_type == 'pure_autoencoder':
+        if self.args['cond_prior'] or self.args.autoencoder_type == 'pure_autoencoder' or self.use_only_input:
             input_dim_zproj = self.latent_size
         else:
             input_dim_zproj = self.latent_size + self.hidden_size
@@ -434,7 +437,6 @@ class GraphPredNetworkVAETask3(nn.Module):
         # output B x num_task_preds x dim
         
         # This blows up
-
         z_vec_flat = self.z_projection_out(z_vec)
         B = z_vec.shape[0]
         z_vec_reshape = z_vec_flat.reshape(B, self.num_task_preds, 128)
@@ -450,8 +452,6 @@ class GraphPredNetworkVAETask3(nn.Module):
 
         # Take the graph at step 0 + Graph at steps 0 -- N-1
 
-        task_graph_init = inp_task_graph[:, :1, ...]
-
 
         if self.args.autoencoder_type == 'pure_autoencoder':
             task_graph_init = None
@@ -461,39 +461,46 @@ class GraphPredNetworkVAETask3(nn.Module):
             task_graph_init = inp_task_graph[:, :1, ...].float()
             # B x T x num_preds x dim
             # Note we will not use this in the pure decoder mode 
-            embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init)
+            if self.predict_diff_preds:
+                # B x T x dim
+                embeddings_input_graph = self.task_input_encoder(inp_task_graph.float())
+            else:
+                embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init)
         
         # ipdb.set_trace()
 
-        if not inference:
-            # We need the GT graph to understand the embedding
-            end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
-            # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
-            
+        # if not inference:
+        # ONLY USE THIS FOR NON INFERENCE
+        # We need the GT graph to understand the embedding
+        end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
+        # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
+        
 
-            if self.args['state_encoder'] == 'TF':
-                end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+        if self.args['state_encoder'] == 'TF':
+            end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
 
-                # B x T x D we just take one embedding
-                encoded_goal_task = end_task_transformer[:, 0, :]
-            else:
-                end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+            # B x T x D we just take one embedding
+            encoded_goal_task = end_task_transformer[:, 0, :]
+        else:
+            # Index 0 in time
+            end_task_transformer = self.task_z_encoder(end_task[:, None, ...])
 
-                # B x T x D we just take one embedding
-                encoded_goal_task = end_task_transformer
+            # B x T x D we just take one embedding
+            encoded_goal_task = end_task_transformer[:, 0]
 
-            q_post = self.posterior(encoded_goal_task)
-
+        q_post = self.posterior(encoded_goal_task)
         if self.predict_category:
             predicted_category = self.category_pred(encoded_goal_task)
+            
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 
         else:
 
-            mean_logvar = torch.zeros([B, T, 128*2])
+            mean_logvar = torch.zeros([B, T, 128*2])[:, 0] # We dont take timesteps
             p_prior = mean_logvar.to(inp_task_graph.device)
             # p_prior = torch.cat([mean, log_var], -1)
-
+        # print(p_prior.shape)
+        # ipdb.set_trace()
         d = p_prior.shape[-1] // 2
         mu_prior, logvar_prior = p_prior[..., :d], p_prior[..., d:]
         if not inference:
@@ -517,9 +524,12 @@ class GraphPredNetworkVAETask3(nn.Module):
             z_vec = z_vec[:, None, ...].repeat(1, T, 1, 1)
 
             if self.use_only_input:
-                z_and_input = torch.cat([z_vec, torch.zeros_like(embeddings_input_graph)], -1)
+                # Whether we are not using the current step to predict, simply a VAE
+                # z_and_input = torch.cat([z_vec, torch.zeros_like(embeddings_input_graph)], -1)
+                z_and_input = z_vec
             else:
                 z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+            # ipdb.set_trace()
             z_and_input = self.z_projection(z_and_input)
         else:
             if self.args.autoencoder_type == 'pure_autoencoder': # autoencode output
@@ -534,6 +544,8 @@ class GraphPredNetworkVAETask3(nn.Module):
 
         pred_graph = self.task_pred(z_and_input)
         if self.predict_diff:
+            if self.predict_diff_preds:
+                raise Exception
             if self.use_only_input:
                 # Use gt_mask as pred_mask, since it is impossibel to derive the mask
                 pred_mask = inputs['task_graph']['mask_task_graph']

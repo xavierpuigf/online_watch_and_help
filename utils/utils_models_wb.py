@@ -1977,7 +1977,8 @@ class LoggerSteps:
         self.wandb = None
         self.save_dir = os.path.dirname(get_original_cwd())
 
-        self.name_log = None if len(args.name_log) == 0 else args.name_log+str(random.randint(0,100)) + '_{}'.format(args.train.lr)
+        curr_name_log = '{}_kl.{}_h.{}'.format(args.name_log+str(random.randint(0,100)), args.train.lr, args.model.hidden_size)
+        self.name_log = None if len(args.name_log) == 0 else curr_name_log
 
         self.ckpt_save_dir = os.path.join(self.save_dir, 'ckpts', self.experiment_name)
         self.results_path = os.path.join(self.save_dir, 'results', self.experiment_name)

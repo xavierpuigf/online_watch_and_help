@@ -138,7 +138,11 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, evalua
     if args.model.predict_diff:
         gt_mask = inputs['task_graph']['mask_task_graph'][:, :-1, ...].float().cuda()
     else:
-         gt_mask = torch.ones_like(inputs['task_graph']['mask_task_graph'][:, :-1, ...].float()).cuda()
+        if args.model.predict_diff_preds:
+            T = inputs['task_graph']['mask_task_graph'].shape[1]
+            gt_mask = (inputs['task_graph']['gt_task_graph'] != 0)[:, None, ...].repeat(1, T-1, 1).float().cuda()
+        else:
+            gt_mask = torch.ones_like(inputs['task_graph']['mask_task_graph'][:, :-1, ...].float()).cuda()
 
     # ipdb.set_trace()
     gt_task = inputs['task_graph']['gt_task_graph'][:, None, ...].repeat(1, tsteps, 1).long().cuda()
