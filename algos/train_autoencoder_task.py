@@ -364,9 +364,10 @@ def inference(
             predicted_mask, predicted_graph = [], []
 
             if not 'VAE' in args.model.time_aggregate:
-                pred_mask = (nn.functional.sigmoid(predictions['pred_mask'], dim=3)).cpu().numpy()
+                #pass
+                pred_mask = (nn.functional.sigmoid(predictions['pred_mask'])).cpu().numpy()
                 pred_mask = np.concatenate([pred_mask, 1 - pred_mask], -1)
-                pred_graph = (nn.functional.softmax(predictions['pred_graph'], dim=-1)).cpu().numpy()
+                pred_graph = (nn.functional.softmax(predictions['pred_task'], dim=-1)).cpu().numpy()
 
             for sample_num in range(num_samples):
                 if 'VAE' in args.model.time_aggregate:
@@ -643,9 +644,10 @@ def evaluate(
             predicted_mask, predicted_graph = [], []
 
             if not 'VAE' in args.model.time_aggregate:
-                pred_mask = (nn.functional.sigmoid(predictions['pred_mask'], dim=3)).cpu().numpy()
-                pred_mask = np.concatenate([pred_mask, 1 - pred_mask], -1)
-                pred_graph = (nn.functional.softmax(predictions['pred_graph'], dim=-1)).cpu().numpy()
+                pass
+                #pred_mask = (nn.functional.sigmoid(predictions['pred_mask'], dim=3)).cpu().numpy()
+                #pred_mask = np.concatenate([pred_mask, 1 - pred_mask], -1)
+                #pred_graph = (nn.functional.softmax(predictions['pred_graph'], dim=-1)).cpu().numpy()
                 
                 # pred_state = torch.sigmoid(predictions['pred_state'][..., None]).cpu()
                 # pred_state = torch.cat([1-pred_state, pred_state], -1).cpu().numpy()
@@ -1278,17 +1280,16 @@ def main(cfg: DictConfig):
                 criterions
             )
 
-            if not config.model.autoencoder_type == 'pure_autoencoder':
-                evaluate(
-                    test_loader,
-                    train_loader,
-                    model,
-                    epoch,
-                    config,
-                    logger,
-                    criterions,
-                    use_posterior=False
-                )
+            evaluate(
+                test_loader,
+                train_loader,
+                model,
+                epoch,
+                config,
+                logger,
+                criterions,
+                use_posterior=False
+            )
 
             evaluate(
                 test_loader,

@@ -392,7 +392,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         else:
             input_dim_zproj = self.latent_size + self.hidden_size
         self.z_projection = nn.Sequential(
-            nn.Linear(input_dim_zproj, self.hidden_size),
+                nn.Linear(128, self.hidden_size),
             nn.ReLU(),
             nn.Linear(self.hidden_size, self.hidden_size)
         )
@@ -402,8 +402,18 @@ class GraphPredNetworkVAETask3(nn.Module):
         if args['edge_pred'] == 'concat':
             multi_edge = 2
 
+        input_dim = 128
+        if self.use_only_input:
+            if not self.use_vae:
+                # Use the current step
+                input_dim = 100
+            else:
+                input_dim = 128 + 100 # use both the last an ducrrent step
+        else:
+            input_dim = 128 + 100
 
-        self.z_projection_out = self.mlp2l(128, 128*self.num_task_preds)
+        self.z_projection_out = self.mlp2l(input_dim, 128*self.num_task_preds)
+        self.z_convert = self.mlp2l(128, 128)
 
         # self.action_pred = nn.Sequential(nn.Linear(self.hidden_size, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, self.max_actions))
         # self.object1_pred = nn.Sequential(nn.Linear(self.hidden_size*2, self.hidden_size), nn.ReLU(), nn.Linear(self.hidden_size, 1))
@@ -434,12 +444,18 @@ class GraphPredNetworkVAETask3(nn.Module):
         return z
 
     def z_vec_project(self, z_vec):
+        # input, B x dim or B x T x dim
         # output B x num_task_preds x dim
         
         # This blows up
+        time_included = len(z_vec.shape) > 2
         z_vec_flat = self.z_projection_out(z_vec)
         B = z_vec.shape[0]
-        z_vec_reshape = z_vec_flat.reshape(B, self.num_task_preds, 128)
+        if time_included:
+            T = z_vec.shape[1]
+            z_vec_reshape = z_vec_flat.reshape(B, T, self.num_task_preds, 128)
+        else:
+            z_vec_reshape = z_vec_flat.reshape(B, self.num_task_preds, 128)
         return z_vec_reshape
 
     def forward(self, inputs, cond=None, inference=False, seed=None, verbose=False):
@@ -465,6 +481,7 @@ class GraphPredNetworkVAETask3(nn.Module):
                 # B x T x dim
                 embeddings_input_graph = self.task_input_encoder(inp_task_graph.float())
             else:
+
                 embeddings_input_graph = self.task_input_encoder(inp_task_graph.float(), task_graph_init)
         
         # ipdb.set_trace()
@@ -507,7 +524,6 @@ class GraphPredNetworkVAETask3(nn.Module):
             mu_posterior, logvar_posterior = q_post[..., :d], q_post[..., d:]
         else:
             mu_posterior, logvar_posterior = mu_prior, logvar_prior
-        # ipdb.set_trace()
         if self.use_vae:
             if not inference:
                 
@@ -520,15 +536,24 @@ class GraphPredNetworkVAETask3(nn.Module):
 
             # Main change with VAE2
             # z_vec = z_vec[:, None, None, :].repeat(1, T, self.num_task_preds, 1)
-            z_vec = self.z_vec_project(z_vec)
-            z_vec = z_vec[:, None, ...].repeat(1, T, 1, 1)
 
             if self.use_only_input:
                 # Whether we are not using the current step to predict, simply a VAE
                 # z_and_input = torch.cat([z_vec, torch.zeros_like(embeddings_input_graph)], -1)
+
+                z_vec = self.z_vec_project(z_vec)
+                z_vec = z_vec[:, None, ...].repeat(1, T, 1, 1)
                 z_and_input = z_vec
             else:
-                z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+                z_vec_e = self.z_convert(z_vec)
+                z_vec_e = z_vec_e[:, None, ...].repeat(1, T, 1)
+                # ipdb.set_trace()
+                
+                z_vec_and_input = torch.cat([z_vec_e, embeddings_input_graph], -1)
+                #print(z_vec_and_input.shape)
+                z_and_input = self.z_vec_project(z_vec_and_input)
+                #z_and_input = torch.cat([z_vec, embeddings_input_graph], -1)
+                #print(z_and_input.shape)
             # ipdb.set_trace()
             z_and_input = self.z_projection(z_and_input)
         else:
@@ -539,9 +564,9 @@ class GraphPredNetworkVAETask3(nn.Module):
                 # z_and_input = torch.cat([z_vec, torch.zeros_like(embeddings_input_graph)], -1)
                 z_and_input = self.z_projection(z_vec) 
             else:
-                # Use input to decode output
-                z_and_input = embeddings_input_graph
-
+                # Use input to decode output, no VAE
+                z_and_input = self.z_vec_project(embeddings_input_graph)
+                z_and_input = self.z_projection(z_and_input) 
         pred_graph = self.task_pred(z_and_input)
         if self.predict_diff:
             if self.predict_diff_preds:
