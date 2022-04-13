@@ -351,7 +351,7 @@ def get_html_task(results, graph_helper):
         # score_str = ''
         # ipdb.set_t÷race()
         #
-        score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items()])
+        score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items() if 'seed' not in name])
         columns = [program_gt[tstep].replace('<', '').replace('>', ''), score_str]
         # ipdb.set_trace()
         

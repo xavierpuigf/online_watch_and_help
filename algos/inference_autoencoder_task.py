@@ -391,8 +391,12 @@ def inference(
             # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
             predicted_maskc = np.concatenate([x[None, :] for x in predicted_mask], 0)
             predicted_graphc = np.concatenate([x[None, :] for x in predicted_graph], 0)
-            metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc > 0., gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
 
+
+            metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc, gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
+
+            
+            # ipdb.set_trace()
             if args.model.predict_category:
                 # B x T
                 category_accuracy = (gt['gt_category'].cuda() == predictions['predict_category'].argmax(-1)).float().cpu().numpy()
@@ -424,10 +428,18 @@ def inference(
             # gt_edge = gt['gt_change']         
             input_task = misc['input_task'] 
 
-            for index in range(0, ind.shape[0], 4):
+            # ipdb.set_trace()
+            # metrics_item = {metric_name: met.cpu().numpy() for metric_name, met in metrics_item.items()}
+            # metrics_item_tstep = {metric_name: met.cpu().numpy() for metric_name, met in metrics_item_tstep.items()}
+
+            res_total_new = [{metric_name: metric_value[:, index] for metric_name, metric_value in metrics_item.items() if '_seed' in metric_name} for index in range(0, ind.shape[0]) ]
+            res_total_new_tstep = [{metric_name: metric_value[:, index] for metric_name, metric_value in metrics_item_tstep.items() if '_seed' in metric_name} for index in range(0, ind.shape[0]) ]
+
+            for index in range(0, ind.shape[0]):
                 # ipdb.set_trace()
                 # pred_task = predicted_graph[index]
                 # pred_mask = predicted_mask[index]
+
 
 
                 # Get the name of html
@@ -442,8 +454,7 @@ def inference(
 
 
 
-                cpath = '/'.join(fname.split('/')[-3:-1])
-                dir_name = f'{expath}/{cpath}/'
+                dir_name = f'{expath}'
                 result_name = f'{dir_name}/{sfname}.pkl'
                 result_name_html = f'{dir_name}/{sfname}.html'
                 result_name_html_total = f'{dir_name}/total{pv}.html'
@@ -469,7 +480,7 @@ def inference(
                     # goal_str = '<br>'.join([f'{elem}: x{cont}' for elem, cont in ct.items()])
                     threaded_plotter.put_plot_dict(dict_plot)
                     # score_total_str = '<br>'.join(['{}: {:03f}'.format(name, value[index]) for name, value in metrics_item.items()])
-                    score_total_str = '<br>'.join(['{}: {:.03f}'.format(name, value[index]) for name, value in metrics_item.items()])
+                    score_total_str = '<br>'.join(['{}: {:.03f}'.format(name, value[index]) for name, value in metrics_item.items() if 'seed' not in name])
                     # ipdb.set_trace()
                     rows_total.append(['<a href="{}.html"> {} </a>'.format(sfname, sfname), score_total_str, goal_str])
                     metric_names = list(metrics_item.keys())
@@ -483,13 +494,18 @@ def inference(
 
 
 
-
-
-
-
-
                 # ipdb.set_trace()
+
+
+
+
                 if args.save_inference:
+
+                    results = {
+                        'results_total': res_total_new[index],
+                        'results_total_tstep': res_total_new_tstep[index],
+                        'length': len_mask[index].sum().cpu().numpy()
+                    }
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
 
@@ -876,14 +892,18 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
         'recall': recall.max(0), 
         'prec': prec.max(0),
         'accuracy': accuracy.max(0),
-        'accuracy_pos': accuracy_pos.max(0)
+        'accuracy_pos': accuracy_pos.max(0),
+        'accuracy_pos_seed': accuracy_pos,
+        'accuracy_seed': accuracy
 
     }
     metrics_item = {
         'recall': recall_item.max(0), 
         'prec': prec_item.max(0),
         'accuracy': accuracy_item.max(0),
-        'accuracy_pos': accuracy_pos_item.max(0)
+        'accuracy_pos': accuracy_pos_item.max(0),
+        'accuracy_pos_seed': accuracy_pos_item,
+        'accuracy_seed': accuracy_item
 
     }
 
@@ -892,7 +912,7 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
     # prec = prec_item.mean(0)
     # f1 = f1_item.mean(0)
 
-
+    # ipdb.set_trace()
     return metrics_item_tstep, metrics_item
 
 def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
@@ -920,138 +940,6 @@ def update_metrics(metric_dict, args, losses_dict, gt, predictions, misc):
         metric_dict['category_accuracy'].update(category_accuracy.item())
 
 
-def train_epoch(
-    data_loader,
-    model,
-    epoch,
-    args,
-    optimizer,
-    logger,
-    criterions
-):
-    print(colored(f"Training epoch {epoch}", "yellow"))
-
-    metric_dict = get_metrics(args)
-
-    progress = ProgressMeter(
-        len(data_loader),
-        list(metric_dict.values()),
-        prefix="Epoch: [{}]".format(epoch),
-    )
-    if args.model.kl_annealing:
-        misc_dict = {}
-        misc_dict['kl_coeff'] = set_kl_coeff(args, epoch) 
-
-    model.train()
-
-    end = time.time()
-
-    for it, data_item in enumerate(data_loader):
-        # ipdb.set_trace()
-        metric_dict['data_time'].update(time.time() - end)
-
-        (
-            program,
-            len_mask,
-            goal,
-            task_graph,
-            ind,
-            task_index,
-        ) = data_item
-
-
-        t1 = time.time()
-        gt , predictions, misc, losses_dict, inp, loss = compute_forward_pass(
-                args, data_item, data_loader, model, criterions, evaluation=False, misc=misc_dict)
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-
-        metric_dict['model_time'].update(time.time() - t1)
-
-        label_action = program['action']
-        index_label_obj1 = program['indobj1']
-        index_label_obj2 = program['indobj2']
-
-        # TODO: uncomment?        
-        # prog_gt = {
-        #     'action': label_action,
-        #     'o1': index_label_obj1,
-        #     'o2': index_label_obj2,
-        #     'graph': graph_info,
-        #     'mask_len': len_mask,
-        # }
-        # # if int(len_mask[0,:].sum()) == 30:
-        # #     ipdb.set_trace()
-        # # ipdb.set_trace()
-        # program_gt = utils_models.decode_program(
-        #     data_loader.dataset.graph_helper, prog_gt
-        # )
-
-
-
-        update_metrics(metric_dict, args, losses_dict, gt, predictions, misc)
-        
-        # pred_edge_c = predictions['pred_edge'].argmax(-1)[None, :].cpu().numpy()
-        # pred_change_c = predictions['pred_change'].argmax(-1)[None, :].cpu().numpy()
-        # update_metrics_recall_prec(metric_dict, args, gt, pred_edge_c, pred_change_c, misc)
-
-        
-
-        metric_dict['batch_time'].update(time.time() - end)
-        end = time.time()
-
-        # Obtain VAE params
-        mu_prior, logvar_prior, mu_posterior, logvar_posterior = misc['vae_params']
-        # ipdb.set_trace()
-
-        if it % args['log']['print_every'] == 0:
-            progress.display(it)
-        if it % args['log']['print_long_every'] == 0:
-            # ipdb.set_trace()
-            info_log = {
-                'losses': {
-                    'total': metric_dict['losses'].val,
-                    'task': metric_dict['losses_task'].val,
-                    'mask': metric_dict['losses_mask'].val,
-                },
-                'accuracy': {
-                    'change_prec': metric_dict['prec_change'].val,
-                    'change_recall': metric_dict['recall_change'].val,
-                    'task_accuracy': metric_dict['task_accuracy'].val,
-                    'task_accuracy_pos': metric_dict['task_accuracy_pos'].val
-                    # 'edge_accuracy_interest': metric_dict['accuracy_edge_interest'].val,
-                    # 'edge_accuracy_interest_pos': metric_dict['accuracy_edge_interest_pos'].val
-
-                },
-                'misc': {'epoch': epoch},        
-                'misc_hist': {
-                    'muprior': mu_prior,
-                    'muposterior': mu_posterior,
-                    'logvar_prior': logvar_prior,
-                    'logvar_posterior': logvar_posterior
-                }
-            }
-
-            if args.model.kl_annealing:
-                info_log['misc']['kl_coeff'] = set_kl_coeff(args, epoch) 
-
-
-            if 'VAE' in args.model.time_aggregate:
-                info_log['losses']['kldiv'] = metric_dict['kldiv'].val
-
-            if args.model.predict_category:
-                info_log['accuracy']['category_accuracy'] = metric_dict['category_accuracy'].val
-
-            logger.log_data(it + len(data_loader) * epoch, info_log)
-
-            # Print the prediction
-            # logger.log_info(info_res)
-
-    # logger.log_embeds(len(data_loader) * epoch, model.module.agent_embedding)
-    print("Failed Elements...", data_loader.dataset.get_failures())
 
 def compute_kl_loss(net_outputs, mask_len):
 
@@ -1170,30 +1058,26 @@ def get_loaders(args):
         num_workers=args['train']['num_workers'],
         pin_memory=True,
         collate_fn=collate_fn,
-        drop_last=True
+        drop_last=False
     )
     return train_loader, test_loader
 
 
-@hydra.main(config_path="../config/agent_pred_graph", config_name="config_default_large_excl_task")
+@hydra.main(config_path="..", config_name="inference")
 def main(cfg: DictConfig):
     config = cfg
     print("Config")
     print(OmegaConf.to_yaml(cfg))
-    # ipdb.set_trace()
+
 
     # assert not (cfg.model.predict_edge_change)
     assert cfg['model']['exclusive_edge']
 
     cfg.model.input_goal = False
 
-    if cfg.train.overfit:
-        cfg.train.batch_size = 1
-    # cfg.num_gpus = torch.cuda.device_count()
     
     train_loader, test_loader = get_loaders(config)
     config.model.num_task_preds = len(train_loader.dataset.graph_helper.task_graph_list)
-    data_item = train_loader.dataset[0]
     # ipdb.set_trace()
     # if config.model.input_goal:
 
@@ -1221,108 +1105,35 @@ def main(cfg: DictConfig):
         'task': criterion_task,
         'mask': criterion_mask
     }
+
     if config.model.predict_category:
         criterions['category'] = criterion_task
-    if config.inference:
-        logger = LoggerSteps(config, log_steps=False)
-        print("Saving results at")
-        print(logger.results_path)
-        # ipdb.set_trace()
-        inference(
-            test_loader,
-            model,
-            config,
-            logger,
-            criterions,
-            args.inference_posterior
-        )
-    else:
-        optimizer = optim.Adam(model.parameters(), lr=config['train']['lr'])
-        print("Failures: ", train_loader.dataset.get_failures())
+    
+    logger = LoggerSteps(config, log_steps=False)
+    logger.results_path = 'results_inference/{}'.format(config.name_log)
+        
 
-        logger = LoggerSteps(config, log_steps=config.logging)
+    inference(
+        test_loader,
+        model,
+        config,
+        logger,
+        criterions,
+        True
+    )
 
-        if config.logging:
-            logger.save_model(0, model, optimizer)
+    inference(
+        test_loader,
+        model,
+        config,
+        logger,
+        criterions,
+        False
+    )
+    # ipdb.set_trace()
 
-        # evaluate(test_loader, train_loader, model, 0, config, logger, criterions)
-        # ipdb.set_trace()
-        if not config.model.autoencoder_type == 'pure_autoencoder':
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                0,
-                config,
-                logger,
-                criterions,
-                use_posterior=False
-            )
 
-        evaluate(
-            test_loader,
-            train_loader,
-            model,
-            0,
-            config,
-            logger,
-            criterions,
-            use_posterior=True
-        )
-        # ipdb.set_trace()
-        for epoch in range(config['train']['epochs']):
-            # ipdb.set_trace()
-            train_epoch(
-                train_loader,
-                model,
-                epoch,
-                config,
-                optimizer,
-                logger,
-                criterions
-            )
 
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                epoch,
-                config,
-                logger,
-                criterions,
-                use_posterior=False
-            )
-
-            evaluate(
-                test_loader,
-                train_loader,
-                model,
-                epoch,
-                config,
-                logger,
-                criterions,
-                use_posterior=True
-            )
-            if epoch % 10 == 0:
-                inference(
-                    test_loader,
-                    model,
-                    config,
-                    logger,
-                    criterions,
-                    True
-                )
-
-                inference(
-                    test_loader,
-                    model,
-                    config,
-                    logger,
-                    criterions,
-                    False
-                )
-            if epoch % config.log.save_every == 0 and config.logging:
-                logger.save_model(epoch, model, optimizer)
 
 
 if __name__ == '__main__':

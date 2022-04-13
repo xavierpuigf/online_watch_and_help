@@ -578,6 +578,7 @@ class GraphPredNetworkVAETask3(nn.Module):
                 pred_mask = self.mask_pred(z_and_input)[..., 0]
         else:
             pred_mask = torch.ones_like(inputs['task_graph']['mask_task_graph'])
+        #print("MASK ", pred_mask.shape)
 
         # ipdb.set_trace()
 
