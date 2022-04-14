@@ -486,28 +486,30 @@ class GraphPredNetworkVAETask3(nn.Module):
         
         # ipdb.set_trace()
 
-        # if not inference:
-        # ONLY USE THIS FOR NON INFERENCE
-        # We need the GT graph to understand the embedding
-        end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
-        # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
-        
+        if not inference:
+            # ONLY USE THIS FOR NON INFERENCE
+            # We need the GT graph to understand the embedding
+            end_task = F.one_hot(inputs['task_graph']['gt_task_graph'].long(), self.max_counts).float()
+            # end_task_masked = end_task[:, None, ...].repeat(1, T, 1, 1) * inputs['task_graph']['mask_task_graph'][..., None]
+            
 
-        if self.args['state_encoder'] == 'TF':
-            end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
+            if self.args['state_encoder'] == 'TF':
+                end_task_transformer = self.task_z_encoder(end_task[:, None, ...])[:, 0]
 
-            # B x T x D we just take one embedding
-            encoded_goal_task = end_task_transformer[:, 0, :]
+                # B x T x D we just take one embedding
+                encoded_goal_task = end_task_transformer[:, 0, :]
+            else:
+                # Index 0 in time
+                end_task_transformer = self.task_z_encoder(end_task[:, None, ...])
+
+                # B x T x D we just take one embedding
+                encoded_goal_task = end_task_transformer[:, 0]
+
+            q_post = self.posterior(encoded_goal_task)
+            if self.predict_category:
+                predicted_category = self.category_pred(encoded_goal_task)
         else:
-            # Index 0 in time
-            end_task_transformer = self.task_z_encoder(end_task[:, None, ...])
-
-            # B x T x D we just take one embedding
-            encoded_goal_task = end_task_transformer[:, 0]
-
-        q_post = self.posterior(encoded_goal_task)
-        if self.predict_category:
-            predicted_category = self.category_pred(encoded_goal_task)
+            predicted_category = torch.zeros((B, self.num_categories))
             
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 

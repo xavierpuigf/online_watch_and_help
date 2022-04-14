@@ -895,6 +895,119 @@ def obtain_graph_from_graph_dict(graph_helper, graphs):
     return [info]            
 
 
+def prepare_graph_for_task_model_diff(graphs, observations, program_hist, args_config, graph_helper, batch_repeat=1):
+    # Creates a task tensor so that it can be ingested by the model predicting tasks
+
+    max_tsteps = args_config['model']['max_tsteps']
+    obs_ids = None
+    attributes_include = ['class_objects', 'states_objects', 'object_coords', 'mask_object', 'node_ids', 'mask_obs_node']
+    attributes_include += ['edge_tuples', 'edge_classes', 'mask_edge']
+    time_graph = {attr_name: [] for attr_name in attributes_include}
+    time_graph['mask_close'] = []
+
+    ##################
+    # Build graph
+    it = 0
+    task_graphs = []
+
+    for graph in graphs:
+        graph_info, _ = graph_helper.build_graph(
+                        graph, character_id=1, include_edges=True, 
+                        obs_ids=observations[it], relative_coords=args_config.model.relative_coords,
+                        unique_from=args_config.model.exclusive_edge)
+        
+        # it += 1
+        # for attribute_name in attributes_include:
+        #     time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
+        
+        # # Build closeness and goal mask
+        # close_rel_id = graph_helper.relation_dict.get_id('CLOSE')
+        # close_nodes = list(graph_info['edge_tuples'][graph_info['edge_classes'] == close_rel_id])
+        
+        # mask_close = np.zeros(graph_info['class_objects'].shape)
+        # mask_goal = np.zeros(graph_info['class_objects'].shape) 
+
+        # # fill up the closeness mask
+        # if len(close_nodes) > 0:
+        #     indexe = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
+        #     if len(indexe) > 0:
+        #         mask_close[np.array(indexe)] = 1.0
+
+        # time_graph['mask_close'].append(torch.tensor(mask_close))
+        task_graphs.append(graph_helper.build_task_graph(graph_info))
+    # batch graph
+
+    # for attribute_name in time_graph.keys():
+    #     unpadded_tensor = torch.cat([item[None, :] for item in time_graph[attribute_name]]).float()
+    #     time_graph[attribute_name] = unpadded_tensor[None, :]
+        # print(attribute_name, unpadded_tensor.shape)
+    # ipdb.set_trace()
+    ####################
+
+    task_graph_time = torch.cat([torch.tensor(tg, dtype=torch.int8)[None, :] for tg in task_graphs])
+
+    node_ids = graph_info['node_ids']
+    indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
+
+    ##################
+    # Build program
+    # We will start with a No-OP action
+    program_batch = {
+        'action': [],
+        'obj1': [],
+        'obj2': [],
+        'indobj1': [],
+        'indobj2': [],
+    }
+
+    for it, instr in enumerate(program_hist):
+        
+        # we want to add an ending action
+        # if it >= max_tsteps - 1:
+        #     break
+        instr_item = graph_helper.actionstr2index(instr)
+        program_batch['action'].append(instr_item[0])
+        program_batch['obj1'].append(instr_item[1])
+        program_batch['obj2'].append(instr_item[2])
+        try:
+            program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
+            program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
+        except:
+            #print("Index", index, program, it)
+            raise Exception
+    
+    if False:
+        program_batch['action'].append(args_config.model.max_actions  - 1)
+        program_batch['obj1'].append(-1)
+        program_batch['obj2'].append(-1)
+        program_batch['indobj1'].append(indexgraph2ind[-1])
+        program_batch['indobj2'].append(indexgraph2ind[-1])
+
+    # batch program
+    for prog_key, prog_val in program_batch.items():
+        program_batch[prog_key] = torch.cat([torch.tensor(prog_val)[None, :] for _ in range(batch_repeat)])
+    ######################
+
+
+    num_tsteps = program_batch['action'].shape[-1]
+
+    length_mask = torch.cat([torch.ones(num_tsteps)[None, :] for _ in range(batch_repeat)])
+    # ipdb.set_trace()
+    task_graph_time = torch.cat([task_graph_time[None, :] for _ in range(batch_repeat)])
+    init_graph_time = task_graph_time[:, :1, ...]
+    task_graph_time -= init_graph_time
+    task_graph_time = torch.maximum(task_graph_time, torch.zeros_like(task_graph_time))
+    mask_task_graph = task_graph_time != 0
+
+
+    inputs = {
+        'program': program_batch,
+        'graph': time_graph,
+        'task_graph': {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graph},
+        'mask_len': length_mask
+    }
+    return inputs
+
 def prepare_graph_for_task_model(graphs, observations, program_hist, args_config, graph_helper, batch_repeat=1):
     # Creates a task tensor so that it can be ingested by the model predicting tasks
 
