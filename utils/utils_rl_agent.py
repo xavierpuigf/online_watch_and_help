@@ -312,14 +312,19 @@ class GraphHelper:
 
         return task_graph_dict, task_graph_list
 
-    def get_task_graph(self, task_graph, mask=None):
+    def get_task_graph(self, task_graph, mask=None, use_dict=False):
         results = []
+        if use_dict:
+            results = {}
         for i in range(int(task_graph.shape[0])):
             if task_graph[i] != 0:
                 if mask is None or mask[i] != 0:
                     graph_tuple = self.task_graph_list[i]
                     graph_names = self.task_graph_dict[graph_tuple][0]
-                    results.append("{} - {}: {}".format(graph_names[0], graph_names[1], task_graph[i]))
+                    if use_dict:
+                        results[(graph_names[0], graph_names[1])] = int(task_graph[i])
+                    else:
+                        results.append("{} - {}: {}".format(graph_names[0], graph_names[1], task_graph[i]))
         return results
 
     def print_task_graph(self, task_graph, mask=None):

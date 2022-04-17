@@ -994,15 +994,16 @@ def prepare_graph_for_task_model_diff(graphs, observations, program_hist, args_c
     length_mask = torch.cat([torch.ones(num_tsteps)[None, :] for _ in range(batch_repeat)])
     # ipdb.set_trace()
     task_graph_time = torch.cat([task_graph_time[None, :] for _ in range(batch_repeat)])
-    init_graph_time = task_graph_time[:, :1, ...]
+    init_graph_time = task_graph_time[:, :1, ...].clone()
     task_graph_time -= init_graph_time
     task_graph_time = torch.maximum(task_graph_time, torch.zeros_like(task_graph_time))
     mask_task_graph = task_graph_time != 0
 
-
+    
     inputs = {
         'program': program_batch,
         'graph': time_graph,
+        'input_task_graph': init_graph_time,
         'task_graph': {'task_graph': task_graph_time, 'mask_task_graph': mask_task_graph},
         'mask_len': length_mask
     }

@@ -31,6 +31,45 @@ from utils import utils_goals
 from utils import utils_exception
 import torch
 
+info_objects = {
+        "objects_inside": [
+          "bathroomcabinet",
+          "kitchencabinet",
+          "cabinet",
+          "fridge",
+          "stove",
+          "dishwasher",
+          "microwave"],
+        "objects_surface": ["bench",
+                             "cabinet",
+                             "chair",
+                             "coffeetable",
+                             "desk",
+                             "kitchencounter",
+                             "kitchentable",
+                             "nightstand",
+                             "sofa"],
+        "objects_grab": [
+                         "apple",
+                         "book",
+                         "coffeepot",
+                         "cupcake",
+                         "cutleryfork",
+                         "juice",
+                         "pancake",
+                         "plate",
+                         "poundcake",
+                         "pudding",
+                         "remotecontrol",
+                         "waterglass",
+                         "whippedcream",
+                         "wine",
+                         "wineglass"],
+        "others": ["character"]
+
+    }
+
+
 
 def get_class_mode(agent_args):
     mode_str = "{}_opencost{}_closecost{}_walkcost{}_forgetrate{}".format(
@@ -44,74 +83,84 @@ def get_class_mode(agent_args):
 
 
 def get_edge_class(pred, t, source="pred"):
+    # index 0 has pred, index 1 has mask, index 2 has input
+
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    t = min(t, len(pred["edge_pred"]) - 1)
-    edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
-    pred_edge_names = pred["edge_names"]
-    pred_nodes = pred["nodes"]
-    pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
-    pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
+    t = min(t, len(pred) - 1)
+    if source == 'pred':
+        curr_task_dict = pred[t][0]
+    else:
+        curr_task_dict = pred[t][2]  
 
-    # edge_prob = pred_edge_prob[t]
-    # edge_pred = np.argmax(edge_prob, 1)
+    # which edge to use?
+    return {'{}_{}_{}'.format(get_pred_name(obj2), obj1, obj2): num for (obj1, obj2), num in curr_task_dict.items()}
 
-    edge_pred_class = {}
+    # edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
+    # pred_edge_names = pred["edge_names"]
+    # pred_nodes = pred["nodes"]
+    # pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
+    # pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
 
-    num_edges = len(edge_pred)
-    # print(pred_from_ids[t], num_edges)
-    for edge_id in range(num_edges):
-        from_id = pred_from_ids[t][edge_id]
-        to_id = pred_to_ids[t][edge_id]
-        from_node_name = pred_nodes[from_id]
-        to_node_name = pred_nodes[to_id]
-        # if object_name in from_node_name or object_name in to_node_name:
-        edge_name = pred_edge_names[edge_pred[edge_id]]
-        if to_node_name.split(".")[1] == "-1":
-            continue
-        if edge_name in ["inside", "on"]:  # disregard room locations + plate
-            if to_node_name.split(".")[0] in [
-                "kitchen",
-                "livingroom",
-                "bedroom",
-                "bathroom",
-                "plate",
-            ]:
-                continue
-            if from_node_name.split(".")[0] in [
-                "kitchen",
-                "livingroom",
-                "bedroom",
-                "bathroom",
-                "character",
-            ]:
-                continue
-        else:
-            continue
-        # if from_node_name.split('.')[0] not in [
-        #     'apple',
-        #     'cupcake',
-        #     'plate',
-        #     'waterglass',
-        # ]:
-        #     continue
+    # # edge_prob = pred_edge_prob[t]
+    # # edge_pred = np.argmax(edge_prob, 1)
 
-        # if from_node_name.split('.')[0]
+    # edge_pred_class = {}
 
-        # # TODO: need to infer the correct edge class
-        # if 'table' in to_node_name.split('.')[0]:
-        #     ipdb.set_trace()
-        #     edge_name = 'on'
+    # num_edges = len(edge_pred)
+    # # print(pred_from_ids[t], num_edges)
+    # for edge_id in range(num_edges):
+    #     from_id = pred_from_ids[t][edge_id]
+    #     to_id = pred_to_ids[t][edge_id]
+    #     from_node_name = pred_nodes[from_id]
+    #     to_node_name = pred_nodes[to_id]
+    #     # if object_name in from_node_name or object_name in to_node_name:
+    #     edge_name = pred_edge_names[edge_pred[edge_id]]
+    #     if to_node_name.split(".")[1] == "-1":
+    #         continue
+    #     if edge_name in ["inside", "on"]:  # disregard room locations + plate
+    #         if to_node_name.split(".")[0] in [
+    #             "kitchen",
+    #             "livingroom",
+    #             "bedroom",
+    #             "bathroom",
+    #             "plate",
+    #         ]:
+    #             continue
+    #         if from_node_name.split(".")[0] in [
+    #             "kitchen",
+    #             "livingroom",
+    #             "bedroom",
+    #             "bathroom",
+    #             "character",
+    #         ]:
+    #             continue
+    #     else:
+    #         continue
+    #     # if from_node_name.split('.')[0] not in [
+    #     #     'apple',
+    #     #     'cupcake',
+    #     #     'plate',
+    #     #     'waterglass',
+    #     # ]:
+    #     #     continue
 
-        edge_class = "{}_{}_{}".format(
-            edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
-        )
-        # print(from_node_name, to_node_name, edge_name)
-        if edge_class not in edge_pred_class:
-            edge_pred_class[edge_class] = 1
-        else:
-            edge_pred_class[edge_class] += 1
-    return edge_pred_class
+    #     # if from_node_name.split('.')[0]
+
+    #     # # TODO: need to infer the correct edge class
+    #     # if 'table' in to_node_name.split('.')[0]:
+    #     #     ipdb.set_trace()
+    #     #     edge_name = 'on'
+
+    #     edge_class = "{}_{}_{}".format(
+    #         edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
+    #     )
+    #     # print(from_node_name, to_node_name, edge_name)
+    #     if edge_class not in edge_pred_class:
+    #         edge_pred_class[edge_class] = 1
+    #     else:
+    #         edge_pred_class[edge_class] += 1
+    # return edge_pred_class
 
 
 def get_class_from_state(state):
@@ -230,76 +279,60 @@ def compute_dist_instance(init_state, curr_state, subgoal_instance):
             dist += 1
     return dist
 
+def get_pred_name(container_name):
+    pred_name = 'on'
+    if container_name in info_objects['objects_inside']:
+        pred_name = 'inside'
+    return pred_name
 
-def get_edge_instance(pred, t, source="pred"):
+
+def get_edge_instance(pred, class2id, t, source='pred'):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    t = min(t, len(pred["edge_pred"]) - 1)
-    edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
-    pred_edge_names = pred["edge_names"]
-    pred_nodes = pred["nodes"]
-    pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
-    pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
+    
+    t = min(t, len(pred) - 1)
 
-    # edge_prob = pred_edge_prob[t]
-    # edge_pred = np.argmax(edge_prob, 1)
+    # Note: we will assume that all predicates should be achieved, some of the predicates
+    # will be already correct, but this should make sure we don't undo tasks that 
+    # are already correct
 
+    preds = pred[t][0]
+    input_graph = pred[t][2]
     edge_pred_ins = {}
+    # ipdb.set_trace()
+    for predicate_name, count in preds.items():
+        # print(cpred)
+        # pred_name, count = cpred.split(':')
+        obj_name, container_name = predicate_name
+        obj_name, container_name = obj_name.strip(), container_name.strip()
 
-    num_edges = len(edge_pred)
-    # print(pred_from_ids[t], num_edges)
-    for edge_id in range(num_edges):
-        from_id = pred_from_ids[t][edge_id]
-        to_id = pred_to_ids[t][edge_id]
-        from_node_name = pred_nodes[from_id]
-        to_node_name = pred_nodes[to_id]
-        # if object_name in from_node_name or object_name in to_node_name:
-        edge_name = pred_edge_names[edge_pred[edge_id]]
-        if to_node_name.split(".")[1] == "-1":
-            continue
-        if edge_name in ["inside", "on"]:  # disregard room locations + plate
-            if to_node_name.split(".")[0] in [
-                "kitchen",
-                "livingroom",
-                "bedroom",
-                "bathroom",
-                "plate",
+
+        pred_name = get_pred_name(container_name)
+        if obj_name == 'character' or container_name in [
+                'kitchen',
+                'livingroom',
+                'bedroom',
+                'bathroom',
+                'plate',
             ]:
-                continue
-            if from_node_name.split(".")[0] in [
-                "kitchen",
-                "livingroom",
-                "bedroom",
-                "bathroom",
-                "character",
-            ]:
-                continue
-        else:
             continue
-        # if from_node_name.split('.')[0] not in [
-        #     'apple',
-        #     'cupcake',
-        #     'plate',
-        #     'waterglass',
-        # ]:
-        #     continue
 
-        edge_class = "{}_{}_{}".format(
-            edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
-        )
-
-        # print(from_node_name, to_node_name, edge_name)
-        if edge_class not in edge_pred_ins:
-            edge_pred_ins[edge_class] = {
-                "count": 0,
-                "grab_obj_ids": [],
-                "container_ids": [int(to_node_name.split(".")[1])],
+        if obj_name in class2id:
+            container_id = class2id[container_name][0]
+            pred_name = f'{pred_name}_{obj_name}_{container_id}'
+            edge_pred_ins[pred_name] = {
+                'count': count,
+                'grab_obj_ids': class2id[obj_name],
+                'container_ids': [container_id],
             }
-        edge_pred_ins[edge_class]["count"] += 1
-        edge_pred_ins[edge_class]["grab_obj_ids"].append(
-            int(from_node_name.split(".")[1])
-        )
+        else:
+            # Wrong prediction, this prediction did not exist
+            pass
+    if len(edge_pred_ins) == 0:
+        ipdb.set_trace()
     return edge_pred_ins
+
+
 
 
 def get_subgoals_from_init_state(state):
@@ -501,7 +534,9 @@ def get_edge_instance_from_state(state):
 
 
 def aggregate_multiple_pred(preds, t, change=False):
-    t = min(t, len(preds[0]["edge_pred"]) - 1)
+    print("Aggregating preds")
+    # ipdb.set_trace()
+    t = min(t, len(preds[0]) - 1)
     edge_classes = []
     edge_pred_class_all = {}
     N_preds = len(preds)
@@ -586,7 +621,8 @@ def edge2name(edge):
 
 def pred_main_agent_plan(
     process_id,
-    pred_graph,
+    pred_task,
+    class2id,
     t,
     pred_actions_fn,
     obs,
@@ -595,7 +631,7 @@ def pred_main_agent_plan(
     agent_id,
     res,
 ):
-    inferred_goal = get_edge_instance(pred_graph, t)
+    inferred_goal = get_edge_instance(pred_task, class2id, t)
     print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
@@ -616,10 +652,13 @@ def pred_main_agent_plan(
             opponent_subgoal = opponent_info[1 - agent_id]["subgoals"][0][0]
         else:
             opponent_subgoal = None
+        res[process_id] = (opponent_subgoal, plan, plan_states, plan_cost)
+    else:
+        # This particle has not plan
+        res[process_id] = (None, [], [], 0.)
     # print('main pred {}:'.format(process_id), inferred_goal)
     # print('main plan {}:'.format(process_id), plan)
-    res[process_id] = (opponent_subgoal, plan, plan_states, plan_cost)
-
+    
 
 def get_helping_plan(
     process_id,
@@ -1051,6 +1090,15 @@ def main(cfg: DictConfig):
                 max_plan_length = 10
                 pred_main_plan_length = 15
                 steps_since_last_prediction = 0
+
+
+                # Build mapping from class 2 id
+                class2id = {}
+                for node in curr_graph['nodes']:
+                    if node['class_name'] not in class2id:
+                        class2id[node['class_name']] = []
+                    class2id[node['class_name']].append(node['id'])
+
                 while steps < max_steps:
                     steps += 1
 
@@ -1142,43 +1190,29 @@ def main(cfg: DictConfig):
                                 history_action,
                                 args_pred,
                                 graph_helper,
+                                batch_repeat=num_samples
                             )
                             with torch.no_grad():
-                                print("FORWARD")
                                 output_func = model(inputs_func, inference=True)
+                            # ipdb.set_trace()
+                            # First particle, first timestep, since all the particles have the same time graph
+                            task_graph_input = graph_helper.get_task_graph(inputs_func['input_task_graph'][0, 0], use_dict=True)
+                            task_result = []
+                            num_tsteps = output_func['pred_graph'].shape[1]
+                            pred_graph = output_func['pred_graph'].argmax(-1)
+                            for ind in range(num_samples):
+                                task_graphs = []
+                                for tstep in range(num_tsteps):
+                                    try:
+                                        curr_task_graph = graph_helper.get_task_graph(pred_graph[ind, tstep], use_dict=True)
+                                    except:
+                                        ipdb.set_trace()
+                                    # ipdb.set_trace()
+                                    #curr_mask_task = mask_task_graph[ind, tstep]
+                                    curr_mask_task = None
+                                    task_graphs.append((curr_task_graph, curr_mask_task, task_graph_input))
+                                task_result.append(task_graphs)
 
-                            edge_dict = utils_models_wb.build_gt_edge(
-                                inputs_func["graph"], graph_helper, exclusive_edge=True
-                            )
-                            b, t, n = inputs_func["graph"]["mask_obs_node"].shape
-                            pred_edge = output_func["edges"].reshape([b, t, n, n])
-                            graph_result = utils_models_wb.obtain_graph_3_2(
-                                graph_helper,
-                                inputs_func["graph"],
-                                torch.nn.functional.softmax(pred_edge, dim=-1)
-                                .cpu()
-                                .numpy(),
-                                output_func["states"].cpu(),
-                                inputs_func["graph"]["mask_obs_node"],
-                                [
-                                    torch.nn.functional.softmax(
-                                        output_func["node_change"], dim=-1
-                                    )
-                                    .cpu()
-                                    .numpy(),
-                                    torch.nn.functional.one_hot(
-                                        edge_dict["gt_edges"], n
-                                    )
-                                    .cpu()
-                                    .numpy(),
-                                ],
-                                inputs_func["mask_len"],
-                                include_last=False,
-                                samples=num_samples,
-                            )
-                        # ipdb.set_trace()
-
-                        # get helper action
                         print("planning for the helper agent")
                         action_freq = {}
                         opponent_subgoal_freq = {}
@@ -1187,9 +1221,11 @@ def main(cfg: DictConfig):
                         if args.num_processes == 0:
                             res = {}
                             for index in range(num_samples):
+
                                 pred_main_agent_plan(
                                     index,
-                                    graph_result[index],
+                                    task_result[index],
+                                    class2id,
                                     steps - 3,
                                     arena.pred_actions,
                                     curr_obs,
@@ -1211,7 +1247,8 @@ def main(cfg: DictConfig):
                                         target=pred_main_agent_plan,
                                         args=(
                                             process_id,
-                                            graph_result[process_id],
+                                            task_result[process_id],
+                                            class2id,
                                             steps - 3,
                                             arena.pred_actions,
                                             curr_obs,
@@ -1237,7 +1274,7 @@ def main(cfg: DictConfig):
                             plan_cost,
                         ) in res.items():
                             proposals[pred_id] = {
-                                "pred": graph_result[pred_id],
+                                "pred": task_result[pred_id],
                                 "subgoal": subgoal,
                                 "plan": plan,
                                 "plan_states": plan_states,
@@ -1277,7 +1314,7 @@ def main(cfg: DictConfig):
                                                 ] = estimated_steps
 
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    graph_result[pred_id]
+                                        task_result[pred_id]
                                 )
                                 all_edges += edge_list
                                 estimated_steps = 100
@@ -1406,11 +1443,11 @@ def main(cfg: DictConfig):
                         # ======================================================
                         # get helper agent's action
 
-                        saved_info["graph_results"].append(graph_result)
+                        saved_info["graph_results"].append(task_result)
                         print("gt goal:", gt_goal)
                         print("pred goal")
                         edge_pred_class_estimated = aggregate_multiple_pred(
-                            graph_result, steps - 3, change=True
+                                task_result, steps - 3, change=True
                         )
                         for edge_class, count in edge_pred_class_estimated.items():
                             if (
@@ -1674,10 +1711,10 @@ def main(cfg: DictConfig):
                                             last_goal_edge,
                                         )
                             last_goal_edge = last_goal_edge_curr
-                            ipdb.set_trace()
+                            # ipdb.set_trace()
 
                             edge_pred_class_estimated = aggregate_multiple_pred(
-                                graph_result, steps - 3, change=True
+                                    task_result, steps - 3, change=True
                             )
 
                             # for goal_object in goal_objects:
