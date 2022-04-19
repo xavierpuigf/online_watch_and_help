@@ -10,7 +10,7 @@ mode: ""
 record_dir: ""
 base_port: 8081
 use_editor: False
-num_processes: 10
+num_processes: 20
 num_samples: 10
 alpha: 1.0
 beta: 1.0

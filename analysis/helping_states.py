@@ -1429,32 +1429,32 @@ def main(cfg: DictConfig):
                                 edge_steps[edge] > 1 + 1e-6
                                 and edge not in curr_edge_list
                             ):
-                                if tv and (
-                                    not (
-                                        "chips" in edge
-                                        or "remotecontrol" in edge
-                                        or "condimentbottle" in edge
-                                        or "condimentshaker" in edge
-                                    )
-                                ):
-                                    continue
-                                if food and (
-                                    not (
-                                        "salmon" in edge
-                                        or "apple" in edge
-                                        or "cupcake" in edge
-                                        or "pudding" in edge
-                                    )
-                                ):
-                                    continue
-                                if dish and (
-                                    not (
-                                        "plate" in edge
-                                        or "fork" in edge
-                                        or "glass" in edge
-                                    )
-                                ):
-                                    continue
+                                # if tv and (
+                                #     not (
+                                #         "chips" in edge
+                                #         or "remotecontrol" in edge
+                                #         or "condimentbottle" in edge
+                                #         or "condimentshaker" in edge
+                                #     )
+                                # ):
+                                #     continue
+                                # if food and (
+                                #     not (
+                                #         "salmon" in edge
+                                #         or "apple" in edge
+                                #         or "cupcake" in edge
+                                #         or "pudding" in edge
+                                #     )
+                                # ):
+                                #     continue
+                                # if dish and (
+                                #     not (
+                                #         "plate" in edge
+                                #         or "fork" in edge
+                                #         or "glass" in edge
+                                #     )
+                                # ):
+                                #     continue
                                 goal_edges.append(edge)
                         # ipdb.set_trace()
 

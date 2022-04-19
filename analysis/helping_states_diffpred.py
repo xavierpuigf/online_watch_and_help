@@ -32,43 +32,45 @@ from utils import utils_exception
 import torch
 
 info_objects = {
-        "objects_inside": [
-          "bathroomcabinet",
-          "kitchencabinet",
-          "cabinet",
-          "fridge",
-          "stove",
-          "dishwasher",
-          "microwave"],
-        "objects_surface": ["bench",
-                             "cabinet",
-                             "chair",
-                             "coffeetable",
-                             "desk",
-                             "kitchencounter",
-                             "kitchentable",
-                             "nightstand",
-                             "sofa"],
-        "objects_grab": [
-                         "apple",
-                         "book",
-                         "coffeepot",
-                         "cupcake",
-                         "cutleryfork",
-                         "juice",
-                         "pancake",
-                         "plate",
-                         "poundcake",
-                         "pudding",
-                         "remotecontrol",
-                         "waterglass",
-                         "whippedcream",
-                         "wine",
-                         "wineglass"],
-        "others": ["character"]
-
-    }
-
+    "objects_inside": [
+        "bathroomcabinet",
+        "kitchencabinet",
+        "cabinet",
+        "fridge",
+        "stove",
+        "dishwasher",
+        "microwave",
+    ],
+    "objects_surface": [
+        "bench",
+        "cabinet",
+        "chair",
+        "coffeetable",
+        "desk",
+        "kitchencounter",
+        "kitchentable",
+        "nightstand",
+        "sofa",
+    ],
+    "objects_grab": [
+        "apple",
+        "book",
+        "coffeepot",
+        "cupcake",
+        "cutleryfork",
+        "juice",
+        "pancake",
+        "plate",
+        "poundcake",
+        "pudding",
+        "remotecontrol",
+        "waterglass",
+        "whippedcream",
+        "wine",
+        "wineglass",
+    ],
+    "others": ["character"],
+}
 
 
 def get_class_mode(agent_args):
@@ -88,13 +90,16 @@ def get_edge_class(pred, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
     t = min(t, len(pred) - 1)
-    if source == 'pred':
+    if source == "pred":
         curr_task_dict = pred[t][0]
     else:
-        curr_task_dict = pred[t][2]  
+        curr_task_dict = pred[t][2]
 
     # which edge to use?
-    return {'{}_{}_{}'.format(get_pred_name(obj2), obj1, obj2): num for (obj1, obj2), num in curr_task_dict.items()}
+    return {
+        "{}_{}_{}".format(get_pred_name(obj2), obj1, obj2): num
+        for (obj1, obj2), num in curr_task_dict.items()
+    }
 
     # edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
     # pred_edge_names = pred["edge_names"]
@@ -279,21 +284,23 @@ def compute_dist_instance(init_state, curr_state, subgoal_instance):
             dist += 1
     return dist
 
+
 def get_pred_name(container_name):
-    pred_name = 'on'
-    if container_name in info_objects['objects_inside']:
-        pred_name = 'inside'
+    pred_name = "on"
+    room_list = ["kitchen", "livingroom", "bedroom", "bathroom"]
+    if container_name in info_objects["objects_inside"] or container_name in room_list:
+        pred_name = "inside"
     return pred_name
 
 
-def get_edge_instance(pred, class2id, t, source='pred'):
+def get_edge_instance(pred, class2id, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
-    
+
     t = min(t, len(pred) - 1)
 
     # Note: we will assume that all predicates should be achieved, some of the predicates
-    # will be already correct, but this should make sure we don't undo tasks that 
+    # will be already correct, but this should make sure we don't undo tasks that
     # are already correct
 
     preds = pred[t][0]
@@ -306,33 +313,30 @@ def get_edge_instance(pred, class2id, t, source='pred'):
         obj_name, container_name = predicate_name
         obj_name, container_name = obj_name.strip(), container_name.strip()
 
-
         pred_name = get_pred_name(container_name)
-        if obj_name == 'character' or container_name in [
-                'kitchen',
-                'livingroom',
-                'bedroom',
-                'bathroom',
-                'plate',
-            ]:
+        if obj_name == "character" or container_name in [
+            "kitchen",
+            "livingroom",
+            "bedroom",
+            "bathroom",
+            "plate",
+        ]:
             continue
 
         if obj_name in class2id:
             container_id = class2id[container_name][0]
-            pred_name = f'{pred_name}_{obj_name}_{container_id}'
+            pred_name = f"{pred_name}_{obj_name}_{container_id}"
             edge_pred_ins[pred_name] = {
-                'count': count,
-                'grab_obj_ids': class2id[obj_name],
-                'container_ids': [container_id],
+                "count": count,
+                "grab_obj_ids": class2id[obj_name],
+                "container_ids": [container_id],
             }
         else:
             # Wrong prediction, this prediction did not exist
             pass
-    if len(edge_pred_ins) == 0:
-        ipdb.set_trace()
+    # if len(edge_pred_ins) == 0:
+    #     ipdb.set_trace()
     return edge_pred_ins
-
-
 
 
 def get_subgoals_from_init_state(state):
@@ -376,37 +380,28 @@ def get_subgoals_from_init_state(state):
     return subgoals
 
 
-def get_edge_instance_from_pred(pred):
+def get_edge_instance_from_pred(pred, class2id):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
 
-    edge_pred = pred["edge_pred"][-1]
-    pred_edge_names = pred["edge_names"]
-    pred_nodes = pred["nodes"]
-    pred_from_ids = pred["from_id"]
-    pred_to_ids = pred["to_id"]
-
-    # edge_prob = pred_edge_prob[t]
-    # edge_pred = np.argmax(edge_prob, 1)
+    preds = pred[-1][0]
+    input_graph = pred[-1][2]
 
     edge_pred_ins = {}
     edge_list = []
 
-    num_edges = len(edge_pred)
-    # print(pred_from_ids[t], num_edges)
-    for edge_id in range(num_edges):
-        from_id = pred_from_ids[-1][edge_id]
-        to_id = pred_to_ids[-1][edge_id]
-        from_node_name = pred_nodes[from_id].split(".")[0]
-        to_node_name = pred_nodes[to_id].split(".")[0]
-        from_node_id = int(pred_nodes[from_id].split(".")[1])
-        to_node_id = int(pred_nodes[to_id].split(".")[1])
-        edge_name = pred_edge_names[edge_pred[edge_id]]
+    for predicate_name, count in preds.items():
+        # print(cpred)
+        # pred_name, count = cpred.split(':')
+        from_node_name, to_node_name = predicate_name
+        from_node_name, to_node_name = from_node_name.strip(), to_node_name.strip()
 
-        if "hold" in edge_name:  # ignore left or right hand
-            edge_name = "offer"
-            # ipdb.set_trace()
-            # continue  # TODO: add handing over plan
+        edge_name = get_pred_name(to_node_name)
+
+        # if "hold" in edge_name:  # ignore left or right hand
+        #     edge_name = "offer"
+        #     # ipdb.set_trace()
+        #     # continue  # TODO: add handing over plan
 
         if edge_name in ["inside", "on"]:  # disregard room locations + plate
             if to_node_name in [
@@ -435,33 +430,29 @@ def get_edge_instance_from_pred(pred):
             continue
         elif edge_name in ["close"]:
             continue
-        # if from_node_name not in ['apple', 'cupcake', 'plate', 'waterglass']:
-        #     continue
 
-        edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
-        if edge_name == "offer":
-            if edge_class not in edge_pred_ins:
-                edge_pred_ins[edge_class] = {
-                    "count": 0,
-                    "grab_obj_ids": [],
-                    "container_ids": [from_id],
-                }
-            edge_pred_ins[edge_class]["count"] += 1
-            edge_pred_ins[edge_class]["grab_obj_ids"].append(to_node_id)
+        if from_node_name in class2id:
+            to_node_id = class2id[to_node_name][0]
+            edge_class = f"{edge_name}_{from_node_name}_{to_node_id}"
+            edge_pred_ins[edge_name] = {
+                "count": count,
+                "grab_obj_ids": class2id[from_node_name],
+                "container_ids": [to_node_id],
+            }
+            for from_node_id in class2id[from_node_name]:
+                edge_list.append(
+                    "{}_{}.{}_{}.{}".format(
+                        edge_name,
+                        from_node_name,
+                        from_node_id,
+                        to_node_name,
+                        to_node_id,
+                    )
+                )
         else:
-            if edge_class not in edge_pred_ins:
-                edge_pred_ins[edge_class] = {
-                    "count": 0,
-                    "grab_obj_ids": [],
-                    "container_ids": [to_id],
-                }
-            edge_pred_ins[edge_class]["count"] += 1
-            edge_pred_ins[edge_class]["grab_obj_ids"].append(from_node_id)
-        edge_list.append(
-            "{}_{}.{}_{}.{}".format(
-                edge_name, from_node_name, from_node_id, to_node_name, to_node_id
-            )
-        )
+            # Wrong prediction, this prediction did not exist
+            pass
+
     # print(edge_list)
     # ipdb.set_trace()
     return edge_pred_ins, edge_list
@@ -655,10 +646,10 @@ def pred_main_agent_plan(
         res[process_id] = (opponent_subgoal, plan, plan_states, plan_cost)
     else:
         # This particle has not plan
-        res[process_id] = (None, [], [], 0.)
+        res[process_id] = (None, [], [], 0.0)
     # print('main pred {}:'.format(process_id), inferred_goal)
     # print('main plan {}:'.format(process_id), plan)
-    
+
 
 def get_helping_plan(
     process_id,
@@ -977,7 +968,8 @@ def main(cfg: DictConfig):
             for it_agent, agent in enumerate(arena.agents):
                 agent.seed = (it_agent + current_tried * 2) * 5
 
-            try:
+            # try:
+            if True:
                 obs = arena.reset(episode_id)
                 init_state = obs[1]
                 arena.task_goal = None
@@ -1091,13 +1083,12 @@ def main(cfg: DictConfig):
                 pred_main_plan_length = 15
                 steps_since_last_prediction = 0
 
-
                 # Build mapping from class 2 id
                 class2id = {}
-                for node in curr_graph['nodes']:
-                    if node['class_name'] not in class2id:
-                        class2id[node['class_name']] = []
-                    class2id[node['class_name']].append(node['id'])
+                for node in curr_graph["nodes"]:
+                    if node["class_name"] not in class2id:
+                        class2id[node["class_name"]] = []
+                    class2id[node["class_name"]].append(node["id"])
 
                 while steps < max_steps:
                     steps += 1
@@ -1119,7 +1110,7 @@ def main(cfg: DictConfig):
                             print(
                                 get_edge_class(
                                     proposal["pred"],
-                                    len(proposal["pred"]["edge_pred"]) - 1,
+                                    len(proposal["pred"]) - 1,
                                 )
                             )
                             print(last_observed_main_action, proposal["plan"])
@@ -1184,33 +1175,45 @@ def main(cfg: DictConfig):
                         #     history_obs = [history_obs[-1:]]
                         #     history_action = [history_action[-1:]]
                         if history_action[-1] is not None:
-                            inputs_func = utils_models_wb.prepare_graph_for_task_model_diff(
-                                history_graph,
-                                history_obs,
-                                history_action,
-                                args_pred,
-                                graph_helper,
-                                batch_repeat=num_samples
+                            inputs_func = (
+                                utils_models_wb.prepare_graph_for_task_model_diff(
+                                    history_graph,
+                                    history_obs,
+                                    history_action,
+                                    args_pred,
+                                    graph_helper,
+                                    batch_repeat=num_samples,
+                                )
                             )
                             with torch.no_grad():
                                 output_func = model(inputs_func, inference=True)
                             # ipdb.set_trace()
                             # First particle, first timestep, since all the particles have the same time graph
-                            task_graph_input = graph_helper.get_task_graph(inputs_func['input_task_graph'][0, 0], use_dict=True)
+                            task_graph_input = graph_helper.get_task_graph(
+                                inputs_func["input_task_graph"][0, 0], use_dict=True
+                            )
                             task_result = []
-                            num_tsteps = output_func['pred_graph'].shape[1]
-                            pred_graph = output_func['pred_graph'].argmax(-1)
+                            num_tsteps = output_func["pred_graph"].shape[1]
+                            pred_graph = output_func["pred_graph"].argmax(-1)
                             for ind in range(num_samples):
                                 task_graphs = []
                                 for tstep in range(num_tsteps):
                                     try:
-                                        curr_task_graph = graph_helper.get_task_graph(pred_graph[ind, tstep], use_dict=True)
+                                        curr_task_graph = graph_helper.get_task_graph(
+                                            pred_graph[ind, tstep], use_dict=True
+                                        )
                                     except:
                                         ipdb.set_trace()
                                     # ipdb.set_trace()
-                                    #curr_mask_task = mask_task_graph[ind, tstep]
+                                    # curr_mask_task = mask_task_graph[ind, tstep]
                                     curr_mask_task = None
-                                    task_graphs.append((curr_task_graph, curr_mask_task, task_graph_input))
+                                    task_graphs.append(
+                                        (
+                                            curr_task_graph,
+                                            curr_mask_task,
+                                            task_graph_input,
+                                        )
+                                    )
                                 task_result.append(task_graphs)
 
                         print("planning for the helper agent")
@@ -1314,10 +1317,10 @@ def main(cfg: DictConfig):
                                                 ] = estimated_steps
                                 ipdb.set_trace()
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                        task_result[pred_id]
+                                    task_result[pred_id], class2id
                                 )
                                 all_edges += edge_list
-                                estimated_steps = 100
+                                estimated_steps = 100  # TODO: tune this
                                 for edge in edge_list:
                                     if edge not in edge_freq:
                                         edge_freq[edge] = 0
@@ -1336,7 +1339,7 @@ def main(cfg: DictConfig):
                             if edge_goal_name not in combined_edge_freq:
                                 combined_edge_freq[edge_goal_name] = 0
                             combined_edge_freq[edge_goal_name] += freq
-                        # prin(edge_freq)
+                        # print(edge_freq)
                         # ipdb.set_trace()
                     else:
                         steps_since_last_prediction += 1
@@ -1380,7 +1383,7 @@ def main(cfg: DictConfig):
                                                     edge_steps[edge] = []
                                                 edge_steps[edge].append(estimated_steps)
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    proposal["pred"]
+                                    proposal["pred"], class2id
                                 )
                                 # print(edge_list)
                                 # ipdb.set_trace()
@@ -1447,7 +1450,7 @@ def main(cfg: DictConfig):
                         print("gt goal:", gt_goal)
                         print("pred goal")
                         edge_pred_class_estimated = aggregate_multiple_pred(
-                                task_result, steps - 3, change=True
+                            task_result, steps - 3, change=True
                         )
                         for edge_class, count in edge_pred_class_estimated.items():
                             if (
@@ -1466,32 +1469,32 @@ def main(cfg: DictConfig):
                                 edge_steps[edge] > 1 + 1e-6
                                 and edge not in curr_edge_list
                             ):
-                                if tv and (
-                                    not (
-                                        "chips" in edge
-                                        or "remotecontrol" in edge
-                                        or "condimentbottle" in edge
-                                        or "condimentshaker" in edge
-                                    )
-                                ):
-                                    continue
-                                if food and (
-                                    not (
-                                        "salmon" in edge
-                                        or "apple" in edge
-                                        or "cupcake" in edge
-                                        or "pudding" in edge
-                                    )
-                                ):
-                                    continue
-                                if dish and (
-                                    not (
-                                        "plate" in edge
-                                        or "fork" in edge
-                                        or "glass" in edge
-                                    )
-                                ):
-                                    continue
+                                # if tv and (
+                                #     not (
+                                #         "chips" in edge
+                                #         or "remotecontrol" in edge
+                                #         or "condimentbottle" in edge
+                                #         or "condimentshaker" in edge
+                                #     )
+                                # ):
+                                #     continue
+                                # if food and (
+                                #     not (
+                                #         "salmon" in edge
+                                #         or "apple" in edge
+                                #         or "cupcake" in edge
+                                #         or "pudding" in edge
+                                #     )
+                                # ):
+                                #     continue
+                                # if dish and (
+                                #     not (
+                                #         "plate" in edge
+                                #         or "fork" in edge
+                                #         or "glass" in edge
+                                #     )
+                                # ):
+                                #     continue
                                 goal_edges.append(edge)
                         # ipdb.set_trace()
 
@@ -1600,7 +1603,11 @@ def main(cfg: DictConfig):
                                     init_state, curr_obs[1], goal_edges[pred_id]
                                 )
                                 if goal_edges[pred_id].endswith("init"):
-                                    if dist == 0:  # still in the initial location
+                                    if (
+                                        dist == 0
+                                        or estimated_steps
+                                        == 0  # TODO: check when dist !=0 but estimated_steps = 0
+                                    ):  # still in the initial location
                                         continue
                                     value = (
                                         -args.beta * estimated_steps - args.lam * dist
@@ -1625,16 +1632,16 @@ def main(cfg: DictConfig):
                                                 args.max_benefit,
                                             )
                                         )
-                                        * min(1, combined_edge_freq[edge_goal_name])
+                                        * min(1, edge_freq[goal_edges[pred_id]])
                                         - args.beta
                                         * estimated_steps_back
-                                        * max(0, 1 - combined_edge_freq[edge_goal_name])
+                                        * max(0, 1 - edge_freq[goal_edges[pred_id]])
                                         - args.lam * dist
                                     )
                                 if goal_edges[pred_id].endswith("init"):
                                     print(
                                         goal_edges[pred_id],
-                                        combined_edge_freq[edge_goal_name],
+                                        1,
                                         0,
                                         0,
                                         estimated_steps,
@@ -1644,7 +1651,7 @@ def main(cfg: DictConfig):
                                 else:
                                     print(
                                         goal_edges[pred_id],
-                                        combined_edge_freq[edge_goal_name],
+                                        edge_freq[goal_edges[pred_id]],
                                         edge_steps[goal_edges[pred_id]],
                                         estimated_steps,
                                         estimated_steps_back,
@@ -1714,7 +1721,7 @@ def main(cfg: DictConfig):
                             # ipdb.set_trace()
 
                             edge_pred_class_estimated = aggregate_multiple_pred(
-                                    task_result, steps - 3, change=True
+                                task_result, steps - 3, change=True
                             )
 
                             # for goal_object in goal_objects:
@@ -1778,7 +1785,7 @@ def main(cfg: DictConfig):
                             )
 
                     print("success:", infos["finished"])
-                    pdb.set_trace()
+                    # ipdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
@@ -1808,45 +1815,45 @@ def main(cfg: DictConfig):
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
 
-            except utils_exception.UnityException as e:
-                traceback.print_exc()
+            # except utils_exception.UnityException as e:
+            #     traceback.print_exc()
 
-                print("Unity exception")
-                arena.reset_env()
-                # ipdb.set_trace()
-                continue
+            #     print("Unity exception")
+            #     arena.reset_env()
+            #     # ipdb.set_trace()
+            #     continue
 
-            except utils_exception.ManyFailureException as e:
-                traceback.print_exc()
+            # except utils_exception.ManyFailureException as e:
+            #     traceback.print_exc()
 
-                print("ERRO HERE")
-                logging.exception("Many failure Error")
-                # print("OTHER ERROR")
-                logger.removeHandler(logger.handlers[0])
-                # exit()
-                # arena.reset_env()
-                print("Dione")
-                # ipdb.set_trace()
-                arena.reset_env()
-                continue
+            #     print("ERRO HERE")
+            #     logging.exception("Many failure Error")
+            #     # print("OTHER ERROR")
+            #     logger.removeHandler(logger.handlers[0])
+            #     # exit()
+            #     # arena.reset_env()
+            #     print("Dione")
+            #     # ipdb.set_trace()
+            #     arena.reset_env()
+            #     continue
 
-            except Exception as e:
-                with open(failure_file, "w+") as f:
-                    error_str = "Failure"
-                    error_str += "\n"
-                    stack_form = "".join(traceback.format_stack())
-                    error_str += stack_form
+            # except Exception as e:
+            #     with open(failure_file, "w+") as f:
+            #         error_str = "Failure"
+            #         error_str += "\n"
+            #         stack_form = "".join(traceback.format_stack())
+            #         error_str += stack_form
 
-                    f.write(error_str)
-                traceback.print_exc()
+            #         f.write(error_str)
+            #     traceback.print_exc()
 
-                logging.exception("Error")
-                print("OTHER ERROR")
-                logger.removeHandler(logger.handlers[0])
-                # exit()
-                arena.reset_env()
-                # ipdb.set_trace()
-                continue
+            #     logging.exception("Error")
+            #     print("OTHER ERROR")
+            #     logger.removeHandler(logger.handlers[0])
+            #     # exit()
+            #     arena.reset_env()
+            #     # ipdb.set_trace()
+            #     continue
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
             test_results[episode_id] = {"S": S[episode_id], "L": L[episode_id]}
