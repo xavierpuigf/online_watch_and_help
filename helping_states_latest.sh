@@ -7,7 +7,7 @@ export full_ck=$rootpath$ck
 #   hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
 
 CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
-    agent_pred_graph="config_vae0.001" num_processes=0 \
+    agent_pred_graph="config_vae0.001" num_processes=20 \
     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
 
 #

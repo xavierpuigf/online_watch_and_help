@@ -1603,7 +1603,11 @@ def main(cfg: DictConfig):
                                     init_state, curr_obs[1], goal_edges[pred_id]
                                 )
                                 if goal_edges[pred_id].endswith("init"):
-                                    if dist == 0:  # still in the initial location
+                                    if (
+                                        dist == 0
+                                        or estimated_steps
+                                        == 0  # TODO: check when dist !=0 but estimated_steps = 0
+                                    ):  # still in the initial location
                                         continue
                                     value = (
                                         -args.beta * estimated_steps - args.lam * dist
@@ -1781,7 +1785,7 @@ def main(cfg: DictConfig):
                             )
 
                     print("success:", infos["finished"])
-                    ipdb.set_trace()
+                    # ipdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
