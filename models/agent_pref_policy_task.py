@@ -468,7 +468,6 @@ class GraphPredNetworkVAETask3(nn.Module):
 
         # Take the graph at step 0 + Graph at steps 0 -- N-1
 
-
         if self.args.autoencoder_type == 'pure_autoencoder':
             task_graph_init = None
             # Let's encode the last step
@@ -509,7 +508,7 @@ class GraphPredNetworkVAETask3(nn.Module):
             if self.predict_category:
                 predicted_category = self.category_pred(encoded_goal_task)
         else:
-            predicted_category = torch.zeros((B, self.num_categories))
+            predicted_category = torch.zeros((B, self.num_categories)).to(inp_task_graph.device)
             
         if self.cond_prior:
             p_prior = self.prior_net(graph_output) 
@@ -599,6 +598,12 @@ class GraphPredNetworkVAETask3(nn.Module):
                 'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
         if self.predict_category:
             output['predict_category'] = predicted_category
+        #for outn, outp in output.items():
+        #    if type(outp) == list:
+        #        for pp in outp:
+        #            print(outn, pp.get_device())
+        #    else:
+        #        print(outn, outp.get_device())
         return output
 
         # loss_action = nn.CrossEntropyLoss(action_logits, None, reduce=None)
