@@ -3,12 +3,12 @@ export ck=""
 
 export full_ck=$rootpath$ck
 #CUDA_VISIBLE_DEVICES=3,4  python algos/inference_autoencoder_task.py \
-#	--config-path=$full_ck --config-name="config" save_inference=True samples_per_graph=11 ckpt_load=$full_ck/290.pt name_log='VAE.KL.0.001' \
-#	hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+#   --config-path=$full_ck --config-name="config" save_inference=True samples_per_graph=11 ckpt_load=$full_ck/290.pt name_log='VAE.KL.0.001' \
+#   hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
 
-python analysis/helping_states_diffpred.py \
-	agent_pred_graph="config_vae0.001" num_processes=0 \
-	agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_vae0.001" num_processes=0 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
 
 #
 #
