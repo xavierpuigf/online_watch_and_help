@@ -728,7 +728,7 @@ def main(cfg: DictConfig):
     print(len(episode_ids))
     f.close()
 
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}.{args.lam}"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
@@ -997,6 +997,7 @@ def main(cfg: DictConfig):
                     "goals": arena.task_goal,
                     "action": {0: [], 1: []},
                     "plan": {0: [], 1: []},
+                    "subgoal": {0: [], 1: []},
                     "finished": None,
                     "init_unity_graph": arena.env.init_graph,
                     "goals_finished": [],
@@ -1006,6 +1007,8 @@ def main(cfg: DictConfig):
                     "graph": [arena.env.init_unity_graph],
                     "obs": [],
                     "graph_results": [],
+                    "helping_subgoal": [],
+                    "opponent_subgoal": [],
                 }
 
                 actions, curr_info = arena.get_actions(
@@ -1096,35 +1099,37 @@ def main(cfg: DictConfig):
                     # ======================================================
                     # reject inconsistent proposals
                     all_reject = False
-                    if (
-                        len(proposals) > 0
-                        and steps_since_last_prediction < pred_main_plan_length
-                    ):
-                        last_observed_main_action = history_action[-1]
-                        last_observed_main_action = last_observed_main_action.replace(
-                            "walktowards", "walk"
-                        )
-                        remained_proposals = {}
-                        for pred_id, proposal in proposals.items():
-                            print(pred_id)
-                            print(
-                                get_edge_class(
-                                    proposal["pred"],
-                                    len(proposal["pred"]) - 1,
-                                )
-                            )
-                            print(last_observed_main_action, proposal["plan"])
-                            if last_observed_main_action in proposal["plan"]:
-                                remained_proposals[pred_id] = proposal
-                                print("accept")
-                            else:
-                                print("reject")
-                        proposals = dict(remained_proposals)
-                        if len(proposals) == 0:
-                            all_reject = True
-                        # ipdb.set_trace()
-                    else:
-                        proposals = {}
+                    # if (
+                    #     len(proposals) > 0
+                    #     and steps_since_last_prediction < pred_main_plan_length
+                    # ):
+                    #     last_observed_main_action = history_action[-1]
+                    #     last_observed_main_action = last_observed_main_action.replace(
+                    #         "walktowards", "walk"
+                    #     )
+                    #     remained_proposals = {}
+                    #     for pred_id, proposal in proposals.items():
+                    #         print(pred_id)
+                    #         print(
+                    #             get_edge_class(
+                    #                 proposal["pred"],
+                    #                 len(proposal["pred"]) - 1,
+                    #             )
+                    #         )
+                    #         print(last_observed_main_action, proposal["plan"])
+                    #         if last_observed_main_action in proposal["plan"]:
+                    #             remained_proposals[pred_id] = proposal
+                    #             print("accept")
+                    #         else:
+                    #             print("reject")
+                    #     proposals = dict(remained_proposals)
+                    #     if len(proposals) == 0:
+                    #         all_reject = True
+                    #     # ipdb.set_trace()
+                    # else:
+                    #     proposals = {}
+
+                    proposals = {}
 
                     # new proposals
                     if new_action:
@@ -1418,35 +1423,37 @@ def main(cfg: DictConfig):
                         agent_id=0,
                     )
 
-                    if (
-                        "chips" in selected_actions[0]
-                        or "remotecontrol" in selected_actions[0]
-                        or "condimentbottle" in selected_actions[0]
-                        or "condimentshaker" in selected_actions[0]
-                    ):
-                        tv = True
-                    if (
-                        "salmon" in selected_actions[0]
-                        or "apple" in selected_actions[0]
-                        or "cupcake" in selected_actions[0]
-                        or "pudding" in selected_actions[0]
-                    ):
-                        food = True
-                    if (
-                        "plate" in selected_actions[0]
-                        or "glass" in selected_actions[0]
-                        or "fork" in selected_actions[0]
-                    ):
-                        dish = True
+                    if selected_actions[0] is not None:
+                        if (
+                            "chips" in selected_actions[0]
+                            or "remotecontrol" in selected_actions[0]
+                            or "condimentbottle" in selected_actions[0]
+                            or "condimentshaker" in selected_actions[0]
+                        ):
+                            tv = True
+                        if (
+                            "salmon" in selected_actions[0]
+                            or "apple" in selected_actions[0]
+                            or "cupcake" in selected_actions[0]
+                            or "pudding" in selected_actions[0]
+                        ):
+                            food = True
+                        if (
+                            "plate" in selected_actions[0]
+                            or "glass" in selected_actions[0]
+                            or "fork" in selected_actions[0]
+                        ):
+                            dish = True
 
                     print("main agent subgoal:", curr_info[0]["subgoals"])
+
+                    saved_info["graph_results"].append(task_result)
 
                     if replan_for_helper:
 
                         # ======================================================
-                        # get helper agent's action
+                        # get helper agent's actio
 
-                        saved_info["graph_results"].append(task_result)
                         print("gt goal:", gt_goal)
                         print("pred goal")
                         edge_pred_class_estimated = aggregate_multiple_pred(
@@ -1766,8 +1773,16 @@ def main(cfg: DictConfig):
 
                     if "satisfied_goals" in infos:
                         saved_info["goals_finished"].append(infos["satisfied_goals"])
-                    for agent_id, action in selected_actions.items():
-                        saved_info["action"][agent_id].append(action)
+                    for agent_id in range(2):
+                        if agent_id in selected_actions:
+                            saved_info["action"][agent_id].append(
+                                selected_actions[agent_id]
+                            )
+                        else:
+                            saved_info["action"][agent_id].append(None)
+                    saved_info["opponent_subgoal"].append(opponent_subgoal)
+                    saved_info["helping_subgoal"].append(last_goal_edge)
+
                     if "graph" in infos:
                         saved_info["graph"].append(infos["graph"])
                     for agent_id, info in curr_info.items():

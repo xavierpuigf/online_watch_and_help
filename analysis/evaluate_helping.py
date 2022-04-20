@@ -8,7 +8,7 @@ import pickle
 import copy
 from pathlib import Path
 import numpy as np
-import pdb
+import ipdb
 
 # import ipdb
 import hydra
@@ -313,7 +313,8 @@ def main(cfg: DictConfig):
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_10_1.0_1.0.5.0"
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
@@ -432,8 +433,18 @@ def main(cfg: DictConfig):
 
         # print(test_results)
 
-    print(main_results)
-    print(help_results)
+    for episode_id in help_results:
+        print(episode_id, main_results[episode_id], help_results[episode_id])
+        if np.mean(help_results[episode_id]["S"]) < np.mean(
+            main_results[episode_id]["S"]
+        ):
+            log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
+                episode_id, 0
+            )
+            log_res = pickle.load(open(log_file_name, "rb"))
+            ipdb.set_trace()
+    # print(main_results)
+    # print(help_results)
 
     SR, AL, SP, SWS, stdR, stdL, stdSP, stdS = get_metrics_reward(
         main_results,
