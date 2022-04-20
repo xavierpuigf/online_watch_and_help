@@ -297,6 +297,100 @@ def get_pred_task_str(str_task, str_mask=None, correct=None, remove=False):
     return ''.join(l_items)
 
 
+
+def get_html_task_update(results, graph_helper):
+    other_info = results['other_info']
+
+    gt_task, gt_graph_tensor = results['gt_task']
+    pred_task, pred_task_tensor_list = results['pred_task']
+    # ipdb.set_trace()
+    
+    program_gt = other_info['prog_gt']
+    index = other_info['index']
+
+    scores_step = other_info['metrics_tstep'] 
+    
+
+    script_js = '''
+            <script>
+            var show_graph = false;
+            function switchView(){
+                var preds = document.getElementsByClassName('preds');
+                var graphs = document.getElementsByClassName('graph'); 
+                for (var j = 0; j < preds.length; j++){
+                    if (show_graph){
+
+                        preds[j].style.display = 'none';
+                        graphs[j].style.display = 'block';
+                    }  
+                    else {
+
+                        preds[j].style.display = 'block';
+                        graphs[j].style.display = 'none';
+                    }
+
+                }
+                
+                show_graph = !show_graph;
+            }
+            </script>
+    '''
+    html_str = '<html><head><link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" rel="nofollow" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous"><head><body>'
+    html_str += script_js
+    html_str += '<button onclick=switchView()> Switch Preds/Graph </button>'
+    header_names = ['Action', 'Score', 'Input', 'GT'] + [f'Pred {i}' for i in range(5)]
+    header = ''.join(['<th>{}</th>'.format(name) for name in header_names])
+    table_resp = f'<table class="table"><tr>{header}</tr>'
+    numtsteps = len(program_gt) - 1
+
+    rows = []
+    # ipdb.set_trace()
+    for tstep in range(numtsteps):
+        columns = []
+        # ipdb.set_trace()
+        
+        # score_str = ''
+        # ipdb.set_t÷race()
+        #
+        score_str = '<br>'.join(['{}: {:03f}'.format(name, value[index][tstep]) for name, value in scores_step.items() if 'seed' not in name])
+        columns = [program_gt[tstep].replace('<', '').replace('>', ''), score_str]
+        # ipdb.set_trace()
+        
+
+        gt_task_str = get_pred_task_str(gt_task[tstep]['output_task'], gt_task[tstep]['mask'])
+        gt_task_str_filter = get_pred_task_str(gt_task[tstep]['output_task'], gt_task[tstep]['mask'], remove=True)
+        input_task_str = get_pred_task_str(gt_task[tstep]['input_task'])
+
+        columns += [(input_task_str, input_task_str), (gt_task_str, gt_task_str_filter)]
+
+        gt_task_tensor_curr = gt_graph_tensor[tstep]
+        for gind in range(len(pred_task_tensor_list)):
+            pred_task_tensor_curr = pred_task_tensor_list[gind][tstep]
+            # ipdb.set_trace()
+
+            correct = list((pred_task_tensor_curr ==  gt_task_tensor_curr)[pred_task_tensor_curr > 0])
+            # ipdb.set_trace()
+            predicates_str = get_pred_task_str(pred_task[gind][tstep]['output_task'],pred_task[gind][tstep]['mask'], correct=correct)
+            predicates_str_filtered = get_pred_task_str(pred_task[gind][tstep]['output_task'],pred_task[gind][tstep]['mask'], correct=correct, remove=True)
+            
+            # ipdb.set_trace()
+            columns.append((predicates_str, predicates_str_filtered))
+        # ipdb.set_trace()
+        # ipdb.set_trace()
+        style_str = 'overflow: auto; width: 500px'
+        style_str2 = 'overflow: auto; width: 150px'
+        column_str = ''.join(['<td><div style="{}">{}</div></td>'.format(style_str2, col) for col in columns[:2]])
+        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col[0], content_pred=col[0]) for col in columns[2:]])
+        rows.append(column_str)
+    
+    table_resp += ''.join(['<tr>{}</tr>'.format(row) for row in rows])
+    
+    table_resp += '</table>'
+    html_str += table_resp 
+    html_str += '</body></html>'
+    return html_str
+
+
 def get_html_task(results, graph_helper):
     other_info = results['other_info']
 
@@ -379,7 +473,7 @@ def get_html_task(results, graph_helper):
         style_str = 'overflow: auto; width: 500px'
         style_str2 = 'overflow: auto; width: 150px'
         column_str = ''.join(['<td><div style="{}">{}</div></td>'.format(style_str2, col) for col in columns[:2]])
-        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col[0], content_pred=col[1]) for col in columns[2:]])
+        column_str += ''.join(['<td><div class="preds" style="{style}">{content_pred}</div><div class="graph" style="{style}; display: none">{content_graph}</div></td>'.format(style=style_str, content_graph=col[0], content_pred=col[0]) for col in columns[2:]])
         rows.append(column_str)
     
     table_resp += ''.join(['<tr>{}</tr>'.format(row) for row in rows])

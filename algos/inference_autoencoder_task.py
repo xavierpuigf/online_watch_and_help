@@ -285,10 +285,9 @@ def plot_func(html_name, graph_helper, len_mask, index,
                'other_info': other_info}
 
 
-    html_str = utils_models.get_html_task(results, graph_helper)
+    html_str = utils_models.get_html_task_update(results, graph_helper)
                 # ipdb.set_trace()
     
-    # ipdb.set_trace()
     dir_name = os.path.dirname(html_name)
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
@@ -373,18 +372,18 @@ def inference(
                 if 'VAE' in args.model.time_aggregate:
                     with torch.no_grad():
                         output2 = model(inp, inference=not posterior)
-                    cpred_mask = (output2['pred_mask'][:, :-1, ...] > 0).cpu()
+                    cpred_mask = gt['gt_mask'].cpu().numpy() # (output2['pred_mask'][:, :-1, ...] > 0).cpu()
                     cpred_graph = (output2['pred_graph'][:, :-1, ...].argmax(-1)).cpu()
                 else:
                     if sample_num == 0:
-                        cpred_mask = pred_mask.argmax(-1)
+                        cpred_mask = gt['gt_mask'].cpu().numpy() #pred_mask.argmax(-1)
                         cpred_graph = pred_graph.argmax(-1)
                     else:
-                        cpred_mask = utils_models.vectorized(pred_mask)
+                        cpred_mask = gt['gt_mask'].cpu().numpy()
                         cpred_graph = utils_models.vectorized(pred_graph)
                 predicted_mask.append(cpred_mask)
                 predicted_graph.append(cpred_graph)
-            #ipdb.set_trace()
+            # ipdb.set_trace()
 
             # pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
             # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
@@ -440,7 +439,6 @@ def inference(
                 # pred_mask = predicted_mask[index]
 
 
-
                 # Get the name of html
                 current_index = ind[index]
                 fname = data_loader.dataset.pkl_files[current_index]
@@ -451,6 +449,11 @@ def inference(
                     pv = '_posterior'
                 expath = logger.results_path
 
+                # if 'logs_episode.121_iter.0.pik_result' in sfname:
+                #     ipdb.set_trace()
+                # else:
+                #     pass
+                #     # continue
 
 
                 dir_name = f'{expath}'
@@ -834,6 +837,7 @@ def evaluate(
     logger.log_data(len(data_loader_train) * epoch, info_log)
 
 def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mask_task, gt_task, misc):
+    eps = 1e-9
     # return None, None
     # gt_edge = gt['gt_edge'].cpu().numpy()
     # input_edge = misc['input_edges'].cpu().numpy()
@@ -880,9 +884,11 @@ def update_metrics_recall_prec(metric_dict, args, pred_mask_task, pred_task, mas
     
     # ipdb.set_trace()
     tp_edge_change = (mask_task[None, ...] * pred_mask_task).sum(-1)
-    recall = tp_edge_change / (pos_change+1e-9)
-    prec = tp_edge_change / (change_avg_pos+1e-9)
+    # recall = tp_edge_change / (pos_change+1e-9)
 
+    recall =  np.minimum(pred_task, gt_task[None, :]).sum(-1) / (1e-9 + gt_task[None, ...].sum(-1))
+    prec = (np.minimum(pred_task, gt_task).sum(-1) / (eps+pred_task.sum(-1))).mean(0)[None, ...]
+    
     mask_task_norm = mask_task / (1e-9 + mask_task.sum(-1)[..., None])
     # Accuracy
     # ipdb.set_trace()
