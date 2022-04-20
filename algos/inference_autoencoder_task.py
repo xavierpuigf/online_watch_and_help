@@ -121,7 +121,6 @@ def compute_forward_pass(args, data_item, data_loader, model, criterions, misc={
     # inputs['input_edges'] = edge_dict['gt_edges']
     # try:
     # print(len_mask.shape)
-    # ipdb.set_trace()
     if not evaluation:
         output = model(inputs)
         
@@ -458,6 +457,7 @@ def inference(
                 result_name = f'{dir_name}/{sfname}.pkl'
                 result_name_html = f'{dir_name}/{sfname}.html'
                 result_name_html_total = f'{dir_name}/total{pv}.html'
+                dict_result_name = f'{dir_name}/pred_dict.pkl'
                 # ipdb.set_trace()
                 dict_plot = {
                     'html_name': result_name_html,
@@ -500,12 +500,25 @@ def inference(
 
 
                 if args.save_inference:
-
+                    if not os.path.isfile(dict_result_name):
+                        list_names = []
+                        # save dict of preds
+                        for index_pred in range(gt_task.shape[-1]):
+                            curr_tuple = data_loader.dataset.graph_helper.task_graph_list[index_pred]
+                            curr_names = data_loader.dataset.graph_helper.task_graph_dict[curr_tuple][0]
+                            list_names.append(curr_names)
+                        with open(dict_result_name, 'wb+') as f:
+                            pkl.dump(list_names, f)
+                    #ipdb.set_trace()
                     results = {
                         'results_total': res_total_new[index],
                         'results_total_tstep': res_total_new_tstep[index],
+                        'gt_task': gt_task[index],
+                        'pred_task': predicted_graphc[:, index],
                         'length': len_mask[index].sum().cpu().numpy()
                     }
+
+                    # ipdb.set_trace()
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
 
@@ -1112,6 +1125,14 @@ def main(cfg: DictConfig):
     logger = LoggerSteps(config, log_steps=False)
     logger.results_path = 'results_inference/{}'.format(config.name_log)
         
+    inference(
+        test_loader,
+        model,
+        config,
+        logger,
+        criterions,
+        False
+    )
 
     inference(
         test_loader,
@@ -1122,14 +1143,6 @@ def main(cfg: DictConfig):
         True
     )
 
-    inference(
-        test_loader,
-        model,
-        config,
-        logger,
-        criterions,
-        False
-    )
     # ipdb.set_trace()
 
 
