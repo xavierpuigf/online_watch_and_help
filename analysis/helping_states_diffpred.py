@@ -717,6 +717,8 @@ def main(cfg: DictConfig):
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     # args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
     args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik"
+    # args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/dataset/dataset_graph_full_150step_larger_test.pkl"
+
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
@@ -728,7 +730,11 @@ def main(cfg: DictConfig):
     print(len(episode_ids))
     f.close()
 
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+    network_name = args_pred.name_log
+    if network_name == "newvaefull_encoder_task_graph":
+        network_name += ".kl{}".format(args_pred.model.kl_coeff)
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args_pred.name_log}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
@@ -811,11 +817,12 @@ def main(cfg: DictConfig):
     # random_start.shuffle(episode_ids)
     # # episode_ids = episode_ids[10:]
 
+    episode_ids = [episode_ids[0]]
+
     S = {episode_id: [] for episode_id in episode_ids}
     L = {episode_id: [] for episode_id in episode_ids}
 
     test_results = {}
-    # episode_ids = [episode_ids[0]]
 
     def env_fn(env_id):
         return UnityEnvironment(
@@ -874,6 +881,8 @@ def main(cfg: DictConfig):
 
     # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
     # episode_ids = [21, 22, 23, 24]
+
+    num_tries = 2
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
@@ -936,6 +945,7 @@ def main(cfg: DictConfig):
         max_steps = args.max_episode_length
 
         # for env_task in env_task_set:
+
         for episode_id in episode_ids:
 
             steps_list, failed_tasks = [], []
@@ -1009,6 +1019,7 @@ def main(cfg: DictConfig):
                     "graph_results": [],
                     "helping_subgoal": [],
                     "opponent_subgoal": [],
+                    "proposals": [],
                 }
 
                 actions, curr_info = arena.get_actions(
@@ -1099,37 +1110,37 @@ def main(cfg: DictConfig):
                     # ======================================================
                     # reject inconsistent proposals
                     all_reject = False
-                    # if (
-                    #     len(proposals) > 0
-                    #     and steps_since_last_prediction < pred_main_plan_length
-                    # ):
-                    #     last_observed_main_action = history_action[-1]
-                    #     last_observed_main_action = last_observed_main_action.replace(
-                    #         "walktowards", "walk"
-                    #     )
-                    #     remained_proposals = {}
-                    #     for pred_id, proposal in proposals.items():
-                    #         print(pred_id)
-                    #         print(
-                    #             get_edge_class(
-                    #                 proposal["pred"],
-                    #                 len(proposal["pred"]) - 1,
-                    #             )
-                    #         )
-                    #         print(last_observed_main_action, proposal["plan"])
-                    #         if last_observed_main_action in proposal["plan"]:
-                    #             remained_proposals[pred_id] = proposal
-                    #             print("accept")
-                    #         else:
-                    #             print("reject")
-                    #     proposals = dict(remained_proposals)
-                    #     if len(proposals) == 0:
-                    #         all_reject = True
-                    #     # ipdb.set_trace()
-                    # else:
-                    #     proposals = {}
+                    if (
+                        len(proposals) > 0
+                        and steps_since_last_prediction < pred_main_plan_length
+                    ):
+                        last_observed_main_action = history_action[-1]
+                        last_observed_main_action = last_observed_main_action.replace(
+                            "walktowards", "walk"
+                        )
+                        remained_proposals = {}
+                        for pred_id, proposal in proposals.items():
+                            print(pred_id)
+                            print(
+                                get_edge_class(
+                                    proposal["pred"],
+                                    len(proposal["pred"]) - 1,
+                                )
+                            )
+                            print(last_observed_main_action, proposal["plan"])
+                            if last_observed_main_action in proposal["plan"]:
+                                remained_proposals[pred_id] = proposal
+                                print("accept")
+                            else:
+                                print("reject")
+                        proposals = dict(remained_proposals)
+                        if len(proposals) == 0:
+                            all_reject = True
+                        # ipdb.set_trace()
+                    else:
+                        proposals = {}
 
-                    proposals = {}
+                    # proposals = {}
 
                     # new proposals
                     if new_action:
@@ -1320,7 +1331,7 @@ def main(cfg: DictConfig):
                                                 proposals[pred_id]["edge_steps"][
                                                     edge
                                                 ] = estimated_steps
-                                ipdb.set_trace()
+                                # ipdb.set_trace()
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
                                     task_result[pred_id], class2id
                                 )
@@ -1448,6 +1459,7 @@ def main(cfg: DictConfig):
                     print("main agent subgoal:", curr_info[0]["subgoals"])
 
                     saved_info["graph_results"].append(task_result)
+                    saved_info["proposals"].append(proposals)
 
                     if replan_for_helper:
 
@@ -1751,6 +1763,7 @@ def main(cfg: DictConfig):
                     print("selected_actions:", selected_actions, best_value)
                     print("opponent_subgoal:", opponent_subgoal)
                     print("last_goal_edge:", last_goal_edge)
+                    print("step:", steps)
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
@@ -1800,6 +1813,7 @@ def main(cfg: DictConfig):
                             )
 
                     print("success:", infos["finished"])
+                    # pickle.dump(saved_info, open(log_file_name, "wb"))
                     # ipdb.set_trace()
                     if infos["finished"]:
                         success = True
