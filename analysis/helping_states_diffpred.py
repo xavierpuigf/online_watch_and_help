@@ -733,7 +733,7 @@ def main(cfg: DictConfig):
     network_name = args_pred.name_log
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_{args_pred.name_log}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
@@ -817,7 +817,7 @@ def main(cfg: DictConfig):
     # random_start.shuffle(episode_ids)
     # # episode_ids = episode_ids[10:]
 
-    episode_ids = [episode_ids[0]]
+    # episode_ids = [episode_ids[0]]
 
     S = {episode_id: [] for episode_id in episode_ids}
     L = {episode_id: [] for episode_id in episode_ids}
@@ -882,7 +882,7 @@ def main(cfg: DictConfig):
     # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
     # episode_ids = [21, 22, 23, 24]
 
-    num_tries = 2
+    num_tries = 5
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
@@ -978,8 +978,8 @@ def main(cfg: DictConfig):
             for it_agent, agent in enumerate(arena.agents):
                 agent.seed = (it_agent + current_tried * 2) * 5
 
-            # try:
-            if True:
+            try:
+                # if True:
                 obs = arena.reset(episode_id)
                 init_state = obs[1]
                 arena.task_goal = None
@@ -1844,45 +1844,45 @@ def main(cfg: DictConfig):
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
 
-            # except utils_exception.UnityException as e:
-            #     traceback.print_exc()
+            except utils_exception.UnityException as e:
+                traceback.print_exc()
 
-            #     print("Unity exception")
-            #     arena.reset_env()
-            #     # ipdb.set_trace()
-            #     continue
+                print("Unity exception")
+                arena.reset_env()
+                # ipdb.set_trace()
+                continue
 
-            # except utils_exception.ManyFailureException as e:
-            #     traceback.print_exc()
+            except utils_exception.ManyFailureException as e:
+                traceback.print_exc()
 
-            #     print("ERRO HERE")
-            #     logging.exception("Many failure Error")
-            #     # print("OTHER ERROR")
-            #     logger.removeHandler(logger.handlers[0])
-            #     # exit()
-            #     # arena.reset_env()
-            #     print("Dione")
-            #     # ipdb.set_trace()
-            #     arena.reset_env()
-            #     continue
+                print("ERRO HERE")
+                logging.exception("Many failure Error")
+                # print("OTHER ERROR")
+                logger.removeHandler(logger.handlers[0])
+                # exit()
+                # arena.reset_env()
+                print("Dione")
+                # ipdb.set_trace()
+                arena.reset_env()
+                continue
 
-            # except Exception as e:
-            #     with open(failure_file, "w+") as f:
-            #         error_str = "Failure"
-            #         error_str += "\n"
-            #         stack_form = "".join(traceback.format_stack())
-            #         error_str += stack_form
+            except Exception as e:
+                with open(failure_file, "w+") as f:
+                    error_str = "Failure"
+                    error_str += "\n"
+                    stack_form = "".join(traceback.format_stack())
+                    error_str += stack_form
 
-            #         f.write(error_str)
-            #     traceback.print_exc()
+                    f.write(error_str)
+                traceback.print_exc()
 
-            #     logging.exception("Error")
-            #     print("OTHER ERROR")
-            #     logger.removeHandler(logger.handlers[0])
-            #     # exit()
-            #     arena.reset_env()
-            #     # ipdb.set_trace()
-            #     continue
+                logging.exception("Error")
+                print("OTHER ERROR")
+                logger.removeHandler(logger.handlers[0])
+                # exit()
+                arena.reset_env()
+                # ipdb.set_trace()
+                continue
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
             test_results[episode_id] = {"S": S[episode_id], "L": L[episode_id]}
