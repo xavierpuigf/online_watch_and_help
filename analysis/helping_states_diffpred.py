@@ -1320,7 +1320,7 @@ def main(cfg: DictConfig):
                                                 proposals[pred_id]["edge_steps"][
                                                     edge
                                                 ] = estimated_steps
-                                ipdb.set_trace()
+                                # ipdb.set_trace()
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
                                     task_result[pred_id], class2id
                                 )

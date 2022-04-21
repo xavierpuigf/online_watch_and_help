@@ -129,6 +129,8 @@ class GraphHelper:
         self.task_graph_dict, self.task_graph_list = self.build_task_graph_dict()
 
     def actionstr2index(self, action_str):
+        if action_str is None:
+            return self.action_dict.get_id('no_action'), -1, -1
         action_split = action_str.split()
         action = action_split[0][1:-1]
         obj1, obj2 = -1, -1

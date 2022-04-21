@@ -1063,6 +1063,7 @@ def prepare_graph_for_task_model_diff(graphs, observations, program_hist, args_c
         program_batch['action'].append(instr_item[0])
         program_batch['obj1'].append(instr_item[1])
         program_batch['obj2'].append(instr_item[2])
+        
         try:
             program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
             program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
