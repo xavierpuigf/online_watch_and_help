@@ -72,6 +72,21 @@ info_objects = {
     "others": ["character"],
 }
 
+all_object_types = [
+    "chips",
+    "remotecontrol",
+    "condimentbottle",
+    "condimentshaker",
+    "salmon",
+    "apple",
+    "cupcake",
+    "pudding",
+    "wineglass",
+    "waterglass",
+    "plate",
+    "cutleryfork",
+]
+
 
 def get_class_mode(agent_args):
     mode_str = "{}_opencost{}_closecost{}_walkcost{}_forgetrate{}".format(
@@ -610,6 +625,54 @@ def edge2name(edge):
     return goal_name
 
 
+def same_action(action1, action2):
+
+    if action1 == action2:
+        return True
+
+    elements1 = action1.split(" ")
+    elements2 = action2.split(" ")
+
+    if elements1[0] != elements2[0]:
+        return False
+
+    if "grab" in elements1[0]:
+        return elements1[1] == elements2[1]
+
+    if "put" in elements1[0]:
+        return (
+            elements1[1] == elements2[1]
+            and elements1[3] == elements2[3]
+            and elements1[4] == elements2[4]
+        )
+
+    if "walk" in elements1[0] and elements1[1] in all_object_types:
+        return elements1[1] == elements2[1]
+
+    return False
+
+
+def is_in_plan(action, plan):
+    for tmp_action in plan:
+        if same_action(action, tmp_action):
+            return True
+    return False
+
+
+def is_in_goal(grabbed_obj, goals):
+    """check if grabbed objects are part of the goal"""
+    objs_goals = []
+    for predicate in goals:
+        goal_obj = predicate.split("_")[1]
+        if goal_obj != "character":
+            objs_goals.append(goal_obj)
+    for obj, grabbed in grabbed_obj.items():
+        if grabbed and obj not in objs_goals:
+            # ipdb.set_trace()
+            return False
+    return True
+
+
 def pred_main_agent_plan(
     process_id,
     pred_task,
@@ -733,7 +796,10 @@ def main(cfg: DictConfig):
     network_name = args_pred.name_log
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+    if not args.debug:
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+    else:
+        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
@@ -948,6 +1014,9 @@ def main(cfg: DictConfig):
 
         for episode_id in episode_ids:
 
+            if args.debug and episode_id != 152:
+                continue
+
             steps_list, failed_tasks = [], []
             current_tried = iter_id
 
@@ -955,8 +1024,8 @@ def main(cfg: DictConfig):
 
             # episode_id = env_task['task_id']
 
-            if episode_id not in episode_ids:
-                continue
+            # if episode_id not in episode_ids:
+            #     continue
 
             log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
                 episode_id, iter_id
@@ -998,6 +1067,8 @@ def main(cfg: DictConfig):
                 history_obs = []
                 history_graph = []
                 history_action = []
+
+                grabbed_obj = {obj_type: False for obj_type in all_object_types}
 
                 saved_info = {
                     "task_id": arena.env.task_id,
@@ -1121,18 +1192,25 @@ def main(cfg: DictConfig):
                         remained_proposals = {}
                         for pred_id, proposal in proposals.items():
                             print(pred_id)
-                            print(
-                                get_edge_class(
-                                    proposal["pred"],
-                                    len(proposal["pred"]) - 1,
-                                )
+                            goal_pred = get_edge_class(
+                                proposal["pred"],
+                                len(proposal["pred"]) - 1,
                             )
+                            print(goal_pred)
+                            if not is_in_goal(grabbed_obj, goal_pred):
+                                print("reject")
                             print(last_observed_main_action, proposal["plan"])
-                            if last_observed_main_action in proposal["plan"]:
+                            if last_observed_main_action is None:
                                 remained_proposals[pred_id] = proposal
                                 print("accept")
                             else:
-                                print("reject")
+                                if is_in_plan(
+                                    last_observed_main_action, proposal["plan"]
+                                ):
+                                    remained_proposals[pred_id] = proposal
+                                    print("accept")
+                                else:
+                                    print("reject")
                         proposals = dict(remained_proposals)
                         if len(proposals) == 0:
                             all_reject = True
@@ -1180,7 +1258,7 @@ def main(cfg: DictConfig):
                             else:
                                 last_goal_edge = None
 
-                    if len(proposals) == 0:
+                    if len(proposals) < 1:  # args.num_samples / 3:
                         steps_since_last_prediction = 0
                         print(len(history_graph))
                         print(len(history_action))
@@ -1377,9 +1455,9 @@ def main(cfg: DictConfig):
                                 else:
                                     opponent_subgoal_freq[subgoal] += 1
                                 # print(len(plan_states))
+                                all_edges = []
                                 if plan_states is not None and len(plan_states) > 0:
                                     # all_plan_states.append(plan_states)
-                                    all_edges = []
                                     estimated_steps = 0
                                     for t, (action, state, cost) in enumerate(
                                         zip(plan, plan_states, plan_cost)
@@ -1401,8 +1479,6 @@ def main(cfg: DictConfig):
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
                                     proposal["pred"], class2id
                                 )
-                                # print(edge_list)
-                                # ipdb.set_trace()
                                 all_edges += edge_list
                                 estimated_steps = 100
                                 for edge in edge_list:
@@ -1417,6 +1493,13 @@ def main(cfg: DictConfig):
                                 all_edges = list(set(all_edges))
                                 for edge in all_edges:
                                     edge_freq[edge] += 1.0 / len(proposals)
+                                if args.debug:
+                                    print(pred_id)
+                                    print(edge_pred_ins)
+                                    for edge in all_edges:
+                                        print(edge, edge_freq[edge])
+                                    # ipdb.set_trace()
+
                         for edge, freq in edge_freq.items():
                             edge_goal_name = edge2name(edge)
                             if edge_goal_name not in combined_edge_freq:
@@ -1433,6 +1516,11 @@ def main(cfg: DictConfig):
                         must_replan={0: False, 1: True},
                         agent_id=0,
                     )
+
+                    if selected_actions[0] is not None:
+                        for obj_name in all_object_types:
+                            if obj_name in selected_actions[0]:
+                                grabbed_obj[obj_name] = True
 
                     if selected_actions[0] is not None:
                         if (
@@ -1483,7 +1571,13 @@ def main(cfg: DictConfig):
                         goal_edges = []
                         for edge in edge_freq:
                             edge_steps[edge] = np.mean(edge_steps[edge])
-                            print(edge, edge_freq[edge], edge_steps[edge])
+                            print(
+                                edge,
+                                edge_freq[edge],
+                                edge_steps[edge],
+                                edge_steps[edge] > 1 + 1e-6,
+                                edge not in curr_edge_list,
+                            )
                             if (
                                 edge_steps[edge] > 1 + 1e-6
                                 and edge not in curr_edge_list
@@ -1515,8 +1609,8 @@ def main(cfg: DictConfig):
                                 # ):
                                 #     continue
                                 goal_edges.append(edge)
-                        # ipdb.set_trace()
-
+                        # if args.debug and steps == 4:
+                        #     ipdb.set_trace()
                         max_freq = 0
                         opponent_subgoal = None
                         for subgoal, count in opponent_subgoal_freq.items():
@@ -1584,7 +1678,7 @@ def main(cfg: DictConfig):
                                     p.join()
 
                         # select best subgoal and action based on value
-                        best_value = 0
+                        best_value = args.min_acceptable_value
                         best_estimated_steps = 1e6
                         last_goal_edge_curr = None
                         if True:  # not all_reject:
@@ -1621,6 +1715,8 @@ def main(cfg: DictConfig):
                                 dist = compute_dist_instance(
                                     init_state, curr_obs[1], goal_edges[pred_id]
                                 )
+                                if goal_edges[pred_id].startswith("offer"):
+                                    dist = 2
                                 if goal_edges[pred_id].endswith("init"):
                                     if (
                                         dist == 0
@@ -1814,7 +1910,8 @@ def main(cfg: DictConfig):
 
                     print("success:", infos["finished"])
                     # pickle.dump(saved_info, open(log_file_name, "wb"))
-                    # ipdb.set_trace()
+                    # if args.debug:
+                    #     ipdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
@@ -1834,12 +1931,13 @@ def main(cfg: DictConfig):
                 saved_info["obs"].append([node["id"] for node in curr_obs[0]["nodes"]])
                 saved_info["finished"] = success
 
-                Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                if len(saved_info["obs"]) > 0:
-                    pickle.dump(saved_info, open(log_file_name, "wb"))
-                else:
-                    with open(log_file_name, "w+") as f:
-                        f.write(json.dumps(saved_info, indent=4))
+                if not args.debug:
+                    Path(args.record_dir).mkdir(parents=True, exist_ok=True)
+                    if len(saved_info["obs"]) > 0:
+                        pickle.dump(saved_info, open(log_file_name, "wb"))
+                    else:
+                        with open(log_file_name, "w+") as f:
+                            f.write(json.dumps(saved_info, indent=4))
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
@@ -1889,20 +1987,22 @@ def main(cfg: DictConfig):
             # pdb.set_trace()
 
             print(test_results)
-            pickle.dump(
-                test_results,
-                open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
-            )
+            if not args.debug:
+                pickle.dump(
+                    test_results,
+                    open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
+                )
 
         print(
             "average steps (finishing the tasks):",
             np.array(steps_list).mean() if len(steps_list) > 0 else None,
         )
         print("failed_tasks:", failed_tasks)
-        pickle.dump(
-            test_results,
-            open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
-        )
+        if not args.debug:
+            pickle.dump(
+                test_results,
+                open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
+            )
 
 
 if __name__ == "__main__":
