@@ -314,7 +314,8 @@ def main(cfg: DictConfig):
     # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_10_1.0_1.0.5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_10_1.0_1.0_5.0"
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
@@ -361,11 +362,11 @@ def main(cfg: DictConfig):
     args.record_dir = "{}/{}".format(cachedir, datafile)
     record_dir_main = "{}/{}".format(cachedir_main, datafile)
     error_dir = "{}/logging/{}".format(cachedir, datafile)
-    if not os.path.exists(args.record_dir):
-        os.makedirs(args.record_dir)
+    # if not os.path.exists(args.record_dir):
+    #     os.makedirs(args.record_dir)
 
-    if not os.path.exists(error_dir):
-        os.makedirs(error_dir)
+    # if not os.path.exists(error_dir):
+    #     os.makedirs(error_dir)
 
     executable_args = {
         "file_name": args.executable_file,
@@ -389,7 +390,7 @@ def main(cfg: DictConfig):
     print(len(episode_ids))
     f.close()
 
-    # episode_ids = [139, 3, 41, 63, 82, 88]
+    episode_ids = [3]
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
@@ -401,7 +402,7 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
-    num_tries = 1
+    num_tries = 2
 
     for iter_id in range(num_tries - 1, num_tries):
         # if iter_id > 0:

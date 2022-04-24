@@ -55,68 +55,68 @@ class MCTS_particles_v2_instance:
         """TODO: add more predicate checkers; currently only ON"""
         count = 0
         for key, value in goal_spec.items():
-            if not key.startswith('offer') and key.startswith('off'):
+            if not key.startswith("offer") and key.startswith("off"):
                 count += value
-        id2node = {node['id']: node for node in state['nodes']}
+        id2node = {node["id"]: node for node in state["nodes"]}
         class2id = {}
 
-        for node in state['nodes']:
-            if node['class_name'] not in class2id:
-                class2id[node['class_name']] = []
-            class2id[node['class_name']].append(node['id'])
+        for node in state["nodes"]:
+            if node["class_name"] not in class2id:
+                class2id[node["class_name"]] = []
+            class2id[node["class_name"]].append(node["id"])
         for key, value in goal_spec.items():
-            elements = key.split('_')
-            for edge in state['edges']:
-                if elements[0] in ['on', 'inside']:
+            elements = key.split("_")
+            for edge in state["edges"]:
+                if elements[0] in ["on", "inside"]:
                     if (
-                        edge['relation_type'].lower() == elements[0]
-                        and edge['to_id'] == int(elements[2])
+                        edge["relation_type"].lower() == elements[0]
+                        and edge["to_id"] == int(elements[2])
                         and (
-                            id2node[edge['from_id']]['class_name'] == elements[1]
-                            or str(edge['from_id']) == elements[1]
+                            id2node[edge["from_id"]]["class_name"] == elements[1]
+                            or str(edge["from_id"]) == elements[1]
                         )
                     ):
                         count += 1
-                elif elements[0] == 'offOn':
+                elif elements[0] == "offOn":
                     if (
-                        edge['relation_type'].lower() == 'on'
-                        and edge['to_id'] == int(elements[2])
+                        edge["relation_type"].lower() == "on"
+                        and edge["to_id"] == int(elements[2])
                         and (
-                            id2node[edge['from_id']]['class_name'] == elements[1]
-                            or str(edge['from_id']) == elements[1]
-                        )
-                    ):
-                        count -= 1
-                elif elements[1] == 'offInside':
-                    if (
-                        edge['relation_type'].lower() == 'inside'
-                        and edge['to_id'] == int(elements[2])
-                        and (
-                            id2node[edge['from_id']]['class_name'] == elements[1]
-                            or str(edge['from_id']) == elements[1]
+                            id2node[edge["from_id"]]["class_name"] == elements[1]
+                            or str(edge["from_id"]) == elements[1]
                         )
                     ):
                         count -= 1
-                elif elements[0] == 'holds':
+                elif elements[1] == "offInside":
                     if (
-                        edge['relation_type'].lower().startswith('holds')
-                        and id2node[edge['to_id']]['class_name'] == elements[1]
-                        and edge['from_id'] == int(elements[2])
+                        edge["relation_type"].lower() == "inside"
+                        and edge["to_id"] == int(elements[2])
+                        and (
+                            id2node[edge["from_id"]]["class_name"] == elements[1]
+                            or str(edge["from_id"]) == elements[1]
+                        )
+                    ):
+                        count -= 1
+                elif elements[0] == "holds":
+                    if (
+                        edge["relation_type"].lower().startswith("holds")
+                        and id2node[edge["to_id"]]["class_name"] == elements[1]
+                        and edge["from_id"] == int(elements[2])
                     ):
                         count += 1
-                elif elements[0] == 'sit':
+                elif elements[0] == "sit":
                     if (
-                        edge['relation_type'].lower().startswith('on')
-                        and edge['to_id'] == int(elements[2])
-                        and edge['from_id'] == int(elements[1])
+                        edge["relation_type"].lower().startswith("on")
+                        and edge["to_id"] == int(elements[2])
+                        and edge["from_id"] == int(elements[1])
                     ):
                         count += 1
-            if elements[0] == 'turnOn':
-                if 'ON' in id2node[int(elements[1])]['states']:
+            if elements[0] == "turnOn":
+                if "ON" in id2node[int(elements[1])]["states"]:
                     count += 1
-            if elements[0] == 'touch':
+            if elements[0] == "touch":
                 for id_touch in class2id[elements[1]]:
-                    if 'TOUCHED' in [st.upper() for st in id2node[id_touch]['states']]:
+                    if "TOUCHED" in [st.upper() for st in id2node[id_touch]["states"]]:
                         count += 1
 
         return count
@@ -127,21 +127,21 @@ class MCTS_particles_v2_instance:
         self.env.reset(copy.deepcopy(self.gt_graph))
 
         if not self.env.state is None:
-            self.id2node_env = {node['id']: node for node in self.env.state['nodes']}
+            self.id2node_env = {node["id"]: node for node in self.env.state["nodes"]}
             static_classes = [
-                'bathroomcabinet',
-                'kitchencabinet',
-                'cabinet',
-                'fridge',
-                'stove',
-                'dishwasher',
-                'microwave',
-                'kitchentable',
+                "bathroomcabinet",
+                "kitchencabinet",
+                "cabinet",
+                "fridge",
+                "stove",
+                "dishwasher",
+                "microwave",
+                "kitchentable",
             ]
             self.static_object_ids = [
-                node['id']
-                for node in self.env.state['nodes']
-                if node['class_name'] in static_classes
+                node["id"]
+                for node in self.env.state["nodes"]
+                if node["class_name"] in static_classes
             ]
 
         state_particle = curr_root.state
@@ -151,7 +151,7 @@ class MCTS_particles_v2_instance:
         # print(colored('-----', "green"))
         self.opponent_subgoal = copy.deepcopy(opponent_subgoal)
         if self.verbose:
-            print('check subgoal')
+            print("check subgoal")
 
         self.heuristic_dict = heuristic_dict
         # if not curr_root.is_expanded:
@@ -230,7 +230,7 @@ class MCTS_particles_v2_instance:
                         colored("Selecting child...", "blue"),
                     )
                     print(len(curr_node.children))
-                    print('----')
+                    print("----")
                 next_node, next_state, cost, reward = self.select_child(
                     curr_node, curr_state
                 )
@@ -339,9 +339,9 @@ class MCTS_particles_v2_instance:
         #                     break
         #     if self.verbose:
         #         print(plan[0])
-        if len(plan) > 0 and plan[0].startswith('[open]'):
+        if len(plan) > 0 and plan[0].startswith("[open]"):
             # TODO: what is this?
-            elements = plan[0].split(' ')
+            elements = plan[0].split(" ")
             self.last_opened = [elements[1], elements[2]]
 
         # print(colored(plan, 'cyan'))
@@ -377,7 +377,6 @@ class MCTS_particles_v2_instance:
         # Probably not needed here since we already computed whern expanding node
         # dicti = curr_vh_state.to_dict()
 
-
         rewards = []
         actions_l = []
         subgoals_finished = False
@@ -388,9 +387,9 @@ class MCTS_particles_v2_instance:
 
             # If you have an object grabbed already reduce the subgoal space search and add the object you already had
             hands_busy = [
-                edge['to_id']
-                for edge in curr_state['edges']
-                if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
+                edge["to_id"]
+                for edge in curr_state["edges"]
+                if "HOLD" in edge["relation_type"] and edge["from_id"] == self.agent_id
             ]
             # print('hands_busy:', len(hands_busy), self.agent_id)
             # print("GOAL SPEC", goal_spec)
@@ -400,7 +399,7 @@ class MCTS_particles_v2_instance:
                 unsatisfied_aux = unsatisfied
             subgoals_hand = []
             for hand_busy in hands_busy:
-                hand_class_name = self.id2node_env[hand_busy]['class_name']
+                hand_class_name = self.id2node_env[hand_busy]["class_name"]
                 pred_name_selected = None
                 for missing_pred, count_pred in unsatisfied_aux.items():
                     curr_goal_spec_pred = goal_spec[missing_pred]
@@ -408,24 +407,24 @@ class MCTS_particles_v2_instance:
                     if pred_name_selected is None:
                         if (
                             count_pred > 0
-                            and hand_busy in curr_goal_spec_pred['grab_obj_ids']
+                            and hand_busy in curr_goal_spec_pred["grab_obj_ids"]
                         ):
                             pred_name_selected = missing_pred
 
                 if pred_name_selected is not None:
-                    cont_id = goal_spec[pred_name_selected]['container_ids'][0]
+                    cont_id = goal_spec[pred_name_selected]["container_ids"][0]
                     unsatisfied_aux[pred_name_selected] -= 1
                     # if unsatisfied_aux[pred_name_selected] < 0:
                     #     ipdb.set_trace()
-                    pred_name_split = pred_name_selected.split('_')
-                    verb = {'offer': 'offer', 'on': 'put', 'inside': 'putIn'}[pred_name_split[0]]
+                    pred_name_split = pred_name_selected.split("_")
+                    verb = {"offer": "offer", "on": "put", "inside": "putIn"}[
+                        pred_name_split[0]
+                    ]
                     subgoals_hand.append(
                         [
-                            '{}_{}_{}'.format(verb, hand_busy, cont_id),
+                            "{}_{}_{}".format(verb, hand_busy, cont_id),
                             pred_name_selected,
-                            '{}_{}_{}'.format(
-                                pred_name_split[0], hand_busy, cont_id
-                            ),
+                            "{}_{}_{}".format(pred_name_split[0], hand_busy, cont_id),
                         ]
                     )
 
@@ -449,7 +448,7 @@ class MCTS_particles_v2_instance:
                 subgoals = [
                     subg
                     for subg in subgoals
-                    if int(subg[0].split('_')[1]) in hands_busy
+                    if int(subg[0].split("_")[1]) in hands_busy
                 ]
 
             # If I only have 1 hand busy, put this object has to go inside somewhere, focus on it
@@ -460,8 +459,8 @@ class MCTS_particles_v2_instance:
                 subgoals_putin = [
                     subg
                     for subg in subgoals
-                    if int(subg[0].split('_')[1]) == hands_busy[0]
-                    and subg[0].split('_')[0].lower() == 'putin'
+                    if int(subg[0].split("_")[1]) == hands_busy[0]
+                    and subg[0].split("_")[0].lower() == "putin"
                 ]
                 if len(subgoals_putin) > 0:
                     subgoals = subgoals_putin
@@ -481,7 +480,7 @@ class MCTS_particles_v2_instance:
                 goal_selected = subgoals[curr_goal][0]
                 last_goal = goal_selected
 
-            heuristic = self.heuristic_dict[goal_selected.split('_')[0]]
+            heuristic = self.heuristic_dict[goal_selected.split("_")[0]]
 
             actions, _, action_name = heuristic(
                 self.agent_id,
@@ -504,7 +503,7 @@ class MCTS_particles_v2_instance:
 
             if len(hands_busy) == 2 and actions is not None:
                 for action in actions:
-                    if 'open' in action[0].lower() or 'close' in action[0].lower():
+                    if "open" in action[0].lower() or "close" in action[0].lower():
                         actions = None
                         break
 
@@ -521,7 +520,6 @@ class MCTS_particles_v2_instance:
                 step_vh_state = curr_vh_state
                 for action in actions:
 
-
                     action_str = self.get_action_str(action)
                     (
                         success,
@@ -532,7 +530,6 @@ class MCTS_particles_v2_instance:
                     ) = self.transition(
                         step_vh_state, {self.char_index: action_str}, goal_spec
                     )
-
 
                     # print("roll_step")
                     # dicti = next_vh_state.to_dict()
@@ -586,7 +583,7 @@ class MCTS_particles_v2_instance:
         cost = 0.0
         # TODO: this assumes a single action in transition, no joint planner
         action_index = list(action.keys())[0]
-        if 'walk' in action[action_index]:
+        if "walk" in action[action_index]:
 
             # measure distance, only between rooms
             objects_close = list(curr_vh_state.get_node_ids_from(1, Relation.CLOSE))
@@ -602,11 +599,11 @@ class MCTS_particles_v2_instance:
             else:
                 current_objects = objects_close_in_room
 
-            action_object_id = int(action[action_index].split('(')[1].split(')')[0])
+            action_object_id = int(action[action_index].split("(")[1].split(")")[0])
 
             # if the destionation is a room
             if (
-                self.id2node_env[action_object_id]['category'] == "Rooms"
+                self.id2node_env[action_object_id]["category"] == "Rooms"
             ):  # or action_object_id in self.static_object_ids:
                 current_objects_dest = [action_object_id]
             else:
@@ -617,7 +614,7 @@ class MCTS_particles_v2_instance:
                 )
 
                 if (
-                    self.id2node_env[objects_on_inside[0]]['category'] == "Rooms"
+                    self.id2node_env[objects_on_inside[0]]["category"] == "Rooms"
                 ):  # len(objects_on_inside) > 0:
                     # The target object is inside something, use that as the location
                     current_objects_dest = objects_on_inside
@@ -634,7 +631,7 @@ class MCTS_particles_v2_instance:
             # Get the center of all the objects you are close to, or the room
             nodes_graph_center = np.concatenate(
                 [
-                    np.array(self.id2node_env[nodeid]['bounding_box']['center'])[
+                    np.array(self.id2node_env[nodeid]["bounding_box"]["center"])[
                         None, :
                     ]
                     for nodeid in current_objects
@@ -645,7 +642,7 @@ class MCTS_particles_v2_instance:
             # Get the center of the objects close to the dest
             nodes_graph_dest_center = np.concatenate(
                 [
-                    np.array(self.id2node_env[nodeid]['bounding_box']['center'])[
+                    np.array(self.id2node_env[nodeid]["bounding_box"]["center"])[
                         None, :
                     ]
                     for nodeid in current_objects_dest
@@ -664,18 +661,18 @@ class MCTS_particles_v2_instance:
             # cost = 5.0
 
             # distance = 0
-            cost_mult = self.agent_params['walk_cost']
+            cost_mult = self.agent_params["walk_cost"]
             cost = cost_mult * distance
 
-        elif 'open' in action[action_index]:
-            cost = self.agent_params['open_cost']
-        elif 'grab' in action[action_index]:
+        elif "open" in action[action_index]:
+            cost = self.agent_params["open_cost"]
+        elif "grab" in action[action_index]:
             cost = 0.05
-        elif 'put' in action[action_index]:
+        elif "put" in action[action_index]:
             cost = 0.05
-        elif 'close' in action[action_index]:
-            cost = self.agent_params['open_cost']
-        elif 'touch' in action[action_index]:
+        elif "close" in action[action_index]:
+            cost = self.agent_params["open_cost"]
+        elif "touch" in action[action_index]:
             cost = 0.05
 
         else:
@@ -724,7 +721,7 @@ class MCTS_particles_v2_instance:
 
         score = q_score + u_score
         if info:
-            return {'score': score, 'q': q_score, 'u': u_score}
+            return {"score": score, "q": q_score, "u": u_score}
         return score
 
     def select_child(self, curr_node, curr_state):
@@ -735,7 +732,7 @@ class MCTS_particles_v2_instance:
             for child in possible_children
         ]
         scores_info = scores
-        scores = [s['score'] for s in scores]
+        scores = [s["score"] for s in scores]
 
         if len(scores) == 0:
             return None, None, None, None
@@ -746,25 +743,25 @@ class MCTS_particles_v2_instance:
         # 'grab' in curr_node.id[-1][-1] or
         prev_verbose = False
         if (
-            curr_node.plan == [] or curr_node.plan == '[walk] <cupcake> (369)'
+            curr_node.plan == [] or curr_node.plan == "[walk] <cupcake> (369)"
         ) and self.any_verbose:
             self.verbose = True
 
         if self.verbose:
             print("Selecting child for ", curr_node.id[-1][-1])
-            print('children_ids:', end='')
+            print("children_ids:", end="")
             for it, nodech in enumerate(curr_node.children):
                 if it != selected_child_index:
-                    print(nodech.id[-1][-1], end=', ')
+                    print(nodech.id[-1][-1], end=", ")
                 else:
-                    print(colored('{}'.format(nodech.id[-1][-1]), 'yellow'), end=', ')
-            print('')
+                    print(colored("{}".format(nodech.id[-1][-1]), "yellow"), end=", ")
+            print("")
             # print('children_ids:', children_ids)
             # print('children_visit:', children_visit)
-            print('children_value:', [s['q'] for s in scores_info])
-            print('children_visit:', [s['u'] for s in scores_info])
-            print('children_score:', [s['score'] for s in scores_info])
-            print('----')
+            print("children_value:", [s["q"] for s in scores_info])
+            print("children_visit:", [s["u"] for s in scores_info])
+            print("children_score:", [s["score"] for s in scores_info])
+            print("----")
 
         self.verbose = prev_verbose
         # if 'grab' in curr_node.id[-1][-1]:
@@ -795,7 +792,6 @@ class MCTS_particles_v2_instance:
                 )
                 total_cost += cost
                 total_reward += reward
-
 
                 # dicti = next_vh_state.to_dict()
                 # # print([node['states'] for node in dicti['nodes'] if node['id'] == 328])
@@ -923,9 +919,9 @@ class MCTS_particles_v2_instance:
                     node.id[-1][-1],
                     curr_value,
                     curr_reward,
-                    'avg val:',
+                    "avg val:",
                     prev_avg_value,
-                    '-->',
+                    "-->",
                     avg_value,
                 )
 
@@ -935,7 +931,7 @@ class MCTS_particles_v2_instance:
             # print(value, [node.id.keys() for node in node_list])
         if self.verbose:
             # pass
-            print('----')
+            print("----")
 
         # if '[walk] <cupcake> (369)' in full_backup_actions:
         #     ipdb.set_trace()
@@ -951,29 +947,29 @@ class MCTS_particles_v2_instance:
         actions = curr_root.children[selected_child_index].plan
         if self.verbose:
             print(
-                'children_ids:',
+                "children_ids:",
                 [
                     nodech.id[-1][-1]
                     if it != selected_child_index
-                    else '**{}**'.format(nodech.id[-1][-1])
+                    else "**{}**".format(nodech.id[-1][-1])
                     for it, nodech in enumerate(curr_root.children)
                 ],
             )
             # print('children_ids:', children_ids)
-            print('children_visit:', children_visit)
-            print('children_value:', children_value)
-            print('----')
+            print("children_visit:", children_visit)
+            print("children_value:", children_value)
+            print("----")
         return actions, children_visit, curr_root.children[selected_child_index]
 
     def transition_subgoal(self, satisfied, unsatisfied, subgoal):
         # TODO: do we need this?
         """transition on predicate level"""
-        elements = subgoal.split('_')
-        if elements[0] == 'put':
-            predicate_key = 'on_{}_{}'.format(
+        elements = subgoal.split("_")
+        if elements[0] == "put":
+            predicate_key = "on_{}_{}".format(
                 self.env.id2node[int(elements[1])], elements[2]
             )
-            predicate_value = 'on_{}_{}'.format(elements[1], elements[2])
+            predicate_value = "on_{}_{}".format(elements[1], elements[2])
             satisfied[predicate_key].append(satisfied)
 
     def initialize_children(self, node, state_particle):
@@ -999,41 +995,39 @@ class MCTS_particles_v2_instance:
         # If you have an object grabbed already reduce the subgoal space search and add the object you already had
         curr_state = state
         hands_busy = [
-            edge['to_id']
-            for edge in curr_state['edges']
-            if 'HOLD' in edge['relation_type'] and edge['from_id'] == self.agent_id
+            edge["to_id"]
+            for edge in curr_state["edges"]
+            if "HOLD" in edge["relation_type"] and edge["from_id"] == self.agent_id
         ]
         is_offering = False
         unsatisfied_aux = copy.deepcopy(unsatisfied)
         subgoals_hand = []
-        if 'offer' in list(unsatisfied_aux.keys())[0]:
+        if "offer" in list(unsatisfied_aux.keys())[0]:
             is_offering = True
             # ipdb.set_trace()
         for hand_busy in hands_busy:
-            hand_class_name = self.id2node_env[hand_busy]['class_name']
+            hand_class_name = self.id2node_env[hand_busy]["class_name"]
             pred_name_selected = None
             for missing_pred, count_pred in unsatisfied_aux.items():
                 goal_spec_pred = goal_spec[missing_pred]
                 if pred_name_selected is None:
-                    if count_pred > 0 and hand_busy in goal_spec_pred['grab_obj_ids']:
+                    if count_pred > 0 and hand_busy in goal_spec_pred["grab_obj_ids"]:
                         pred_name_selected = missing_pred
 
             if pred_name_selected is not None:
-                cont_id = goal_spec[pred_name_selected]['container_ids'][0]
+                cont_id = goal_spec[pred_name_selected]["container_ids"][0]
                 unsatisfied_aux[pred_name_selected] -= 1
-                
+
                 # we should avoid using pred_name_split here
-                pred_name_split = pred_name_selected.split('_')
-                verb = {'on': 'put', 'inside': 'putIn', 'offer': 'offer'}[
+                pred_name_split = pred_name_selected.split("_")
+                verb = {"on": "put", "inside": "putIn", "offer": "offer"}[
                     pred_name_split[0]
                 ]
                 subgoals_hand.append(
                     [
-                        '{}_{}_{}'.format(verb, hand_busy, cont_id),
+                        "{}_{}_{}".format(verb, hand_busy, cont_id),
                         pred_name_selected,
-                        '{}_{}_{}'.format(
-                            pred_name_split[0], hand_busy, cont_id
-                        ),
+                        "{}_{}_{}".format(pred_name_split[0], hand_busy, cont_id),
                     ]
                 )
 
@@ -1046,7 +1040,7 @@ class MCTS_particles_v2_instance:
             self.opponent_subgoal,
         )
         subgoals += subgoals_hand
-        
+
         if is_offering:
             pass
         # ipdb.set_trace()
@@ -1063,7 +1057,7 @@ class MCTS_particles_v2_instance:
 
         if len(hands_busy) == 2:
             subgoals = [
-                subg for subg in subgoals if int(subg[0].split('_')[1]) in hands_busy
+                subg for subg in subgoals if int(subg[0].split("_")[1]) in hands_busy
             ]
 
         act_all = []
@@ -1073,10 +1067,10 @@ class MCTS_particles_v2_instance:
                 goal_predicate[1],
                 goal_predicate[2],
             )  # subgoal, goal predicate, the new satisfied predicate
-            heuristic = self.heuristic_dict[goal.split('_')[0]]
-            if 'offer' in goal:
+            heuristic = self.heuristic_dict[goal.split("_")[0]]
+            if "offer" in goal:
                 pass
-                #ipdb.set_trace()
+                # ipdb.set_trace()
             try:
                 action_heuristic, _, action_heuristic_name = heuristic(
                     self.agent_id, self.char_index, unsatisfied, state, self.env, goal
@@ -1092,7 +1086,7 @@ class MCTS_particles_v2_instance:
             # If the plan is about placinng stuff, make sure i dont have to open a door
             try:
                 acti = [x[0].lower() for x in action_heuristic]
-                if ('open' in acti or 'close' in acti) and len(hands_busy) == 2:
+                if ("open" in acti or "close" in acti) and len(hands_busy) == 2:
                     continue
             except:
                 if self.add_bp:
@@ -1116,7 +1110,7 @@ class MCTS_particles_v2_instance:
         # ipdb.set_trace()
 
         if len(actions_heuristic) == 0 and node.id[0] is None:
-            print("No actions found", subgoals)
+            # print("No actions found", subgoals)
             return node, []
             # raise Exception
 
@@ -1148,7 +1142,7 @@ class MCTS_particles_v2_instance:
                 self.get_action_str(action_item) for action_item in info_action[0]
             ]
             currplan = [xt.split() for xt in action_list]
-            if len(hands_busy) == 2 and '[open]' in currplan:
+            if len(hands_busy) == 2 and "[open]" in currplan:
                 ipdb.set_trace()
             # ipdb.set_trace()
             new_node = Node(
@@ -1175,8 +1169,8 @@ class MCTS_particles_v2_instance:
 
     def get_action_str(self, action_tuple):
         obj_args = [x for x in list(action_tuple)[1:] if x is not None]
-        objects_str = ' '.join(['<{}> ({})'.format(x[0], x[1]) for x in obj_args])
-        return '[{}] {}'.format(action_tuple[0], objects_str)
+        objects_str = " ".join(["<{}> ({})".format(x[0], x[1]) for x in obj_args])
+        return "[{}] {}".format(action_tuple[0], objects_str)
 
     def get_subgoal_space(
         self,
@@ -1209,31 +1203,31 @@ class MCTS_particles_v2_instance:
         inhand_objects = []
         objects_on_offer = vh_state.offer_obj
 
-        for edge in state['edges']:
+        for edge in state["edges"]:
             if (
-                edge['relation_type'].startswith('HOLDS')
-                and edge['from_id'] == self.agent_id
+                edge["relation_type"].startswith("HOLDS")
+                and edge["from_id"] == self.agent_id
             ):
-                inhand_objects.append(edge['to_id'])
+                inhand_objects.append(edge["to_id"])
         inhand_objects_opponent = []
-        for edge in state['edges']:
+        for edge in state["edges"]:
             if (
-                edge['relation_type'].startswith('HOLDS')
-                and edge['from_id'] == 3 - self.agent_id
-                and edge['to_id'] in objects_on_offer
+                edge["relation_type"].startswith("HOLDS")
+                and edge["from_id"] == 3 - self.agent_id
+                and edge["to_id"] in objects_on_offer
             ):
-                inhand_objects_opponent.append(edge['to_id'])
+                inhand_objects_opponent.append(edge["to_id"])
 
         # if verbose:
         #     print('inhand_objects:', inhand_objects)
         #     print(state['edges'])
 
-        id2node = {node['id']: node for node in state['nodes']}
+        id2node = {node["id"]: node for node in state["nodes"]}
         class2id = {}
-        for node in state['nodes']:
-            if node['class_name'] not in class2id:
-                class2id[node['class_name']] = []
-            class2id[node['class_name']].append(node['id'])
+        for node in state["nodes"]:
+            if node["class_name"] not in class2id:
+                class2id[node["class_name"]] = []
+            class2id[node["class_name"]].append(node["id"])
 
         opponent_predicate_1 = None
         opponent_predicate_2 = None
@@ -1260,22 +1254,22 @@ class MCTS_particles_v2_instance:
         for predicate, unsatisfied_val in unsatisfied.items():
             obj_grabbed = False
             count = unsatisfied_val
-            obj_ids_grab = goal_spec[predicate]['grab_obj_ids']
-            container_id = goal_spec[predicate]['container_ids'][0]
+            obj_ids_grab = goal_spec[predicate]["grab_obj_ids"]
+            container_id = goal_spec[predicate]["container_ids"][0]
             if (
                 count > 1
                 or count > 0
                 and predicate not in [opponent_predicate_1, opponent_predicate_2]
             ):
-                elements = predicate.split('_')
+                elements = predicate.split("_")
                 # print(elements)
-                if elements[0] == 'offer':
-                    #ipdb.set_trace()
+                if elements[0] == "offer":
+                    # ipdb.set_trace()
                     index_offer = container_id
                     if index_offer == 394:
                         ipdb.set_trace()
                     for obj_id in obj_ids_grab:
-                        tmp_predicate = f'offer_{obj_id}_{index_offer}'
+                        tmp_predicate = f"offer_{obj_id}_{index_offer}"
                         # object_is_grabbed = (
                         #     len(
                         #         [
@@ -1289,14 +1283,14 @@ class MCTS_particles_v2_instance:
                         #     > 0
                         # )
                         if (
-                            tmp_predicate not in satisfied[predicate]
-                           # and object_is_grabbed
-
+                            tmp_predicate
+                            not in satisfied[predicate]
+                            # and object_is_grabbed
                         ):
 
                             subgoal_space.append(
                                 [
-                                    f'offer_{obj_id}_{index_offer}',
+                                    f"offer_{obj_id}_{index_offer}",
                                     predicate,
                                     tmp_predicate,
                                 ]
@@ -1305,26 +1299,26 @@ class MCTS_particles_v2_instance:
                             if obj_id in obsed_objs:
                                 obsed_subgoal_space.append(
                                     [
-                                        f'offer_{obj_id}_{index_offer}',
+                                        f"offer_{obj_id}_{index_offer}",
                                         predicate,
                                         tmp_predicate,
                                     ]
                                 )
-                if elements[0] == 'on':
-                    subgoal_type = 'put'
+                if elements[0] == "on":
+                    subgoal_type = "put"
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
 
-                        tmp_predicate = 'on_{}_{}'.format(node_id, surface)
+                        tmp_predicate = "on_{}_{}".format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
-                            tmp_subgoal = '{}_{}_{}'.format(
+                            tmp_subgoal = "{}_{}_{}".format(
                                 subgoal_type, node_id, surface
                             )
                             if tmp_subgoal != opponent_subgoal:
                                 subgoal_space.append(
                                     [
-                                        '{}_{}_{}'.format(
+                                        "{}_{}_{}".format(
                                             subgoal_type, node_id, surface
                                         ),
                                         predicate,
@@ -1334,7 +1328,7 @@ class MCTS_particles_v2_instance:
                                 if node_id in obsed_objs:
                                     obsed_subgoal_space.append(
                                         [
-                                            '{}_{}_{}'.format(
+                                            "{}_{}_{}".format(
                                                 subgoal_type, node_id, surface
                                             ),
                                             predicate,
@@ -1344,21 +1338,21 @@ class MCTS_particles_v2_instance:
                                 if node_id in inhand_objects:
                                     pass
                                     # return [subgoal_space[-1]]
-                elif elements[0] == 'inside':
-                    subgoal_type = 'putIn'
+                elif elements[0] == "inside":
+                    subgoal_type = "putIn"
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
 
-                        tmp_predicate = 'inside_{}_{}'.format(node_id, surface)
+                        tmp_predicate = "inside_{}_{}".format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
-                            tmp_subgoal = '{}_{}_{}'.format(
+                            tmp_subgoal = "{}_{}_{}".format(
                                 subgoal_type, node_id, surface
                             )
                             if tmp_subgoal != opponent_subgoal:
                                 subgoal_space.append(
                                     [
-                                        '{}_{}_{}'.format(
+                                        "{}_{}_{}".format(
                                             subgoal_type, node_id, surface
                                         ),
                                         predicate,
@@ -1368,7 +1362,7 @@ class MCTS_particles_v2_instance:
                                 if node_id in obsed_objs:
                                     obsed_subgoal_space.append(
                                         [
-                                            '{}_{}_{}'.format(
+                                            "{}_{}_{}".format(
                                                 subgoal_type, node_id, surface
                                             ),
                                             predicate,
@@ -1380,122 +1374,122 @@ class MCTS_particles_v2_instance:
                                     pass
                                     # return [subgoal_space[-1]]
 
-                elif elements[0] == 'offOn':
+                elif elements[0] == "offOn":
                     # Xavi: What is this for?
-                    if id2node[container_id]['class_name'] in [
-                        'dishwasher',
-                        'kitchentable',
+                    if id2node[container_id]["class_name"] in [
+                        "dishwasher",
+                        "kitchentable",
                     ]:
                         containers = [
-                            [node['id'], node['class_name']]
-                            for node in state['nodes']
-                            if node['class_name']
+                            [node["id"], node["class_name"]]
+                            for node in state["nodes"]
+                            if node["class_name"]
                             in [
-                                'kitchencabinets',
-                                'kitchencounterdrawer',
-                                'kitchencounter',
+                                "kitchencabinets",
+                                "kitchencounterdrawer",
+                                "kitchencounter",
                             ]
                         ]
                     else:
                         containers = [
-                            [node['id'], node['class_name']]
-                            for node in state['nodes']
-                            if node['class_name'] == 'coffetable'
+                            [node["id"], node["class_name"]]
+                            for node in state["nodes"]
+                            if node["class_name"] == "coffetable"
                         ]
-                    for edge in state['edges']:
+                    for edge in state["edges"]:
                         if (
-                            edge['relation_type'] == 'ON'
-                            and edge['to_id'] == container_id
-                            and id2node[edge['from_id']] in obj_ids_grab
+                            edge["relation_type"] == "ON"
+                            and edge["to_id"] == container_id
+                            and id2node[edge["from_id"]] in obj_ids_grab
                         ):
                             container = random.choice(containers)
-                            predicate = '{}_{}_{}'.format(
-                                'on' if container[1] == 'kitchencounter' else 'inside',
-                                edge['from_id'],
+                            predicate = "{}_{}_{}".format(
+                                "on" if container[1] == "kitchencounter" else "inside",
+                                edge["from_id"],
                                 container[0],
                             )
                             goals[predicate] = 1
-                elif elements[0] == 'offInside':
-                    if id2node[container_id]['class_name'] in [
-                        'dishwasher',
-                        'kitchentable',
+                elif elements[0] == "offInside":
+                    if id2node[container_id]["class_name"] in [
+                        "dishwasher",
+                        "kitchentable",
                     ]:
                         containers = [
-                            [node['id'], node['class_name']]
-                            for node in state['nodes']
-                            if node['class_name']
+                            [node["id"], node["class_name"]]
+                            for node in state["nodes"]
+                            if node["class_name"]
                             in [
-                                'kitchencabinets',
-                                'kitchencounterdrawer',
-                                'kitchencounter',
+                                "kitchencabinets",
+                                "kitchencounterdrawer",
+                                "kitchencounter",
                             ]
                         ]
                     else:
                         containers = [
-                            [node['id'], node['class_name']]
-                            for node in state['nodes']
-                            if node['class_name'] == 'coffetable'
+                            [node["id"], node["class_name"]]
+                            for node in state["nodes"]
+                            if node["class_name"] == "coffetable"
                         ]
-                    for edge in state['edges']:
+                    for edge in state["edges"]:
                         if (
-                            edge['relation_type'] == 'INSIDE'
-                            and edge['to_id'] == container_id
-                            and edge['from_id'] in obj_ids_grab
+                            edge["relation_type"] == "INSIDE"
+                            and edge["to_id"] == container_id
+                            and edge["from_id"] in obj_ids_grab
                         ):
                             container = random.choice(containers)
-                            predicate = '{}_{}_{}'.format(
-                                'on' if container[1] == 'kitchencounter' else 'inside',
-                                edge['from_id'],
+                            predicate = "{}_{}_{}".format(
+                                "on" if container[1] == "kitchencounter" else "inside",
+                                edge["from_id"],
                                 container[0],
                             )
                             goals[predicate] = 1
-                elif elements[0] == 'touch':
+                elif elements[0] == "touch":
                     for n_id in class2id[elements[1]]:
-                        if 'TOUCHED' not in [
-                            st.upper() for st in id2node[n_id]['states']
+                        if "TOUCHED" not in [
+                            st.upper() for st in id2node[n_id]["states"]
                         ]:
-                            tmp_predicate = 'touch_{}_{}'.format(n_id, 1)
+                            tmp_predicate = "touch_{}_{}".format(n_id, 1)
                             subgoal_space.append(
-                                ['touch_{}'.format(n_id), predicate, tmp_predicate]
+                                ["touch_{}".format(n_id), predicate, tmp_predicate]
                             )
 
             elif (
                 predicate in [opponent_predicate_1, opponent_predicate_2]
                 and len(inhand_objects_opponent) == 0
             ):
-                elements = predicate.split('_')
+                elements = predicate.split("_")
                 # print(elements)
-                if elements[0] == 'on':
-                    subgoal_type = 'put'
+                if elements[0] == "on":
+                    subgoal_type = "put"
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
-                        tmp_predicate = 'on_{}_{}'.format(node_id, surface)
+                        tmp_predicate = "on_{}_{}".format(node_id, surface)
                         if tmp_predicate not in satisfied[predicate]:
-                            tmp_subgoal = '{}_{}_{}'.format(
+                            tmp_subgoal = "{}_{}_{}".format(
                                 subgoal_type, node_id, surface
                             )
                             overlapped_subgoal_space.append(
                                 [
-                                    '{}_{}_{}'.format(subgoal_type, node_idz, surface),
+                                    "{}_{}_{}".format(subgoal_type, node_idz, surface),
                                     predicate,
                                     tmp_predicate,
                                 ]
                             )
-                elif elements[0] == 'inside':
-                    subgoal_type = 'putIn'
+                elif elements[0] == "inside":
+                    subgoal_type = "putIn"
                     obj = elements[1]
                     surface = container_id  # assuming it is a graph node id
                     for node_id in obj_ids_grab:
 
-                        tmp_predicate = 'inside_{}_{}'.format(node['id'], surface)
+                        tmp_predicate = "inside_{}_{}".format(node["id"], surface)
                         if tmp_predicate not in satisfied[predicate]:
-                            tmp_subgoal = '{}_{}_{}'.format(
+                            tmp_subgoal = "{}_{}_{}".format(
                                 subgoal_type, node_id, surface
                             )
                             overlapped_subgoal_space.append(
                                 [
-                                    '{}_{}_{}'.format(subgoal_type, node_id, surface),
+                                    "{}_{}_{}".format(subgoal_type, node_id, surface),
                                     predicate,
                                     tmp_predicate,
                                 ]
@@ -1513,17 +1507,17 @@ class MCTS_particles_v2_instance:
                 goal_spec_pred = goal_spec[predicate]
                 count = unsatisfied_val
                 if count == 1:
-                    elements = predicate.split('_')
+                    elements = predicate.split("_")
                     # print(elements)
-                    if elements[0] == 'turnOn':
-                        subgoal_type = 'turnOn'
+                    if elements[0] == "turnOn":
+                        subgoal_type = "turnOn"
                         obj = elements[1]
-                        for node_id in goal_spec_pred['grab_obj_ids']:
-                            tmp_predicate = 'turnOn{}_{}'.format(node_id, 1)
+                        for node_id in goal_spec_pred["grab_obj_ids"]:
+                            tmp_predicate = "turnOn{}_{}".format(node_id, 1)
                             if tmp_predicate not in satisfied[predicate]:
                                 subgoal_space.append(
                                     [
-                                        '{}_{}'.format(subgoal_type, node_id),
+                                        "{}_{}".format(subgoal_type, node_id),
                                         predicate,
                                         tmp_predicate,
                                     ]
@@ -1534,17 +1528,17 @@ class MCTS_particles_v2_instance:
                 goal_spec_pred = goal_spec[predicate]
 
                 if count == 1:
-                    elements = predicate.split('_')
+                    elements = predicate.split("_")
                     # print(elements)
-                    if elements[0] == 'holds' and int(elements[2]) == self.agent_id:
-                        subgoal_type = 'grab'
+                    if elements[0] == "holds" and int(elements[2]) == self.agent_id:
+                        subgoal_type = "grab"
                         obj = elements[1]
-                        for node_id in goal_spec_pred['grab_obj_ids']:
-                            tmp_predicate = 'holds_{}_{}'.format(node_id, 1)
+                        for node_id in goal_spec_pred["grab_obj_ids"]:
+                            tmp_predicate = "holds_{}_{}".format(node_id, 1)
                             if tmp_predicate not in satisfied[predicate]:
                                 subgoal_space.append(
                                     [
-                                        '{}_{}'.format(subgoal_type, node_id),
+                                        "{}_{}".format(subgoal_type, node_id),
                                         predicate,
                                         tmp_predicate,
                                     ]
@@ -1555,18 +1549,18 @@ class MCTS_particles_v2_instance:
                 goal_spec_pred = goal_spec[predicate]
 
                 if count == 1:
-                    elements = predicate.split('_')
+                    elements = predicate.split("_")
                     # print(elements)
-                    if elements[0] == 'sit' and int(elements[1]) == self.agent_id:
-                        subgoal_type = 'sit'
+                    if elements[0] == "sit" and int(elements[1]) == self.agent_id:
+                        subgoal_type = "sit"
                         obj = elements[2]
-                        for node_id in goal_spec_pred['container_ids']:
+                        for node_id in goal_spec_pred["container_ids"]:
 
-                            tmp_predicate = 'sit_{}_{}'.format(1, node_id)
+                            tmp_predicate = "sit_{}_{}".format(1, node_id)
                             if tmp_predicate not in satisfied[predicate]:
                                 subgoal_space.append(
                                     [
-                                        '{}_{}'.format(subgoal_type, node_id),
+                                        "{}_{}".format(subgoal_type, node_id),
                                         predicate,
                                         tmp_predicate,
                                     ]
