@@ -101,8 +101,8 @@ def compute_metrics(pred_graphs, task_graph_gt):
 	'recallmax': recallmax,
 	'accuracy': accuracy,
 	'accuracymax': accuracymax,
-	'precision': precision,
-	'precisionmax': precisionmax
+	'precision': prec,
+        'precisionmax': precmax
     
     }
 
@@ -551,16 +551,23 @@ def main(cfg: DictConfig):
     t = 1
     for action in content['action'][0]:
 
-        curr_graphs = content['graph'][t]
-        graphs = [utils_environment.inside_not_trans(curr_graph)]
+        curr_graphs = copy.deepcopy(content['graph'][t])
+        graphs = [utils_environment.inside_not_trans(utils_environment.clean_house_obj(curr_graphs))]
         obs = [content['obs'][t]]
         actions = [None]
 
         rejected_particles =  particle_pred.get_rejected_particles(action)
-        particle_pred.regen_particles(graph, obs, actions, rejected_particles)
-        particle_pred.plan_for_particles(rejected_particles)
+        if len(rejected_particles):
+            particle_pred.regen_particles(graphs, obs, actions, rejected_particles)
+            filtered_graph_obs = {
+                    'nodes': [node for node in graphs[0]['nodes'] for node in graphs[0]['nodes'] if node['id'] in obs[0]],
+                    'edges': [edge for edge in graphs[0]['edges'] for edge in graphs[0]['edges'] if edge['from_id'] in obs[0] and edge['to_id'] in obs[0]]
+            }
+
+            particle_pred.arena.sim_agents[0].reset(filtered_graph_obs, graphs[0], None, seed=0)
+            particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
         
-        pred_graphs = [particle['pred_graph'][-1][-1] for particle in self.particles]
+        pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
         curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
 
         t += 1
