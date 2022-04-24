@@ -167,7 +167,7 @@ class ArenaMP(object):
         dict_actions, dict_info = {}, {}
         op_subgoal = {0: None, 1: None}
         # pdb.set_trace()
-
+        # ipdb.set_trace()
         for it, agent in enumerate(self.sim_agents):
             if agent_id is not None and it != agent_id:
                 continue
