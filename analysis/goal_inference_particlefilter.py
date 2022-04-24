@@ -73,48 +73,38 @@ info_objects = {
     "others": ["character"],
 }
 
+def compute_metrics(pred_graphs, task_graph_gt):
+    eps = 1e-9
+    pos_preds = np.array([0, 0, 0, 2, 0, 5, 0, 3, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0, 0, 0, 0, 2, 0, 7, 0, 2, 0, 0, 2, 0, 0, 0, 3, 7,
+                          0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 7, 0, 0, 3, 0, 0, 0, 0, 0, 0,
+                          2, 0, 6, 0, 3, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 2, 0, 7, 0, 3, 0, 0, 2, 0, 0, 0, 2, 6, 0, 0, 3, 0, 0,
+                          0, 0, 0, 0, 3, 6, 0, 0, 3, 0, 0, 0, 0, 0, 1, 1])
+    pred_task = np.concatenate([pred_graph[None, ...] for pred_graph in pred_graphs])
+    gt_task = task_graph_gt[None, ...]
 
-# def pred_main_agent_plan(
-#     process_id,
-#     pred_task,
-#     class2id,
-#     t,
-#     pred_actions_fn,
-#     obs,
-#     length_plan,
-#     must_replan,
-#     agent_id,
-#     res,
-# ):
-#     inferred_goal = get_edge_instance(pred_task, class2id, t)
-#     print("pred {}:".format(process_id), inferred_goal)
-#     ipdb.set_trace()
+    pos_gt_p = (gt_task > 0) / ((gt_task > 0).sum(-1)[..., None] + eps)
+    pred_p = (pred_task > 0) / ((pred_task > 0).sum(-1)[..., None] + eps)
+        
+
+    accuracy = (((gt_task == pred_task) * pos_gt_p).sum(-1)).mean(0)[None, ...]
+    recall = (np.minimum(pred_task, gt_task).sum(-1) / (eps+gt_task.sum(-1))).mean(0)[None, ...]
+    prec = (np.minimum(pred_task, gt_task).sum(-1) / (eps+pred_task.sum(-1))).mean(0)[None, ...]
     
-#     plan_states, opponent_subgoal = None, None
-#     if len(inferred_goal) > 0:  # if no edge prediction then None action
-#         opponent_actions, opponent_info = pred_actions_fn(
-#             obs,
-#             length_plan=length_plan,
-#             must_replan=must_replan,
-#             agent_id=1 - agent_id,
-#             inferred_goal=inferred_goal,
-#         )
-#         plan_states = opponent_info[1 - agent_id]["plan_states"]
-#         plan_cost = opponent_info[1 - agent_id]["plan_cost"]
-#         plan = opponent_info[1 - agent_id]["plan"]
-#         if (
-#             opponent_info[1 - agent_id]["subgoals"] is not None
-#             and len(opponent_info[1 - agent_id]["subgoals"]) > 0
-#         ):
-#             opponent_subgoal = opponent_info[1 - agent_id]["subgoals"][0][0]
-#         else:
-#             opponent_subgoal = None
-#         res[process_id] = (opponent_subgoal, plan, plan_states, plan_cost)
-#     else:
-#         # This particle has not plan
-#         res[process_id] = (None, [], [], 0.0)
-
-
+    accuracymax = (((gt_task == pred_task) * pos_gt_p).sum(-1)).max(0)[None, ...]
+    recallmax = (np.minimum(pred_task, gt_task).sum(-1) / (eps+gt_task.sum(-1))).max(0)[None, ...]
+    precmax = (np.minimum(pred_task, gt_task).sum(-1) / (eps+pred_task.sum(-1))).max(0)[None, ...]
+    return {
+	'recall': recall,
+	'recallmax': recallmax,
+	'accuracy': accuracy,
+	'accuracymax': accuracymax,
+	'precision': precision,
+	'precisionmax': precisionmax
+    
+    }
 
 
 class GoalInferenceParticle():
@@ -131,6 +121,16 @@ class GoalInferenceParticle():
         self.graph_helper = graph_helper
         self.class2id = class2id
         self.num_steps_plan = 15
+
+    def get_rejected_particles(self, current_action):
+        index_reject = []
+        current_action.replace('walktowards', 'walk')
+        for index in range(self.num_particles):
+            plan_particle = self.particles[index]['plan'][1]
+            is_present = current_action in plan_particle
+            if is_present:
+                index_reject.append(index)
+        return index_reject
 
 
     def get_pred_name(self, container_name):
@@ -190,6 +190,7 @@ class GoalInferenceParticle():
         " Returns the plan of the agent"
         inferred_goal = self.get_edge_instance(current_goal, self.class2id, t)
         print("pred {}:".format(index_plan), inferred_goal)
+        # ipdb.set_trace()
         plan_states, opponent_subgoal = None, None
         if len(inferred_goal) > 0:  # if no edge prediction then None action
             opponent_actions, opponent_info = self.planner(
@@ -203,12 +204,12 @@ class GoalInferenceParticle():
             plan_cost = opponent_info[agent_id]["plan_cost"]
             plan = opponent_info[agent_id]["plan"]
             
-            ipdb.set_trace()
+            # ipdb.set_trace()
             if (
-                opponent_info[1 - agent_id]["subgoals"] is not None
-                and len(opponent_info[1 - agent_id]["subgoals"]) > 0
+                opponent_info[agent_id]["subgoals"] is not None
+                and len(opponent_info[agent_id]["subgoals"]) > 0
             ):
-                opponent_subgoal = opponent_info[1 - agent_id]["subgoals"][0][0]
+                opponent_subgoal = opponent_info[agent_id]["subgoals"][0][0]
             else:
                 opponent_subgoal = None
             res[index_plan] = (opponent_subgoal, plan, plan_states, plan_cost)
@@ -237,6 +238,7 @@ class GoalInferenceParticle():
             
         else:
             t = 0
+            # ipdb.set_trace()
             manager = mp.Manager()
             res = manager.dict()
             for start_root_id in range(0, num_goals, processes_used):
@@ -263,7 +265,65 @@ class GoalInferenceParticle():
                     jobs.append(p)
                     p.start()
                 for p in jobs:
-                    p.join()    
+                    p.join()
+
+        index = 0
+        for particle_id in particle_ids:
+            self.particles[particle_id]['plan'] = res[index]
+            index += 1
+
+    def regen_particles(self, graphs, observations, actions, particle_ids):
+        history_graph = graphs
+        history_obs = observations
+        history_action = actions
+        inputs_func = (
+            utils_models_wb.prepare_graph_for_task_model_diff(
+                history_graph,
+                history_obs,
+                history_action,
+                self.args_pred,
+                self.graph_helper,
+                batch_repeat=len(particle_ids)
+        ))
+
+        with torch.no_grad():
+            output_func = self.prediction_net(inputs_func, inference=True)
+
+        num_tsteps = output_func["pred_graph"].shape[1]
+        pred_graph = output_func["pred_graph"].argmax(-1)
+        
+        # todo : get current plan?
+        task_graph_input = self.graph_helper.get_task_graph(
+                                inputs_func["input_task_graph"][0, 0], use_dict=True
+                            )
+        task_result = []
+        for ind, index_particle in enumerate(particle_ids):
+            task_graphs = []
+            for tstep in range(num_tsteps):
+                try:
+                    curr_task_graph = self.graph_helper.get_task_graph(
+                        pred_graph[ind, tstep], use_dict=True
+                    )
+                except:
+                    print("Error processing graph")
+                    ipdb.set_trace()
+                # ipdb.set_trace()
+                # curr_mask_task = mask_task_graph[ind, tstep]
+                curr_mask_task = None
+                task_graphs.append(
+                    (
+                        curr_task_graph,
+                        curr_mask_task,
+                        task_graph_input,
+                        pred_graph[ind, tstep]
+                    )
+                )
+            task_result.append(task_graphs)
+            self.particles[index_particle]['pred_graph'] = task_graphs
+
+        
+
+
 
     def initialize(self, graphs, observations, actions):
         self.arena.sim_agents[0].reset(observations[0], graphs[0], None, seed=0)
@@ -279,6 +339,7 @@ class GoalInferenceParticle():
                 self.graph_helper,
                 batch_repeat=self.num_particles
             ))
+
         with torch.no_grad():
             output_func = self.prediction_net(inputs_func, inference=True)
 
@@ -298,6 +359,7 @@ class GoalInferenceParticle():
                         pred_graph[ind, tstep], use_dict=True
                     )
                 except:
+                    print("Error processing graph")
                     ipdb.set_trace()
                 # ipdb.set_trace()
                 # curr_mask_task = mask_task_graph[ind, tstep]
@@ -307,6 +369,7 @@ class GoalInferenceParticle():
                         curr_task_graph,
                         curr_mask_task,
                         task_graph_input,
+                        pred_graph[ind, tstep]
                     )
                 )
             task_result.append(task_graphs)
@@ -360,6 +423,8 @@ def main(cfg: DictConfig):
 
     with open(filenames[0].strip(), 'rb') as f:
         content = pkl.load(f)
+    with open(filenames[0].strip().replace('.pik', '_reduced.pik'), 'rb') as f:
+        content_reduced = pkl.load(f)
     
     curr_graph = content['graph'][0]
     class2id = {}
@@ -371,6 +436,15 @@ def main(cfg: DictConfig):
 
 
     model = agent_pref_policy.GraphPredNetworkVAETask3(args_pred)
+    state_dict = torch.load(args_pred.ckpt_load)["model"]
+
+    state_dict_new = {}
+
+    for param_name, param_value in state_dict.items():
+        state_dict_new[param_name.replace("module.", "")] = param_value
+
+    model.load_state_dict(state_dict_new)
+    model.eval()
     agent_types = [
         ["full", 0, 0.05, False, 0, "uniform"],  # 0
         ["full", 0.5, 0.01, False, 0, "uniform"],  # 1
@@ -447,11 +521,50 @@ def main(cfg: DictConfig):
         num_proc=num_proc
     )
 
+
+    graph_info, _ = graph_helper.build_graph_for_task(
+            content['graph'][0], character_id=1,
+            include_edges=True,
+            obs_ids=content['obs'][0],
+        unique_from=True
+    )
+
+    graph_info_end, _ = graph_helper.build_graph_for_task(
+        content['graph'][-1], character_id=1,
+        include_edges=True,
+        obs_ids=content['obs'][-1],
+        unique_from=True
+    )
+
+    task_graph_init = graph_helper.build_task_graph(graph_info)
+    task_graph_end = graph_helper.build_task_graph(graph_info_end)
+    task_graph_gt = np.maximum(task_graph_end - task_graph_init, np.zeros(task_graph_init.shape)) 
+
+    curr_metrics = [] 
     curr_graphs = content['graph'][0]
     graphs = [utils_environment.inside_not_trans(curr_graph)]
     obs = [content['obs'][0]]
     actions = [None]
     particle_pred.initialize(graphs, obs, actions)
+    pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
+    curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
+    t = 1
+    for action in content['action'][0]:
+
+        curr_graphs = content['graph'][t]
+        graphs = [utils_environment.inside_not_trans(curr_graph)]
+        obs = [content['obs'][t]]
+        actions = [None]
+
+        rejected_particles =  particle_pred.get_rejected_particles(action)
+        particle_pred.regen_particles(graph, obs, actions, rejected_particles)
+        particle_pred.plan_for_particles(rejected_particles)
+        
+        pred_graphs = [particle['pred_graph'][-1][-1] for particle in self.particles]
+        curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
+
+        t += 1
+
     ipdb.set_trace()
 
 
