@@ -21,7 +21,7 @@ from dataloader.dataloader_v2 import AgentTypeDataset
 from dataloader import dataloader_v2 as dataloader_v2
 from models import agent_pref_policy_task as agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
-from utils import utils_models_wb, utils_rl_agent
+from utils import utils_models_wb, utils_rl_agent, utils_environment
 
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
@@ -332,7 +332,7 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     args = config
     args_pred = args.agent_pred_graph
-    num_proc = 0
+    num_proc = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
     rootdir = curr_dir + "/../"
@@ -444,10 +444,11 @@ def main(cfg: DictConfig):
         class2id=class2id, 
         arena=arena,
         num_particles=10, 
-        num_proc=0
+        num_proc=num_proc
     )
 
-    graphs = [content['graph'][0]]
+    curr_graphs = content['graph'][0]
+    graphs = [utils_environment.inside_not_trans(curr_graph)]
     obs = [content['obs'][0]]
     actions = [None]
     particle_pred.initialize(graphs, obs, actions)
