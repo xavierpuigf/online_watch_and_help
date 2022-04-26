@@ -1094,7 +1094,6 @@ def prepare_graph_for_task_model_diff(graphs, observations, program_hist, args_c
     task_graph_time = torch.maximum(task_graph_time, torch.zeros_like(task_graph_time))
     mask_task_graph = task_graph_time != 0
 
-    
     inputs = {
         'program': program_batch,
         'graph': time_graph,

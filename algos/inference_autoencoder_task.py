@@ -360,7 +360,7 @@ def inference(
 
             # Sample here:
 
-            predicted_mask, predicted_graph = [], []
+            predicted_mask, predicted_graph, z_vec = [], [], []
 
             if not 'VAE' in args.model.time_aggregate:
                 #pass
@@ -374,6 +374,8 @@ def inference(
                         output2 = model(inp, inference=not posterior)
                     cpred_mask = gt['gt_mask'].cpu().numpy() # (output2['pred_mask'][:, :-1, ...] > 0).cpu()
                     cpred_graph = (output2['pred_graph'][:, :-1, ...].argmax(-1)).cpu()
+                    z_vector = output2['zvec'].cpu().numpy()
+                    print("here")
                 else:
                     if sample_num == 0:
                         cpred_mask = gt['gt_mask'].cpu().numpy() #pred_mask.argmax(-1)
@@ -381,14 +383,17 @@ def inference(
                     else:
                         cpred_mask = gt['gt_mask'].cpu().numpy()
                         cpred_graph = utils_models.vectorized(pred_graph)
+                    z_vector = np.zeros((num_samples, 128))
                 predicted_mask.append(cpred_mask)
                 predicted_graph.append(cpred_graph)
+                z_vec.append(z_vector)
             # ipdb.set_trace()
 
             # pred_edge_c = np.concatenate([x[None, :] for x in predicted_edge], 0)
             # pred_change_c = np.concatenate([x[None, :] for x in predicted_change], 0)
             predicted_maskc = np.concatenate([x[None, :] for x in predicted_mask], 0)
             predicted_graphc = np.concatenate([x[None, :] for x in predicted_graph], 0)
+            z_vec = np.concatenate([x[None, :] for x in z_vec], 0)
 
 
             metrics_item_tstep, metrics_item = update_metrics_recall_prec(metric_dict, args, predicted_maskc, predicted_graphc, gt['gt_mask'].cpu().numpy(), gt['gt_task'].cpu().numpy(), misc)
@@ -451,8 +456,9 @@ def inference(
                     pv = '_posterior'
                 expath = logger.results_path
 
-                # if 'logs_episode.121_iter.0.pik_result' in sfname:
-                #     ipdb.set_trace()
+                if 'logs_episode.551_iter.0.pik_result' not in sfname:
+                    continue
+                    # ipdb.set_trace()
                 # else:
                 #     pass
                 #     # continue
@@ -505,7 +511,7 @@ def inference(
 
 
                 if args.save_inference:
-                    if not os.path.isfile(dict_result_name):
+                    if True: # not os.path.isfile(dict_result_name):
                         list_names = []
                         # save dict of preds
                         for index_pred in range(gt_task.shape[-1]):
@@ -520,6 +526,7 @@ def inference(
                         'results_total_tstep': res_total_new_tstep[index],
                         'gt_task': gt_task[index],
                         'inp_task': inp_task[index],
+                        'z_vec': z_vec[:, index],
                         'pred_task': predicted_graphc[:, index],
                         'length': len_mask[index].sum().cpu().numpy()
                     }
@@ -527,7 +534,7 @@ def inference(
                     # ipdb.set_trace()
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
-
+                    ipdb.set_trace()
                     with open(result_name, 'wb') as f:
                        pkl.dump(results, f)
 

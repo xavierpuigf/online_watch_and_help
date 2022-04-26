@@ -1189,8 +1189,8 @@ class MCTS_agent_particle_v2_instance:
                 verbose=verbose,
                 num_process=self.num_processes,
             )
-
-            print(colored(plan[: min(len(plan), 10)], 'cyan'))
+            if self.verbose:
+                print(colored(plan[: min(len(plan), 10)], 'cyan'))
             # ipdb.set_trace()
         # else:
         #     subgoals = [[None, None, None], [None, None, None]]
@@ -1255,7 +1255,8 @@ class MCTS_agent_particle_v2_instance:
         # print(action)
         time2 = time.time()
         # print("Time: ", time2 - time1)
-        print("Replanning... ", should_replan or must_replan)
+        if self.verbose:
+            print("Replanning... ", should_replan or must_replan)
 
         return action, info
 

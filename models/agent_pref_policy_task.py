@@ -458,7 +458,7 @@ class GraphPredNetworkVAETask3(nn.Module):
             z_vec_reshape = z_vec_flat.reshape(B, self.num_task_preds, 128)
         return z_vec_reshape
 
-    def forward(self, inputs, cond=None, inference=False, seed=None, verbose=False):
+    def forward(self, inputs, cond=None, inference=False, z_vec=None, seed=None, verbose=False):
         # ipdb.set_trace()
         # Cond is an embedding of the past, optionally used
         if verbose:
@@ -531,7 +531,10 @@ class GraphPredNetworkVAETask3(nn.Module):
                 z_vec = self.sample_param(q_post)
             else:
                 # print("sampling...")
-                z_vec = self.sample_param(p_prior) 
+                if z_vec is None:
+                    z_vec = self.sample_param(p_prior) 
+                else:
+                    z_vec = z_vec[:B, ...]
                 # print('sampled')
 
 
@@ -596,6 +599,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         # ipdb.set_trace()
         output = {'pred_mask': pred_mask, 'pred_graph': pred_graph, 'pred_graph_total': prev_pred_graph, 
                 'vae_params': [mu_prior, logvar_prior, mu_posterior, logvar_posterior]}
+        output['zvec'] = z_vec
         if self.predict_category:
             output['predict_category'] = predicted_category
         #for outn, outp in output.items():

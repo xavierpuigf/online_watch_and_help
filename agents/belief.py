@@ -601,6 +601,8 @@ class Belief():
             if x['relation_type'] == 'INSIDE':
                 if x['from_id'] in inside.keys():
                     print('Already inside', id2node[x['from_id']]['class_name'], id2node[inside[x['from_id']]]['class_name'], id2node[x['to_id']]['class_name'])
+                    import ipdb
+                    ipdb.set_trace()
                     raise Exception
 
                 inside[x['from_id']] = x['to_id']
