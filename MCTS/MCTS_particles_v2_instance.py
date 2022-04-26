@@ -163,13 +163,14 @@ class MCTS_particles_v2_instance:
 
         # profiler = Profiler()
         # profiler.start()
-        print(
-            "Planning with {} simulations. Verbose: {}".format(
-                self.num_simulation, self.verbose
+        if self.verbose:
+            print(
+                "Planning with {} simulations. Verbose: {}".format(
+                    self.num_simulation, self.verbose
+                )
             )
-        )
         last_reward = 0.0
-        for explore_step in tqdm(range(self.num_simulation)):
+        for explore_step in tqdm(range(self.num_simulation), disable=not self.verbose):
             if (
                 explore_step % (self.num_simulation - 2) == 0
                 and explore_step > 0

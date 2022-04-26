@@ -433,6 +433,8 @@ def inference(
             res_total_new = [{metric_name: metric_value[:, index] for metric_name, metric_value in metrics_item.items() if '_seed' in metric_name} for index in range(0, ind.shape[0]) ]
             res_total_new_tstep = [{metric_name: metric_value[:, index] for metric_name, metric_value in metrics_item_tstep.items() if '_seed' in metric_name} for index in range(0, ind.shape[0]) ]
 
+            inp_task = input_task.cpu().numpy()
+
             for index in range(0, ind.shape[0]):
                 # ipdb.set_trace()
                 # pred_task = predicted_graph[index]
@@ -517,6 +519,7 @@ def inference(
                         'results_total': res_total_new[index],
                         'results_total_tstep': res_total_new_tstep[index],
                         'gt_task': gt_task[index],
+                        'inp_task': inp_task[index],
                         'pred_task': predicted_graphc[:, index],
                         'length': len_mask[index].sum().cpu().numpy()
                     }
