@@ -197,7 +197,6 @@ def get_metrics_reward(
     mSwS = []
     # pdb.set_trace()
     for seed in range(num_tries):
-
         alice_S = []
         alice_L = []
     normalized_by_suc = True
@@ -266,6 +265,11 @@ def get_metrics_reward(
             # print(episode_id)
             if len(L_A_seeds) > 0:
                 mSP.append(np.mean(L_A_seeds) / np.mean(Ls))
+        else:
+            Ls = [time_limit] * len(Ss)
+            SWSs.append(0)
+
+        # print(episode_id, Ss, Ls)
 
         mS.append(np.mean(Ss))
         mL.append(np.mean(Ls))
@@ -301,7 +305,7 @@ def main(cfg: DictConfig):
 
     num_tries = 5
     args.executable_file = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64"
-    args.max_episode_length = 200
+    args.max_episode_length = 250
     args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
@@ -311,11 +315,15 @@ def main(cfg: DictConfig):
     args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik"
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    # cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
+    # cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph.kl0.001_10_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
     cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_10_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
@@ -390,7 +398,7 @@ def main(cfg: DictConfig):
     print(len(episode_ids))
     f.close()
 
-    episode_ids = [3]
+    # episode_ids = [3]
 
     # # episode_ids = [20] #episode_ids
     # # num_tries = 1
@@ -402,9 +410,9 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
-    num_tries = 2
+    num_tries = 5
 
-    for iter_id in range(num_tries - 1, num_tries):
+    for iter_id in range(0, num_tries):
         # if iter_id > 0:
         # iter_id = 1
 
@@ -434,17 +442,30 @@ def main(cfg: DictConfig):
 
         # print(test_results)
 
+    print(len(help_results))
+
     for episode_id in help_results:
         print(episode_id, main_results[episode_id], help_results[episode_id])
-        if np.mean(help_results[episode_id]["S"]) < np.mean(
-            main_results[episode_id]["S"]
+
+        if (
+            np.mean(help_results[episode_id]["S"])
+            > 0
+            # and 250 in help_results[episode_id]["L"]
         ):
-            log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
-                episode_id, 0
-            )
-            log_res = pickle.load(open(log_file_name, "rb"))
-            ipdb.set_trace()
-    # print(main_results)
+            tmp_list = list(help_results[episode_id]["S"])
+            help_results[episode_id]["S"] = [x for x in tmp_list if x > 0]
+            tmp_list = list(help_results[episode_id]["L"])
+            help_results[episode_id]["L"] = [x for x in tmp_list if x < 250]
+
+    # if np.mean(help_results[episode_id]["S"]) < np.mean(
+    #     main_results[episode_id]["S"]
+    # ):
+    #     log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
+    #         episode_id, 0
+    #     )
+    #     log_res = pickle.load(open(log_file_name, "rb"))
+    #     ipdb.set_trace()
+    # print(main_results[152])
     # print(help_results)
 
     SR, AL, SP, SWS, stdR, stdL, stdSP, stdS = get_metrics_reward(
