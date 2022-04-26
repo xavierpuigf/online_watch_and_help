@@ -17,6 +17,7 @@ beta: 1.0
 lam: 5.0
 max_benefit: 20.0
 min_acceptable_value: 3.0
+inv_plan: True
 debug: False
 hydra:  
   output_subdir: null  

@@ -797,9 +797,9 @@ def main(cfg: DictConfig):
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
-        cachedir = f"{get_original_cwd()}/outputs/helping_states_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     else:
-        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
@@ -1186,9 +1186,10 @@ def main(cfg: DictConfig):
                         and steps_since_last_prediction < pred_main_plan_length
                     ):
                         last_observed_main_action = history_action[-1]
-                        last_observed_main_action = last_observed_main_action.replace(
-                            "walktowards", "walk"
-                        )
+                        if last_observed_main_action is not None:
+                            last_observed_main_action = (
+                                last_observed_main_action.replace("walktowards", "walk")
+                            )
                         remained_proposals = {}
                         for pred_id, proposal in proposals.items():
                             print(pred_id)
