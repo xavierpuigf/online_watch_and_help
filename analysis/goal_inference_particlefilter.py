@@ -7,6 +7,7 @@ import logging
 import traceback
 import pickle as pkl
 import random
+from tqdm import tqdm
 import pickle
 import copy
 from pathlib import Path
@@ -108,12 +109,12 @@ def compute_metrics(pred_graphs, task_graph_gt):
 
 
 class GoalInferenceParticle():
-    def __init__(self, planner, prediction_net, args_pred, graph_helper, class2id, arena, num_particles=10, num_proc=0):
+    def __init__(self, planner, prediction_net, args_pred, graph_helper, class2id, arena, num_particles=10, num_proc=0, z_vec=None):
         self.planner = planner
         self.prediction_net = prediction_net
         self.num_particles = num_particles
         self.arena = arena
-        
+        self.z_vec = z_vec
 
         self.particles = []
         self.num_proc = num_proc
@@ -272,10 +273,13 @@ class GoalInferenceParticle():
             self.particles[particle_id]['plan'] = res[index]
             index += 1
 
-    def regen_particles(self, graphs, observations, actions, particle_ids):
+    def regen_particles(self, graphs, observations, actions, particle_ids, t=None):
         history_graph = graphs
         history_obs = observations
         history_action = actions
+        
+        # if len(particle_ids) > 0:
+        #     particle_ids = list(range(self.num_particles))
         inputs_func = (
             utils_models_wb.prepare_graph_for_task_model_diff(
                 history_graph,
@@ -287,7 +291,12 @@ class GoalInferenceParticle():
         ))
 
         with torch.no_grad():
-            output_func = self.prediction_net(inputs_func, inference=True)
+            if self.z_vec is not None:
+                z_vec = self.z_vec.copy()
+                z_vec[:len(particle_ids), :] = z_vec[particle_ids, :]
+                output_func = self.prediction_net(inputs_func, inference=True, z_vec=torch.tensor(self.z_vec))
+            else:
+                output_func = self.prediction_net(inputs_func, inference=True)
 
         num_tsteps = output_func["pred_graph"].shape[1]
         pred_graph = output_func["pred_graph"].argmax(-1)
@@ -297,9 +306,10 @@ class GoalInferenceParticle():
                                 inputs_func["input_task_graph"][0, 0], use_dict=True
                             )
         task_result = []
+        # print(num_tsteps)
         for ind, index_particle in enumerate(particle_ids):
             task_graphs = []
-            for tstep in range(num_tsteps):
+            for tstep in [num_tsteps-1]:
                 try:
                     curr_task_graph = self.graph_helper.get_task_graph(
                         pred_graph[ind, tstep], use_dict=True
@@ -319,8 +329,18 @@ class GoalInferenceParticle():
                     )
                 )
             task_result.append(task_graphs)
-            self.particles[index_particle]['pred_graph'] = task_graphs
 
+            self.particles[index_particle]['pred_graph'] = task_graphs
+        elem = []
+        for i in range(self.num_particles):
+            tg = self.particles[i]['pred_graph'][-1][-1]
+            new_str = ''
+            if i in particle_ids:
+                new_str = '*'
+            elem.append(new_str+str(int(tg.sum(-1))))
+        print("time {}".format(t))
+        print(' '.join(elem))
+        # ipdb.set_trace()
         
 
 
@@ -341,7 +361,10 @@ class GoalInferenceParticle():
             ))
 
         with torch.no_grad():
-            output_func = self.prediction_net(inputs_func, inference=True)
+            if self.z_vec is not None:
+                output_func = self.prediction_net(inputs_func, inference=True, z_vec=torch.tensor(self.z_vec))
+            else:
+                output_func = self.prediction_net(inputs_func, inference=True)
 
         num_tsteps = output_func["pred_graph"].shape[1]
         pred_graph = output_func["pred_graph"].argmax(-1)
@@ -374,7 +397,17 @@ class GoalInferenceParticle():
                 )
             task_result.append(task_graphs)
         self.particles = [{'pred_graph': task_res} for task_res in task_result]
+        # ipdb.set_trace()
         all_particle_ids = [i for i in range(self.num_particles)]
+
+        elem = []
+        for i in range(self.num_particles):
+            tg = self.particles[i]['pred_graph'][0][-1]
+            new_str = ''
+            
+            elem.append(new_str+str(int(tg.sum(-1))))
+        print(' '.join(elem))
+        # ipdb.set_trace()
 
         # TODO: tianmin, this does not seem correct, but im not sure the logic of the func, can you check?
         obs = observations[-1]
@@ -421,11 +454,19 @@ def main(cfg: DictConfig):
         toy_dataset=args_pred["model"]["reduced_graph"],
     )
 
+    print(filenames[0])
+    # ipdb.set_trace()
     with open(filenames[0].strip(), 'rb') as f:
         content = pkl.load(f)
     with open(filenames[0].strip().replace('.pik', '_reduced.pik'), 'rb') as f:
         content_reduced = pkl.load(f)
-    
+
+    with open('results_inference/VAE.KL.0.001/{}_result.pkl'.format(filenames[0].split('/')[-1].strip()), 'rb') as f:
+        prev_infer = pkl.load(f)
+        z_vec = prev_infer['z_vec']
+    # ipdb.set_trace()
+    steps_keep = utils_rl_agent.condense_walking(content['action'][0])
+    # ipdb.set_trace()
     curr_graph = content['graph'][0]
     class2id = {}
     for node in curr_graph["nodes"]:
@@ -518,7 +559,8 @@ def main(cfg: DictConfig):
         class2id=class2id, 
         arena=arena,
         num_particles=10, 
-        num_proc=num_proc
+        num_proc=num_proc,
+        z_vec=z_vec
     )
 
 
@@ -545,33 +587,102 @@ def main(cfg: DictConfig):
     graphs = [utils_environment.inside_not_trans(curr_graph)]
     obs = [content['obs'][0]]
     actions = [None]
+    particle_pred.z_vec = None
     particle_pred.initialize(graphs, obs, actions)
     pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
     curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
     t = 1
-    for action in content['action'][0]:
+    cont_t_keep = 1
+    for action in tqdm(content['action'][0]):
+        if t in steps_keep:        
+            curr_graphs = [content['graph'][0], content['graph'][t]]
+            graphs = [utils_environment.inside_not_trans(utils_environment.clean_house_obj(graph)) for graph in curr_graphs]
 
-        curr_graphs = copy.deepcopy(content['graph'][t])
-        graphs = [utils_environment.inside_not_trans(utils_environment.clean_house_obj(curr_graphs))]
-        obs = [content['obs'][t]]
-        actions = [None]
+            obs = [content['obs'][0], content['obs'][t]]
+            actions = [None, None]
 
-        rejected_particles =  particle_pred.get_rejected_particles(action)
-        if len(rejected_particles):
-            particle_pred.regen_particles(graphs, obs, actions, rejected_particles)
-            filtered_graph_obs = {
-                    'nodes': [node for node in graphs[0]['nodes'] for node in graphs[0]['nodes'] if node['id'] in obs[0]],
-                    'edges': [edge for edge in graphs[0]['edges'] for edge in graphs[0]['edges'] if edge['from_id'] in obs[0] and edge['to_id'] in obs[0]]
-            }
+            rejected_particles =  particle_pred.get_rejected_particles(action)
+            if len(rejected_particles):
+                particle_pred.regen_particles(graphs, obs, actions, rejected_particles, cont_t_keep)
+                filtered_graph_obs = {
+                        'nodes': [node for node in graphs[-1]['nodes'] if node['id'] in obs[-1]],
+                        'edges': [edge for edge in graphs[-1]['edges'] if edge['from_id'] in obs[-1] and edge['to_id'] in obs[-1]]
+                }
+                # ipdb.set_trace()
 
-            particle_pred.arena.sim_agents[0].reset(filtered_graph_obs, graphs[0], None, seed=0)
-            particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
-        
-        pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
-        curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
+                
+                particle_pred.arena.sim_agents[0].reset(filtered_graph_obs, graphs[-1], None, seed=0)
+                particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
+            
+            pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
+            curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
+            cont_t_keep += 1
 
         t += 1
 
+
+
+
+
+
+
+
+
+    curr_metrics2 = [] 
+    curr_graphs = content['graph'][0]
+    graphs = [utils_environment.inside_not_trans(curr_graph)]
+    obs = [content['obs'][0]]
+    actions = [None]
+
+    particle_pred.z_vec = z_vec
+    particle_pred.initialize(graphs, obs, actions)
+    pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
+    curr_metrics2.append(compute_metrics(pred_graphs, task_graph_gt))
+    t = 1
+    cont_t_keep = 0
+    for action in tqdm(content['action'][0]):
+        if t in steps_keep:
+
+            curr_graphs = [content['graph'][0], content['graph'][t]]
+            graphs = [utils_environment.inside_not_trans(utils_environment.clean_house_obj(graph)) for graph in curr_graphs]
+            
+            obs = [content['obs'][0], content['obs'][t]]
+            actions = [None, None]
+
+
+            rejected_particles = range(particle_pred.num_particles)
+            if len(rejected_particles):
+                particle_pred.regen_particles(graphs, obs, actions, rejected_particles)
+                filtered_graph_obs = {
+                        'nodes': [node for node in graphs[0]['nodes'] if node['id'] in obs[0]],
+                        'edges': [edge for edge in graphs[0]['edges'] if edge['from_id'] in obs[0] and edge['to_id'] in obs[0]]
+                }
+                # ipdb.set_trace()
+                graphc = filtered_graph_obs
+                
+                # particle_pred.arena.sim_agents[0].reset(filtered_graph_obs, graphs[0], None, seed=0)
+                # particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
+            
+            pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
+            curr_metrics2.append(compute_metrics(pred_graphs, task_graph_gt))
+
+        t += 1
+
+    # aggregate metrics
+    final_metric_dict = {}
+    for metric_name in curr_metrics[0].keys():
+        final_metric_dict[metric_name] = np.array([metric[metric_name].item() for metric in curr_metrics])
+
+    all_content = {}
+    final_metric_dict2 = {}
+    for metric_name in curr_metrics2[0].keys():
+        final_metric_dict2[metric_name] = np.array([metric[metric_name].item() for metric in curr_metrics2])
+    
+    all_content['smart_reset'] = final_metric_dict
+    all_content['all_reset'] = final_metric_dict2
+
+    with open('result_inference.pkl', 'wb+') as f:
+        pkl.dump(all_content, f)
     ipdb.set_trace()
 
 
