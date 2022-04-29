@@ -858,6 +858,7 @@ class MCTS_agent_particle_v2_instance:
 
         self.last_obs = None
         self.last_plan = None
+        self.last_loc = {}
 
         self.agent_id = agent_id
         self.char_index = char_index
@@ -972,6 +973,23 @@ class MCTS_agent_particle_v2_instance:
                 self.last_obs['state'] = state_ids
                 self.last_obs['edges'] = edge_ids
         return new_obs
+    
+    def get_location_in_goal(self, obs, obj_id):
+        curr_loc = [edge for edge in obs['edges'] if edge['from_id'] == obj_id]
+        curr_loc += [edge for edge in obs['edges'] if edge['to_id'] == obj_id]
+        curr_loc_on = [edge for edge in curr_loc if edge['relation_type'] == 'ON' or 'hold' in edge['relation_type'].lower()]
+        curr_loc_inside = [edge for edge in curr_loc if edge['relation_type'] == 'INSIDE']
+        if len(curr_loc_on)+len(curr_loc_inside) > 0:
+            if len(curr_loc_on) > 0:
+                if 'hold' in curr_loc_on[0]['relation_type'].lower():
+                    curr_loc_index = curr_loc_on[0]['from_id']
+                else:
+                    curr_loc_index = curr_loc_on[0]['to_id']
+            else:
+                curr_loc_index = curr_loc_inside[0]['to_id']
+            if len(curr_loc_on) > 1 or len(curr_loc_inside) > 1:
+                ipdb.set_trace()
+        return curr_loc_index
 
     def get_action(
         self, obs, goal_spec, opponent_subgoal=None, length_plan=5, must_replan=False
@@ -1118,10 +1136,23 @@ class MCTS_agent_particle_v2_instance:
                     plan = curr_plan
 
         self.last_obs = {'goal_objs': goal_ids}
+        #obs = utils_env.inside_not_trans(obs)
+        if not should_replan and not must_replan:
+            if last_subgoal is not None and 'grab' in last_subgoal[0]:
+                obj_grab = int(last_subgoal[0].split('_')[1])
+                curr_loc_index = self.get_location_in_goal(obs, obj_grab)
+                if obj_grab not in self.last_loc:
+                    ipdb.set_trace()
+                if curr_loc_index != self.last_loc[obj_grab]:
+                    # The object I wanted to get now changed position, so I should replan
+                    #self.last_loc = curr_loc_index
+                    should_replan = True
 
         time1 = time.time()
-
-        print('-------- {} --------'.format('replan' if should_replan else 'no replan'))
+        lg = ''
+        if last_subgoal is not None and len(last_subgoal) > 0:
+            lg = last_subgoal[0]
+        print('-------- Agent {}: {} --------'.format(self.agent_id, 'replan' if should_replan else 'no replan'))
         if should_replan or must_replan:
             # ipdb.set_trace()
             for particle_id, particle in enumerate(self.particles):
@@ -1189,6 +1220,19 @@ class MCTS_agent_particle_v2_instance:
                 verbose=verbose,
                 num_process=self.num_processes,
             )
+
+            # update last_loc, we will store the location of the objects we are trying to grab
+            # at the moment of planning, if something changes, then we will replan when time comes
+            elems_grab = []
+            if subgoals is not None:
+                for goal in subgoals:
+                    if goal is not None and goal[0] is not None and 'grab' in goal[0]:
+                        elem_grab = int(goal[0].split('_')[1])
+                        elems_grab.append(elem_grab)
+            self.last_loc = {}
+            for goal_id in elems_grab:
+                self.last_loc[goal_id] = self.get_location_in_goal(obs, goal_id)
+
             if self.verbose:
                 print(colored(plan[: min(len(plan), 10)], 'cyan'))
             # ipdb.set_trace()
@@ -1198,6 +1242,7 @@ class MCTS_agent_particle_v2_instance:
         #     ipdb.set_trace()
         #     print("Plan empty")
         #     raise Exception
+        #print('-------- Plan {}: {}, {} ------------'.format(self.agent_id, lg, plan))
         if len(plan) > 0:
             action = plan[0]
             action = action.replace('[walk]', '[walktowards]')
@@ -1257,6 +1302,11 @@ class MCTS_agent_particle_v2_instance:
         # print("Time: ", time2 - time1)
         if self.verbose:
             print("Replanning... ", should_replan or must_replan)
+
+        if action is not None and 'grab' in action and '369' in action:
+            if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+                print("Bad plan")
+                ipdb.set_trace()
 
         return action, info
 
