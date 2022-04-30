@@ -395,7 +395,7 @@ class UnityEnvironment(BaseUnityEnvironment):
         return obs
 
     def step(self, action_dict):
-        script_list = utils.convert_action(action_dict)
+        script_list, script_dict = utils.convert_action(action_dict)
         failed_execution = False
         if len(script_list[0]) > 0:
             print(script_list)
@@ -440,6 +440,7 @@ class UnityEnvironment(BaseUnityEnvironment):
 
         info['finished'] = done
         info['graph'] = graph
+        info['executed_script'] = script_dict
         info['failed_exec'] = failed_execution
         if self.steps == self.max_episode_length:
             done = True

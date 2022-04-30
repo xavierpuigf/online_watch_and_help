@@ -203,7 +203,8 @@ def convert_action(action_dict):
                 agent_do = [random.choice([0, 1])]
 
     script_list = ['']
-
+    new_action_dict = {index: action_dict for index in agent_do}
+    
     for agent_id in agent_do:
         script = action_dict[agent_id]
         if script is None:
@@ -218,7 +219,8 @@ def convert_action(action_dict):
     # if self.follow:
     # script_list = [x.replace('[walk]', '[walktowards]') for x in script_list]
     # script_all = script_list
-    return script_list
+
+    return script_list, new_action_dict
 
 
 def separate_new_ids_graph(graph, max_id):

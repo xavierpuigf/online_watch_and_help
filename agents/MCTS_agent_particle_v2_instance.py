@@ -859,6 +859,7 @@ class MCTS_agent_particle_v2_instance:
         self.last_obs = None
         self.last_plan = None
         self.last_loc = {}
+        self.failed_action = False
 
         self.agent_id = agent_id
         self.char_index = char_index
@@ -1135,18 +1136,34 @@ class MCTS_agent_particle_v2_instance:
                 if not should_replan:
                     plan = curr_plan
 
+
+        obj_grab = -1
+        curr_loc_index = -1
+
         self.last_obs = {'goal_objs': goal_ids}
-        #obs = utils_env.inside_not_trans(obs)
-        if not should_replan and not must_replan:
-            if last_subgoal is not None and 'grab' in last_subgoal[0]:
-                obj_grab = int(last_subgoal[0].split('_')[1])
-                curr_loc_index = self.get_location_in_goal(obs, obj_grab)
-                if obj_grab not in self.last_loc:
-                    ipdb.set_trace()
-                if curr_loc_index != self.last_loc[obj_grab]:
-                    # The object I wanted to get now changed position, so I should replan
-                    #self.last_loc = curr_loc_index
-                    should_replan = True
+        if self.failed_action:
+            should_replan = True
+            self.failed_action = False
+        else:
+            #obs = utils_env.inside_not_trans(obs)
+            if not should_replan and not must_replan:
+                # If the location of the object you wanted to grab has changed
+                if last_subgoal is not None and 'grab' in last_subgoal[0]:
+                    obj_grab = int(last_subgoal[0].split('_')[1])
+                    curr_loc_index = self.get_location_in_goal(obs, obj_grab)
+                    if obj_grab not in self.last_loc:
+                        ipdb.set_trace()
+                    if curr_loc_index != self.last_loc[obj_grab]:
+                        # The object I wanted to get now changed position, so I should replan
+                        #self.last_loc = curr_loc_index
+                        should_replan = True
+
+                # If you wanted to put an object but it is not in your hands anymore
+                if last_subgoal is not None and 'put' in last_subgoal[0]:
+                    object_put = int(last_subgoal[0].split('_')[1])
+                    hands_char = [edge['to_id'] for edge in obs['edges'] if 'hold' in edge['relation_type'].lower() and edge['from_id'] == self.agent_id]
+                    if object_put not in hands_char:
+                        should_replan = True               
 
         time1 = time.time()
         lg = ''
@@ -1302,11 +1319,15 @@ class MCTS_agent_particle_v2_instance:
         # print("Time: ", time2 - time1)
         if self.verbose:
             print("Replanning... ", should_replan or must_replan)
+        if should_replan:
+            print('Agent {} did replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
+        else:
+            print('Agent {} not replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
 
-        if action is not None and 'grab' in action and '369' in action:
-            if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
-                print("Bad plan")
-                ipdb.set_trace()
+        #if action is not None and 'grab' in action and '369' in action:
+        #    if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+        #        print("Bad plan")
+        #        ipdb.set_trace()
 
         return action, info
 
@@ -1322,6 +1343,7 @@ class MCTS_agent_particle_v2_instance:
 
         self.last_action = None
         self.last_subgoal = None
+        self.failed_action = False
         self.init_gt_graph = gt_graph
         """TODO: do no need this?"""
         # if 'waterglass' not in [node['class_name'] for node in self.init_gt_graph['nodes']]:
