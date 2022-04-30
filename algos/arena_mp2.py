@@ -131,6 +131,13 @@ class ArenaMP(object):
                     length_plan=length_plan,
                     must_replan=False if must_replan is None else must_replan[it],
                 )
+                ind = it 
+                curr_obs = obs
+                selected_actions = dict_actions
+                #if selected_actions[ind] is not None and 'grab' in selected_actions[ind] and '369' in selected_actions[ind]:
+                #    if len([edge for edge in curr_obs[ind]['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+                #        print("Bad plan")
+                #        ipdb.set_trace()
 
             elif 'RL' in agent.agent_type:
                 if 'MCTS' in agent.agent_type or 'Random' in agent.agent_type:
@@ -591,10 +598,18 @@ class ArenaMP(object):
         return step_info, dict_actions, dict_info
 
     def step_given_action(self, actionss, true_graph=False):
+        for i in range(len(self.agents)):
+            self.agents[i].failed_action = False
         try:
             step_info = self.env.step(actionss)
         except:
             raise utils_exception.UnityException
+
+
+        script_exec = step_info[-1]['executed_script']
+        for index_agent in actionss:
+            if index_agent not in script_exec:
+                self.agents[0].failed_action = True
         return step_info
 
     def run(self, random_goal=False, pred_goal=None, save_img=None):

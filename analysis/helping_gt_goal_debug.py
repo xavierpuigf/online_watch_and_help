@@ -1,3 +1,4 @@
+
 import sys
 sys.path.append('.')
 import shutil
@@ -20,6 +21,7 @@ from dataloader import dataloader_v2 as dataloader_v2
 from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from utils import utils_models_wb, utils_rl_agent
+
 
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
@@ -275,8 +277,8 @@ def main(cfg: DictConfig):
     episode_ids = []
     for filename in f:
         episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
-    print(len(episode_ids))
     f.close()
+    episode_ids = [episode for episode in episode_ids if 426 == episode]
     # ipdb.set_trace()
 
     cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
@@ -423,7 +425,7 @@ def main(cfg: DictConfig):
     # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
 
     # num_tries = 1
-    for iter_id in range(num_tries):
+    for iter_id in range(5):
         # if iter_id > 0:
         # iter_id = 1
 
@@ -453,7 +455,9 @@ def main(cfg: DictConfig):
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
 
-
+        model = agent_pref_policy.GraphPredNetwork(args_pred)
+        state_dict_new = {}
+        model.eval()
 
         curr_file = (
             '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah'
@@ -474,7 +478,7 @@ def main(cfg: DictConfig):
         # ipdb.set_trace()
 
         max_steps = args.max_episode_length
-
+        # ipdb.set_trace()
         for episode_id in episode_ids:
             # env_task = env_task_set[episode_id]
             # for env_task in env_task_set:
@@ -489,7 +493,7 @@ def main(cfg: DictConfig):
             # if episode_id not in episode_ids:
             #     continue
 
-            log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
+            log_file_name = args.record_dir + '/logs_episode.{}_iter.{}_debug.pik'.format(
                 episode_id, iter_id
             )
             failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
@@ -546,6 +550,7 @@ def main(cfg: DictConfig):
                     obs, length_plan=10, must_replan={0: False, 1: False}
                 )
                 (prev_obs, reward, done, infos) = arena.step_given_action(actions)
+
                 prev_graph = infos['graph']
 
                 if 'satisfied_goals' in infos:
@@ -593,6 +598,7 @@ def main(cfg: DictConfig):
                 # history_graph.append(prev_graph)
 
                 success = False
+                object_inside = False
                 while steps < max_steps:
                     steps += 1
 
@@ -601,30 +607,86 @@ def main(cfg: DictConfig):
                     # get two agents' action
                     # arena.task_goal = None
                     print('planning for the main agent')
+
+                    print("SELECTING PLAN")
+                    for itt in range(2):
+                        edges = curr_obs[itt]['edges']
+                        print('Agent ', itt, [edge for edge in edges if edge['from_id'] == 369])
+                    
                     selected_actions, curr_info = arena.get_actions(
                         curr_obs, length_plan=10, must_replan={0: False, 1: False}
                     )
-                    print('selected_actions:', selected_actions)
+
+                    
+                    # print('selected_actions:', selected_actions)
+                    # for ind in range(2):
+                    #     if len([edge for edge in curr_obs[ind]['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+                    #         object_inside = True
+
+                    #     if selected_actions[ind] is not None and 'grab' in selected_actions[ind] and '369' in selected_actions[ind]:
+                    #         if len([edge for edge in curr_obs[ind]['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+                    #             print("Bad plan")
+                    #             ipdb.set_trace()
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
+
+
+                    # Check if there is a planning failure
+                    actions = saved_info['action']
                     prev_action = selected_actions[0]
+
+                    put_elems = []
+                    elem_grab = []
+                    for ind in range(2):
+                        if selected_actions[ind] is not None and 'grab' in selected_actions[ind]:
+                            elem_grab.append(int(selected_actions[ind].split()[2][1:-1]))
+
+
+                    for agent_id in range(2):
+                        for action in actions[agent_id]:
+                            if action is not None and 'putin' in action:
+                                elem = int(action.split()[2][1:-1])
+                                put_elems.append(elem)
+
+                    for elem in elem_grab:
+                        if elem in put_elems:
+                            print("This elem was put before")
+                            ipdb.set_trace()
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
                     )
-                    print("agents' positions")
-                    print(
-                        [
-                            (node['id'], node['bounding_box']['center'])
-                            for node in curr_obs[0]['nodes']
-                            if node['id'] < 3
-                        ]
-                    )
+
+
+                    cobs_inside = False
+                    for ind in range(2):
+                        if len([edge for edge in curr_obs[ind]['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+                            cobs_inside = True
+
+                    if object_inside and not cobs_inside:
+                        print("Failure, an object diasappareaed")
+
+                        ipdb.set_trace()
+
+                    # print(selected_actions)
+                    # for itt in range(2):
+                    #     edges = curr_obs[itt]['edges']
+                    #     print('Agent ', itt, [edge for edge in edges if edge['from_id'] == 369])
+                    # print('----')
+                    # print("agents' positions")
+                    # print(
+                    #     [
+                    #         (node['id'], node['bounding_box']['center'])
+                    #         for node in curr_obs[0]['nodes']
+                    #         if node['id'] < 3
+                    #     ]
+                    # )
                     curr_graph = infos['graph']
                     # history_obs.append(curr_obs[0])
                     # history_graph.append(curr_graph)
                     history_action.append(selected_actions[0])
+
 
                     if 'satisfied_goals' in infos:
                         saved_info['goals_finished'].append(infos['satisfied_goals'])
@@ -646,7 +708,7 @@ def main(cfg: DictConfig):
                                 [node['id'] for node in info['obs']]
                             )
 
-                    print('success:', infos['finished'])
+                    #print('success:', infos['finished'])
                     # pdb.set_trace()
                     if infos['finished']:
                         success = True
@@ -670,6 +732,9 @@ def main(cfg: DictConfig):
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
                 if len(saved_info['obs']) > 0:
                     pickle.dump(saved_info, open(log_file_name, 'wb'))
+                    if len(saved_info['obs']) > 220:
+                        ipdb.set_trace()
+                    print("Saving")
                 else:
                     with open(log_file_name, 'w+') as f:
                         f.write(json.dumps(saved_info, indent=4))
@@ -722,20 +787,11 @@ def main(cfg: DictConfig):
             # pdb.set_trace()
 
             print(test_results)
-            pickle.dump(
-                test_results,
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-            )
-
         print(
             'average steps (finishing the tasks):',
             np.array(steps_list).mean() if len(steps_list) > 0 else None,
         )
         print('failed_tasks:', failed_tasks)
-        pickle.dump(
-            test_results,
-            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
-        )
 
 
 if __name__ == "__main__":
