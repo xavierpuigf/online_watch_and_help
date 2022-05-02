@@ -683,7 +683,7 @@ def get_plan(
         mcts=mcts,
         nb_steps=nb_steps,
         last_subgoal=last_subgoal,
-        opponent_subgoal=opponent_subgoal,
+        opponent_subgoal=opponent_subgoal
     )
 
     if len(root_nodes) == 0:
@@ -1223,13 +1223,20 @@ class MCTS_agent_particle_v2_instance:
 
                 self.particles_full[particle_id] = new_graph
             # print('-----')
+            if self.agent_id == 2:
+                # If agent 1 is grabbing an object, make sure that is not part of the plan
+                new_goal_spec = copy.deepcopy(goal_spec)
+                ids_grab_1 = [edge['to_id'] for edge in obs['edges'] if edge['from_id'] == 1 and 'hold' in edge['relation_type'].lower()]
+                for kgoal, elemgoal in new_goal_spec:
+                    elemgoal['grab_obj_ids'] = [ind for ind in elemgoal['grab_obj_ids'] if ind not in ids_grab_1]
+                goal_spec = new_goal_spec
 
             plan, root_node, subgoals = get_plan(
                 self.mcts,
                 self.particles,
                 self.sim_env,
                 nb_steps,
-                goal_spec,
+                new_goal_spec,
                 last_plan,
                 last_action,
                 opponent_subgoal,
