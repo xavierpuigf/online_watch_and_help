@@ -1223,13 +1223,15 @@ class MCTS_agent_particle_v2_instance:
 
                 self.particles_full[particle_id] = new_graph
             # print('-----')
+            should_stop = False
             if self.agent_id == 2:
                 # If agent 1 is grabbing an object, make sure that is not part of the plan
                 new_goal_spec = copy.deepcopy(goal_spec)
                 ids_grab_1 = [edge['to_id'] for edge in obs['edges'] if edge['from_id'] == 1 and 'hold' in edge['relation_type'].lower()]
-                if len(ids_grab_1) > 1:
+                if len(ids_grab_1) > 0:
                     for kgoal, elemgoal in new_goal_spec.items():
                         elemgoal['grab_obj_ids'] = [ind for ind in elemgoal['grab_obj_ids'] if ind not in ids_grab_1]
+                    should_stop = True
                 goal_spec = new_goal_spec
 
             plan, root_node, subgoals = get_plan(
@@ -1245,6 +1247,9 @@ class MCTS_agent_particle_v2_instance:
                 verbose=verbose,
                 num_process=self.num_processes,
             )
+
+            #if should_stop:
+            #    ipdb.set_trace()
 
             # update last_loc, we will store the location of the objects we are trying to grab
             # at the moment of planning, if something changes, then we will replan when time comes
