@@ -317,6 +317,7 @@ def main(cfg: DictConfig):
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
+    cachedir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0'
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"

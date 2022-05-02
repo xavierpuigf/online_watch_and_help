@@ -886,8 +886,6 @@ def main(cfg: DictConfig):
     # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
     # episode_ids = [21, 22, 23, 24]
 
-    # num_tries = 3
-
     for iter_id in range(num_tries):
         # if iter_id > 0:
         # iter_id = 1
@@ -1015,6 +1013,7 @@ def main(cfg: DictConfig):
                     "gt_goals": arena.env.task_goal[0],
                     "goals": arena.task_goal,
                     "action": {0: [], 1: []},
+                    "executed_action": {0: [], 1: []},
                     "plan": {0: [], 1: []},
                     "subgoal": {0: [], 1: []},
                     "finished": None,
@@ -1041,8 +1040,21 @@ def main(cfg: DictConfig):
 
                 if "satisfied_goals" in infos:
                     saved_info["goals_finished"].append(infos["satisfied_goals"])
-                for agent_id, action in actions.items():
-                    saved_info["action"][agent_id].append(action)
+
+                for agent_id in range(2):
+                    if agent_id in actions:
+                        saved_info["action"][agent_id].append(actions[agent_id])
+                    else:
+                        saved_info["action"][agent_id].append(None)
+
+                if "executed_script" in infos:
+                    for agent_id in range(2):
+                        if agent_id in infos["executed_script"]:
+                            saved_info["executed_action"][agent_id].append(
+                                infos["executed_script"][agent_id]
+                            )
+                        else:
+                            saved_info["executed_action"][agent_id].append(None)
                 if "graph" in infos:
                     saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
@@ -1082,8 +1094,22 @@ def main(cfg: DictConfig):
 
                 if "satisfied_goals" in infos:
                     saved_info["goals_finished"].append(infos["satisfied_goals"])
-                for agent_id, action in actions.items():
-                    saved_info["action"][agent_id].append(action)
+
+                for agent_id in range(2):
+                    if agent_id in actions:
+                        saved_info["action"][agent_id].append(actions[agent_id])
+                    else:
+                        saved_info["action"][agent_id].append(None)
+
+                if "executed_script" in infos:
+                    for agent_id in range(2):
+                        if agent_id in infos["executed_script"]:
+                            saved_info["executed_action"][agent_id].append(
+                                infos["executed_script"][agent_id]
+                            )
+                        else:
+                            saved_info["executed_action"][agent_id].append(None)
+
                 if "graph" in infos:
                     saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
@@ -1828,6 +1854,16 @@ def main(cfg: DictConfig):
                             )
                         else:
                             saved_info["action"][agent_id].append(None)
+
+                    if "executed_script" in infos:
+                        for agent_id in range(2):
+                            if agent_id in infos["executed_script"]:
+                                saved_info["executed_action"][agent_id].append(
+                                    infos["executed_script"][agent_id]
+                                )
+                            else:
+                                saved_info["executed_action"][agent_id].append(None)
+
                     saved_info["opponent_subgoal"].append(opponent_subgoal)
                     saved_info["helping_subgoal"].append(last_goal_edge)
 
@@ -1846,7 +1882,10 @@ def main(cfg: DictConfig):
                             saved_info["obs"].append(
                                 [node["id"] for node in info["obs"]]
                             )
-
+                    if steps > 25:
+                        with open("debug_file.pkl", "wb+") as f:
+                            pickle.dump(saved_info, f)
+                        ipdb.set_trace()
                     print("success:", infos["finished"])
                     # pickle.dump(saved_info, open(log_file_name, "wb"))
                     # if args.debug:
