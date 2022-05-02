@@ -7,5 +7,4 @@ export full_ck=$rootpath$ck
 
 CUDA_VISIBLE_DEVICES=1 python analysis/goal_inference_particlefilter.py \
     agent_pred_graph="config_vae0.001" num_processes=20 \
-    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
-
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8185 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled

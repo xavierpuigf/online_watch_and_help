@@ -76,6 +76,17 @@ info_objects = {
 
 
 def compute_metrics(pred_graphs, task_graph_gt):
+
+    if len(pred_graphs) == 0:
+        return {
+            "recall": 0,
+            "recallmax": 0,
+            "accuracy": 0,
+            "accuracymax": 0,
+            "precision": 1.0,
+            "precisionmax": 1.0,
+        }
+
     eps = 1e-9
     pos_preds = np.array(
         [
@@ -312,6 +323,32 @@ def is_in_goal(grabbed_obj, goals):
     return True
 
 
+def get_pred_name(container_name):
+    pred_name = "on"
+    room_list = ["kitchen", "livingroom", "bedroom", "bathroom"]
+    if container_name in info_objects["objects_inside"] or container_name in room_list:
+        pred_name = "inside"
+    return pred_name
+
+
+def get_edge_class(pred, t, source="pred"):
+    # index 0 has pred, index 1 has mask, index 2 has input
+
+    # pred_edge_prob = pred['edge_prob']
+    # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
+    t = min(t, len(pred) - 1)
+    if source == "pred":
+        curr_task_dict = pred[t][0]
+    else:
+        curr_task_dict = pred[t][2]
+
+    # which edge to use?
+    return {
+        "{}_{}_{}".format(get_pred_name(obj2), obj1, obj2): num
+        for (obj1, obj2), num in curr_task_dict.items()
+    }
+
+
 class GoalInferenceParticle:
     def __init__(
         self,
@@ -342,21 +379,25 @@ class GoalInferenceParticle:
 
     def get_rejected_particles(self, current_action):
         index_reject = []
-        current_action.replace("walktowards", "walk")
-        for index in range(self.num_particles):
-            if current_action is not None:
-                plan_particle = self.particles[index]["plan"][1]
+        if current_action is not None:
+            current_action.replace("walktowards", "walk")
+        for index in range(len(self.particles)):
+            if current_action is not None and "plan" in self.particles[index]:
+                try:
+                    plan_particle = self.particles[index]["plan"][1]
+                except:
+                    ipdb.set_trace()
                 is_present = is_in_plan(current_action, plan_particle)
             else:
                 is_present = True
             goal_pred = get_edge_class(
-                self.particles["pred_graph"],
+                self.particles[index]["pred_graph"],
                 len(
-                    self.particles["pred_graph"],
+                    self.particles[index]["pred_graph"],
                 )
                 - 1,
             )
-            if not is_present and not is_in_goal(self.grabbed_obj, goal_pred)::
+            if not is_present and not is_in_goal(self.grabbed_obj, goal_pred):
                 index_reject.append(index)
         return index_reject
 
@@ -501,6 +542,10 @@ class GoalInferenceParticle:
             index += 1
 
     def regen_particles(self, graphs, observations, actions, particle_ids, t=None):
+        if particle_ids is None:
+            particle_ids = list(range(self.num_particles))
+            self.particles = [{} for _ in range(self.num_particles)]
+
         history_graph = graphs
         history_obs = observations
         history_action = actions
@@ -669,6 +714,7 @@ def main(cfg: DictConfig):
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
+    pred_result_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/results_inference"
     f = open(valid_set_path, "r")
     episode_ids = []
     filenames = []
@@ -692,13 +738,14 @@ def main(cfg: DictConfig):
         content_reduced = pkl.load(f)
 
     with open(
-        "results_inference/VAE.KL.0.001/{}_result.pkl".format(
-            filenames[0].split("/")[-1].strip()
+        "{}/VAE.KL.0.001/{}_result.pkl".format(
+            pred_result_path, filenames[0].split("/")[-1].strip()
         ),
         "rb",
     ) as f:
         prev_infer = pkl.load(f)
         z_vec = prev_infer["z_vec"]
+
     # ipdb.set_trace()
     steps_keep = utils_rl_agent.condense_walking(content["action"][0])
     # ipdb.set_trace()
@@ -770,15 +817,44 @@ def main(cfg: DictConfig):
         lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1),
     ]
 
+    env_task_set = pickle.load(open(args.dataset_path, "rb"))
+    # print(env_task_set)
+    print(len(env_task_set))
+
+    for env in env_task_set:
+        init_gr = env["init_graph"]
+        gbg_can = [
+            node["id"]
+            for node in init_gr["nodes"]
+            if node["class_name"] in ["garbagecan", "clothespile"]
+        ]
+        init_gr["nodes"] = [
+            node for node in init_gr["nodes"] if node["id"] not in gbg_can
+        ]
+        init_gr["edges"] = [
+            edge
+            for edge in init_gr["edges"]
+            if edge["from_id"] not in gbg_can and edge["to_id"] not in gbg_can
+        ]
+        for node in init_gr["nodes"]:
+            if node["class_name"] == "cutleryfork":
+                node["obj_transform"]["position"][1] += 0.1
+
+    executable_args = {
+        "file_name": args.executable_file,
+        "x_display": 0,
+        "no_graphics": True,
+    }
+
     def env_fn(env_id):
         return UnityEnvironment(
             num_agents=1,
             max_episode_length=args.max_episode_length,
             port_id=env_id,
-            env_task_set=None,
+            env_task_set=env_task_set,
             observation_types=[args.obs_type, args.obs_type],
             use_editor=True,
-            executable_args=None,
+            executable_args=executable_args,
             base_port=args.base_port,
             convert_goal=True,
         )
@@ -792,9 +868,9 @@ def main(cfg: DictConfig):
         graph_helper=graph_helper,
         class2id=class2id,
         arena=arena,
-        num_particles=10,
+        num_particles=args.num_samples,
         num_proc=num_proc,
-        z_vec=z_vec,
+        z_vec=None,
     )
 
     graph_info, _ = graph_helper.build_graph_for_task(
@@ -830,6 +906,7 @@ def main(cfg: DictConfig):
         particle["pred_graph"][-1][-1] for particle in particle_pred.particles
     ]
     curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
+    steps_since_last_prediction = 0
     t = 1
     cont_t_keep = 1
     for action in tqdm(content["action"][0]):
@@ -850,10 +927,26 @@ def main(cfg: DictConfig):
                     if obj_name in action:
                         particle_pred.grabbed_obj[obj_name] = True
 
-            rejected_particles = particle_pred.get_rejected_particles(action)
-            if len(rejected_particles):
+            if steps_since_last_prediction < particle_pred.num_steps_plan:
+                rejected_particles = particle_pred.get_rejected_particles(action)
+                particle_pred.particles = [
+                    particle_pred.particles[pid]
+                    for pid in range(len(particle_pred.particles))
+                    if pid not in rejected_particles
+                ]
+            else:
+                particle_pred.particles = []
+
+            particle_pred.particles = []
+
+            if len(particle_pred.particles) < 1:
+                steps_since_last_prediction = 0
                 particle_pred.regen_particles(
-                    graphs, obs, actions, rejected_particles, cont_t_keep
+                    graphs,
+                    obs,
+                    actions,
+                    None,
+                    cont_t_keep,
                 )
                 filtered_graph_obs = {
                     "nodes": [
@@ -872,6 +965,17 @@ def main(cfg: DictConfig):
                 )
                 particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
 
+                rejected_particles = particle_pred.get_rejected_particles(
+                    current_action=None
+                )
+                particle_pred.particles = [
+                    particle_pred.particles[pid]
+                    for pid in range(len(particle_pred.particles))
+                    if pid not in rejected_particles
+                ]
+            else:
+                steps_since_last_prediction += 1
+
             pred_graphs = [
                 particle["pred_graph"][-1][-1] for particle in particle_pred.particles
             ]
@@ -881,32 +985,46 @@ def main(cfg: DictConfig):
         t += 1
 
     # curr_metrics2 = []
-    # curr_graphs = content['graph'][0]
+    # curr_graphs = content["graph"][0]
     # graphs = [utils_environment.inside_not_trans(curr_graph)]
-    # obs = [content['obs'][0]]
+    # obs = [content["obs"][0]]
     # actions = [None]
 
     # particle_pred.z_vec = z_vec
     # particle_pred.initialize(graphs, obs, actions)
-    # pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
+    # pred_graphs = [
+    #     particle["pred_graph"][-1][-1] for particle in particle_pred.particles
+    # ]
     # curr_metrics2.append(compute_metrics(pred_graphs, task_graph_gt))
     # t = 1
     # cont_t_keep = 0
-    # for action in tqdm(content['action'][0]):
+    # for action in tqdm(content["action"][0]):
     #     if t in steps_keep:
 
-    #         curr_graphs = [content['graph'][0], content['graph'][t]]
-    #         graphs = [utils_environment.inside_not_trans(utils_environment.clean_house_obj(graph)) for graph in curr_graphs]
+    #         curr_graphs = [content["graph"][0], content["graph"][t]]
+    #         graphs = [
+    #             utils_environment.inside_not_trans(
+    #                 utils_environment.clean_house_obj(graph)
+    #             )
+    #             for graph in curr_graphs
+    #         ]
 
-    #         obs = [content['obs'][0], content['obs'][t]]
+    #         obs = [content["obs"][0], content["obs"][t]]
     #         actions = [None, None]
 
     #         rejected_particles = range(particle_pred.num_particles)
+
     #         if len(rejected_particles):
     #             particle_pred.regen_particles(graphs, obs, actions, rejected_particles)
     #             filtered_graph_obs = {
-    #                     'nodes': [node for node in graphs[0]['nodes'] if node['id'] in obs[0]],
-    #                     'edges': [edge for edge in graphs[0]['edges'] if edge['from_id'] in obs[0] and edge['to_id'] in obs[0]]
+    #                 "nodes": [
+    #                     node for node in graphs[0]["nodes"] if node["id"] in obs[0]
+    #                 ],
+    #                 "edges": [
+    #                     edge
+    #                     for edge in graphs[0]["edges"]
+    #                     if edge["from_id"] in obs[0] and edge["to_id"] in obs[0]
+    #                 ],
     #             }
     #             # ipdb.set_trace()
     #             graphc = filtered_graph_obs
@@ -914,7 +1032,9 @@ def main(cfg: DictConfig):
     #             # particle_pred.arena.sim_agents[0].reset(filtered_graph_obs, graphs[0], None, seed=0)
     #             # particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
 
-    #         pred_graphs = [particle['pred_graph'][-1][-1] for particle in particle_pred.particles]
+    #         pred_graphs = [
+    #             particle["pred_graph"][-1][-1] for particle in particle_pred.particles
+    #         ]
     #         curr_metrics2.append(compute_metrics(pred_graphs, task_graph_gt))
 
     #     t += 1
@@ -926,15 +1046,15 @@ def main(cfg: DictConfig):
             [metric[metric_name].item() for metric in curr_metrics]
         )
 
-    all_content = {}
-    final_metric_dict2 = {}
-    for metric_name in curr_metrics2[0].keys():
-        final_metric_dict2[metric_name] = np.array(
-            [metric[metric_name].item() for metric in curr_metrics2]
-        )
+    # final_metric_dict2 = {}
+    # for metric_name in curr_metrics2[0].keys():
+    #     final_metric_dict2[metric_name] = np.array(
+    #         [metric[metric_name].item() for metric in curr_metrics2]
+    #     )
 
+    all_content = {}
     all_content["smart_reset"] = final_metric_dict
-    all_content["all_reset"] = final_metric_dict2
+    # all_content["all_reset"] = final_metric_dict2
 
     with open("result_inference.pkl", "wb+") as f:
         pkl.dump(all_content, f)
