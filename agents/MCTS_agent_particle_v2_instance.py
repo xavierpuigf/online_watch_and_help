@@ -1236,7 +1236,7 @@ class MCTS_agent_particle_v2_instance:
                 self.particles,
                 self.sim_env,
                 nb_steps,
-                new_goal_spec,
+                goal_spec,
                 last_plan,
                 last_action,
                 opponent_subgoal,
