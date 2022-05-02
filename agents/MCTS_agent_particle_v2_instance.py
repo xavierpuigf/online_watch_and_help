@@ -1324,10 +1324,15 @@ class MCTS_agent_particle_v2_instance:
         else:
             print('Agent {} not replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
 
-        #if action is not None and 'grab' in action and '369' in action:
-        #    if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
-        #        print("Bad plan")
-        #        ipdb.set_trace()
+        if action is not None and 'grab' in action:
+            if self.agent_id == 2:
+                grab_id = int(action.split()[2][1:-1])
+                grabbed_obj = [edge for edge in obs['edges'] if edge['to_id'] == grab_id and 'hold' in edge['relation_type'].lower()]
+                if len(grabbed_obj):
+                    ipdb.set_trace()
+            # if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+            #     print("Bad plan")
+            #     ipdb.set_trace()
 
         return action, info
 

@@ -1,4 +1,6 @@
 import sys
+
+sys.path.append(".")
 import shutil
 import os
 import logging
@@ -21,7 +23,6 @@ from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from utils import utils_models_wb, utils_rl_agent
 
-sys.path.append(".")
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2, MCTS_agent_particle
 
@@ -326,7 +327,9 @@ def main(cfg: DictConfig):
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
+
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
+    cachedir_main = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/main_agent_only_large"
 
     agent_types = [
         ["full", 0, 0.05, False, 0, "uniform"],  # 0
@@ -410,7 +413,7 @@ def main(cfg: DictConfig):
     # test_results_
 
     main_results, help_results = {}, {}
-    num_tries = 5
+    num_tries = 3
 
     for iter_id in range(0, num_tries):
         # if iter_id > 0:
@@ -445,7 +448,10 @@ def main(cfg: DictConfig):
     print(len(help_results))
 
     for episode_id in help_results:
-        print(episode_id, main_results[episode_id], help_results[episode_id])
+        try:
+            print(episode_id, main_results[episode_id], help_results[episode_id])
+        except:
+            ipdb.set_trace()
 
         if (
             np.mean(help_results[episode_id]["S"])
