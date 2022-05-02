@@ -280,7 +280,7 @@ def main(cfg: DictConfig):
     episode_ids = sorted(episode_ids)
     episode_ids = episode_ids[::5]
     print(len(episode_ids))
-    episode_id = [401]
+    #episode_ids = [304]
     f.close()
     # ipdb.set_trace()
 
@@ -536,6 +536,7 @@ def main(cfg: DictConfig):
                     'gt_goals': arena.env.task_goal[0],
                     'goals': arena.task_goal,
                     'action': {0: [], 1: []},
+                    'executed_action': {0: [], 1: []},
                     'plan': {0: [], 1: []},
                     'finished': None,
                     'init_unity_graph': arena.env.init_graph,
@@ -555,8 +556,19 @@ def main(cfg: DictConfig):
 
                 if 'satisfied_goals' in infos:
                     saved_info['goals_finished'].append(infos['satisfied_goals'])
-                for agent_id, action in actions.items():
-                    saved_info['action'][agent_id].append(action)
+
+                for agent_id in range(2):
+                    if agent_id in actions:
+                        saved_info['action'][agent_id].append(actions[agent_id])
+                    else:
+                        saved_info['action'][agent_id].append(None)
+
+                if 'executed_script' in infos:
+                    for agent_id in range(2):
+                        if agent_id in infos['executed_script']:
+                            saved_info['executed_action'][agent_id].append(infos['executed_script'][agent_id])
+                        else:
+                            saved_info['executed_action'][agent_id].append(None)    
                 if 'graph' in infos:
                     saved_info['graph'].append(infos['graph'])
                 for agent_id, info in curr_info.items():
@@ -580,8 +592,20 @@ def main(cfg: DictConfig):
 
                 if 'satisfied_goals' in infos:
                     saved_info['goals_finished'].append(infos['satisfied_goals'])
-                for agent_id, action in actions.items():
-                    saved_info['action'][agent_id].append(action)
+                for agent_id in range(2):
+                    if agent_id in actions:
+
+                        saved_info['action'][agent_id].append(actions[agent_id])
+                    else:
+                        saved_info['action'][agent_id].append(None)
+
+                if 'executed_script' in infos:
+                    for agent_id in range(2):
+                        if agent_id in infos['executed_script']:
+                            saved_info['executed_action'][agent_id].append(infos['executed_script'][agent_id])
+                        else:
+                            saved_info['executed_action'][agent_id].append(None)  
+
                 if 'graph' in infos:
                     saved_info['graph'].append(infos['graph'])
                 for agent_id, info in curr_info.items():
@@ -633,8 +657,20 @@ def main(cfg: DictConfig):
 
                     if 'satisfied_goals' in infos:
                         saved_info['goals_finished'].append(infos['satisfied_goals'])
-                    for agent_id, action in selected_actions.items():
-                        saved_info['action'][agent_id].append(action)
+
+                    for agent_id in range(2):
+                        if agent_id in actions:
+                            saved_info['action'][agent_id].append(actions[agent_id])
+                        else:
+                            saved_info['action'][agent_id].append(None)
+                            
+                    if 'executed_script' in infos:
+                        for agent_id in range(2):
+                            if agent_id in infos['executed_script']:
+                                saved_info['executed_action'][agent_id].append(infos['executed_script'][agent_id])
+                            else:
+                                saved_info['executed_action'][agent_id].append(None)  
+
                     if 'graph' in infos:
                         saved_info['graph'].append(infos['graph'])
                     for agent_id, info in curr_info.items():
