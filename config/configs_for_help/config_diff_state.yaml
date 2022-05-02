@@ -18,6 +18,8 @@ lam: 5.0
 max_benefit: 20.0
 min_acceptable_value: 3.0
 inv_plan: True
+small_set: False
+num_tries: 5
 debug: False
 hydra:  
   output_subdir: null  

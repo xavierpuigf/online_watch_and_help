@@ -769,7 +769,7 @@ def main(cfg: DictConfig):
     args_pred = args.agent_pred_graph
     num_proc = 0
 
-    num_tries = 5
+    num_tries = args.num_tries
     # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     # args.max_episode_length = 250
     # args.num_per_apartment = 20
@@ -789,7 +789,11 @@ def main(cfg: DictConfig):
     episode_ids = []
     for filename in f:
         episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
-    episode_ids = sorted(episode_ids)
+    episode_ids0 = sorted(episode_ids)
+    if args.small_set:
+        episode_ids = list(episode_ids0[::5])
+    else:
+        episode_ids = list(episode_ids0)
     print(len(episode_ids))
     f.close()
 
@@ -797,7 +801,7 @@ def main(cfg: DictConfig):
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
-        cachedir = f"{get_original_cwd()}/outputs/helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     else:
         cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
@@ -948,7 +952,7 @@ def main(cfg: DictConfig):
     # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
     # episode_ids = [21, 22, 23, 24]
 
-    num_tries = 5
+    # num_tries = 3
 
     for iter_id in range(num_tries):
         # if iter_id > 0:
