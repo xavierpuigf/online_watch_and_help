@@ -1,7 +1,6 @@
 defaults:
         - agent_pred_graph: config_default_large_excl
-
-executable_file: "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64"
+executable_file: "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/online_wah/online_wah_exec_2/linux_exec.online_wah_2.x86_64"
 max_episode_length: 250
 num_per_apartment: 20
 dataset_path: ""

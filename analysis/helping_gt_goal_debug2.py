@@ -277,10 +277,11 @@ def main(cfg: DictConfig):
     for filename in f:
         episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
 
+
     episode_ids = sorted(episode_ids)
     episode_ids = episode_ids[::5]
+    episode_ids = [139]
     print(len(episode_ids))
-    episode_id = [401]
     f.close()
     # ipdb.set_trace()
 

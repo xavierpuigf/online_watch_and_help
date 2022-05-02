@@ -683,7 +683,7 @@ def get_plan(
         mcts=mcts,
         nb_steps=nb_steps,
         last_subgoal=last_subgoal,
-        opponent_subgoal=opponent_subgoal,
+        opponent_subgoal=opponent_subgoal
     )
 
     if len(root_nodes) == 0:
@@ -1223,6 +1223,14 @@ class MCTS_agent_particle_v2_instance:
 
                 self.particles_full[particle_id] = new_graph
             # print('-----')
+            if self.agent_id == 2:
+                # If agent 1 is grabbing an object, make sure that is not part of the plan
+                new_goal_spec = copy.deepcopy(goal_spec)
+                ids_grab_1 = [edge['to_id'] for edge in obs['edges'] if edge['from_id'] == 1 and 'hold' in edge['relation_type'].lower()]
+                if len(ids_grab_1) > 1:
+                    for kgoal, elemgoal in new_goal_spec.items():
+                        elemgoal['grab_obj_ids'] = [ind for ind in elemgoal['grab_obj_ids'] if ind not in ids_grab_1]
+                goal_spec = new_goal_spec
 
             plan, root_node, subgoals = get_plan(
                 self.mcts,
@@ -1324,10 +1332,15 @@ class MCTS_agent_particle_v2_instance:
         else:
             print('Agent {} not replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
 
-        #if action is not None and 'grab' in action and '369' in action:
-        #    if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
-        #        print("Bad plan")
-        #        ipdb.set_trace()
+        if action is not None and 'grab' in action:
+            if self.agent_id == 2:
+                grab_id = int(action.split()[2][1:-1])
+                grabbed_obj = [edge for edge in obs['edges'] if edge['to_id'] == grab_id and 'hold' in edge['relation_type'].lower()]
+                if len(grabbed_obj):
+                    ipdb.set_trace()
+            # if len([edge for edge in obs['edges'] if edge['from_id'] == 369 and edge['to_id'] == 103]) > 0:
+            #     print("Bad plan")
+            #     ipdb.set_trace()
 
         return action, info
 
