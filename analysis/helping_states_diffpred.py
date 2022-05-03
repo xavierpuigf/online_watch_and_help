@@ -736,7 +736,8 @@ def main(cfg: DictConfig):
         episode_ids = list(episode_ids0[::5])
     else:
         episode_ids = list(episode_ids0)
-    episode_ids = [466]
+    if args.debug:
+        episode_ids = [466]
     print(len(episode_ids))
     f.close()
 
@@ -958,9 +959,6 @@ def main(cfg: DictConfig):
         # for env_task in env_task_set:
 
         for episode_id in episode_ids:
-
-            if args.debug and episode_id != 152:
-                continue
 
             steps_list, failed_tasks = [], []
             current_tried = iter_id
@@ -1285,6 +1283,7 @@ def main(cfg: DictConfig):
                                             task_graph_input,
                                         )
                                     )
+                                print(ind, task_graphs)
                                 task_result.append(task_graphs)
 
                         print("planning for the helper agent")
@@ -1906,8 +1905,8 @@ def main(cfg: DictConfig):
                     # if steps > 30:
                     #     pickle.dump(saved_info, open(log_file_name, "wb"))
                     #     ipdb.set_trace()
-                    # if args.debug:
-                    #     ipdb.set_trace()
+                    if args.debug:
+                        ipdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
