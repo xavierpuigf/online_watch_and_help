@@ -242,7 +242,7 @@ def get_pred_name(container_name):
     return pred_name
 
 
-def get_edge_instance(pred, class2id, t, source="pred"):
+def get_edge_instance(pred, class2id, gt_container_id, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
 
@@ -273,7 +273,10 @@ def get_edge_instance(pred, class2id, t, source="pred"):
             continue
 
         if obj_name in class2id:
-            container_id = class2id[container_name][0]
+            if gt_container_id in class2id[container_name]:
+                container_id = gt_container_id
+            else:
+                container_id = class2id[container_name][0]
             pred_name = f"{pred_name}_{obj_name}_{container_id}"
             edge_pred_ins[pred_name] = {
                 "count": count,
@@ -329,7 +332,7 @@ def get_subgoals_from_init_state(state):
     return subgoals
 
 
-def get_edge_instance_from_pred(pred, class2id):
+def get_edge_instance_from_pred(pred, class2id, gt_container_id):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
 
@@ -381,7 +384,10 @@ def get_edge_instance_from_pred(pred, class2id):
             continue
 
         if from_node_name in class2id:
-            to_node_id = class2id[to_node_name][0]
+            if gt_container_id in class2id[to_node_name]:
+                to_node_id = gt_container_id
+            else:
+                to_node_id = class2id[to_node_name][0]
             edge_class = f"{edge_name}_{from_node_name}_{to_node_id}"
             edge_pred_ins[edge_name] = {
                 "count": count,
@@ -611,6 +617,7 @@ def pred_main_agent_plan(
     process_id,
     pred_task,
     class2id,
+    gt_container_id,
     t,
     pred_actions_fn,
     obs,
@@ -619,7 +626,7 @@ def pred_main_agent_plan(
     agent_id,
     res,
 ):
-    inferred_goal = get_edge_instance(pred_task, class2id, t)
+    inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
     print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
@@ -989,6 +996,9 @@ def main(cfg: DictConfig):
                 init_state = obs[1]
                 arena.task_goal = None
                 gt_goal = arena.env.task_goal[0]
+
+                gt_container_id = list(gt_goal.values())[0]["container_ids"][0]
+
                 tv = False
                 food = False
                 dish = False
@@ -1288,6 +1298,7 @@ def main(cfg: DictConfig):
                                     index,
                                     task_result[index],
                                     class2id,
+                                    gt_container_id,
                                     steps - 3,
                                     arena.pred_actions,
                                     curr_obs,
@@ -1311,6 +1322,7 @@ def main(cfg: DictConfig):
                                             process_id,
                                             task_result[process_id],
                                             class2id,
+                                            gt_container_id,
                                             steps - 3,
                                             arena.pred_actions,
                                             curr_obs,
@@ -1376,7 +1388,7 @@ def main(cfg: DictConfig):
                                                 ] = estimated_steps
                                 # ipdb.set_trace()
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    task_result[pred_id], class2id
+                                    task_result[pred_id], class2id, gt_container_id
                                 )
                                 all_edges += edge_list
                                 estimated_steps = 100  # TODO: tune this
@@ -1442,7 +1454,7 @@ def main(cfg: DictConfig):
                                                     edge_steps[edge] = []
                                                 edge_steps[edge].append(estimated_steps)
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    proposal["pred"], class2id
+                                    proposal["pred"], class2id, gt_container_id
                                 )
                                 all_edges += edge_list
                                 estimated_steps = 100
