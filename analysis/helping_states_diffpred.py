@@ -1543,6 +1543,11 @@ def main(cfg: DictConfig):
                         agent_id=0,
                     )
 
+                    # if steps > 30:
+                    #     arena.agents[0].verbose = True
+                    #     arena.agents[0].mcts.verbose = True
+                    #     ipdb.set_trace()
+
                     if selected_actions[0] is not None:
                         for obj_name in all_object_types:
                             if obj_name in selected_actions[0]:
@@ -1942,10 +1947,12 @@ def main(cfg: DictConfig):
                             saved_info["obs"].append(
                                 [node["id"] for node in info["obs"]]
                             )
-                    if steps > 25:
-                        with open('debug_file.pkl', 'wb+') as f:
-                            pickle.dump(saved_info, f)
-                        ipdb.set_trace()
+                    # if steps > 30:
+                    #     with open('debug_file.pkl', 'wb+') as f:
+                    #         pickle.dump(saved_info, f)
+
+                    #     pickle.dump(saved_info, open(log_file_name, "wb"))
+                    #     # ipdb.set_trace()
                     print("success:", infos["finished"])
                     # pickle.dump(saved_info, open(log_file_name, "wb"))
                     # if args.debug:
