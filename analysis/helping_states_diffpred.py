@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 import pdb
 import ipdb
+
+from torch import nn
 import hydra
 import time
 import multiprocessing as mp
@@ -1263,7 +1265,20 @@ def main(cfg: DictConfig):
                             )
                             task_result = []
                             num_tsteps = output_func["pred_graph"].shape[1]
-                            pred_graph = output_func["pred_graph"].argmax(-1)
+                            if not model.use_vae:
+                                ipdb.set_trace()
+                                sample = True
+
+                                pred_graph_prob = output_func["pred_graph"]
+                                if not ample:
+                                    pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
+                                else:
+                                    pred_graph_prob = nn.functional.softmax(pred_graph_prob, dim=-1).cpu().numpy()
+                                    pred_graph = utils_models_wb.vectorized(pred_graph_prob)
+
+                            else:
+                                # VAE, take max
+                                pred_graph = output_func["pred_graph"].argmax(-1)
                             for ind in range(num_samples):
                                 task_graphs = []
                                 for tstep in range(num_tsteps):
