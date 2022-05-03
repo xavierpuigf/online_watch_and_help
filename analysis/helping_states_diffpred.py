@@ -1283,7 +1283,9 @@ def main(cfg: DictConfig):
                                             task_graph_input,
                                         )
                                     )
-                                print(ind, task_graphs)
+                                if args.debug:
+                                    print(ind, task_graphs)
+                                    ipdb.set_trace()
                                 task_result.append(task_graphs)
 
                         print("planning for the helper agent")
