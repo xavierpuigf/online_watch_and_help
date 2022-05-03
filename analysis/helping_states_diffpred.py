@@ -1270,7 +1270,7 @@ def main(cfg: DictConfig):
                                 sample = True
 
                                 pred_graph_prob = output_func["pred_graph"]
-                                if not ample:
+                                if not sample:
                                     pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
                                 else:
                                     pred_graph_prob = nn.functional.softmax(pred_graph_prob, dim=-1).cpu().numpy()
