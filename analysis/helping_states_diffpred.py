@@ -1266,7 +1266,7 @@ def main(cfg: DictConfig):
                             task_result = []
                             num_tsteps = output_func["pred_graph"].shape[1]
                             if not model.use_vae:
-                                ipdb.set_trace()
+                                # ipdb.set_trace()
                                 sample = True
 
                                 pred_graph_prob = output_func["pred_graph"]
