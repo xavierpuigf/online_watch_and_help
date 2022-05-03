@@ -307,6 +307,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
                 for edge in observations['edges']
                 if edge['to_id'] == target_grab
                 and edge['from_id'] != agent_id
+                and agent_id == 2
                 and 'HOLD' in edge['relation_type']
             ]
         )
@@ -326,6 +327,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
                 for edge in env_graph['edges']
                 if edge['from_id'] == agent_id
                 and 'HOLDS' in edge['relation_type']
+                and agent_id == 2
                 and edge['to_id'] == target_grab
             ]
         )
@@ -628,7 +630,7 @@ def mp_run_mcts(root_node, mcts, nb_steps, last_subgoal, opponent_subgoal):
             root_node, nb_steps, heuristic_dict, last_subgoal, opponent_subgoal
         )
     except Exception as e:
-        # print("plan fail in index", root_node.particle_id)
+        print("plan fail in index", root_node.particle_id)
         # traceback.print_stack()
         # print("raising")
         # print("Exception...")
@@ -793,7 +795,8 @@ def get_plan(
     # If there is no action predicted but there were goals missing...
     if len(final_actions) == 0:
         print("No actions")
-        # ipdb.set_trace()
+    if verbose:
+        ipdb.set_trace()
 
     plan = final_actions
     subgoals = final_goals
@@ -1244,12 +1247,13 @@ class MCTS_agent_particle_v2_instance:
                 last_action,
                 opponent_subgoal,
                 length_plan=length_plan,
-                verbose=verbose,
+                verbose=self.verbose,
                 num_process=self.num_processes,
             )
 
-            #if should_stop:
-            #    ipdb.set_trace()
+            if self.verbose:
+                print("here")
+                ipdb.set_trace()
 
             # update last_loc, we will store the location of the objects we are trying to grab
             # at the moment of planning, if something changes, then we will replan when time comes

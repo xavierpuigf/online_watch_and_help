@@ -170,6 +170,7 @@ class MCTS_particles_v2_instance:
                 )
             )
         last_reward = 0.0
+        prev_verbose = self.verbose
         for explore_step in tqdm(range(self.num_simulation), disable=not self.verbose):
             if (
                 explore_step % (self.num_simulation - 2) == 0
@@ -294,6 +295,9 @@ class MCTS_particles_v2_instance:
             #     ipdb.set_trace()
             # TODO: is this _Correct
             if double_put:
+                
+                if self.verbose:
+                    ipdb.set_trace()
                 raise Exception
                 # pass
                 # ipdb.set_trace()
@@ -309,11 +313,16 @@ class MCTS_particles_v2_instance:
                 pass
                 # ipdb.set_trace()
 
+        if prev_verbose:
+            self.verbose = True
+        # ipdb.set_trace()
         next_root = None
         plan = []
         subgoals = []
         rewards = []
         root_path = [curr_root]
+        if self.verbose:
+            ipdb.set_trace()
         while curr_root.is_expanded and len(curr_root.children) > 0:
 
             actions_taken, children_visit, next_root = self.select_next_root(curr_root)
