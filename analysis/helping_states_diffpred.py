@@ -1174,18 +1174,19 @@ def main(cfg: DictConfig):
                             print(goal_pred)
                             if not is_in_goal(grabbed_obj, goal_pred):
                                 print("reject")
-                            print(last_observed_main_action, proposal["plan"])
-                            if last_observed_main_action is None:
-                                remained_proposals[pred_id] = proposal
-                                print("accept")
                             else:
-                                if is_in_plan(
-                                    last_observed_main_action, proposal["plan"]
-                                ):
+                                print(last_observed_main_action, proposal["plan"])
+                                if last_observed_main_action is None:
                                     remained_proposals[pred_id] = proposal
                                     print("accept")
                                 else:
-                                    print("reject")
+                                    if is_in_plan(
+                                        last_observed_main_action, proposal["plan"]
+                                    ):
+                                        remained_proposals[pred_id] = proposal
+                                        print("accept")
+                                    else:
+                                        print("reject")
                         proposals = dict(remained_proposals)
                         if len(proposals) == 0:
                             all_reject = True
@@ -1285,7 +1286,7 @@ def main(cfg: DictConfig):
                                     )
                                 if args.debug:
                                     print(ind, task_graphs)
-                                    ipdb.set_trace()
+                                    # ipdb.set_trace()
                                 task_result.append(task_graphs)
 
                         print("planning for the helper agent")
