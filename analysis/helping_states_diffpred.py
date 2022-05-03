@@ -1903,9 +1903,9 @@ def main(cfg: DictConfig):
                             )
 
                     print("success:", infos["finished"])
-                    if steps > 30:
-                        pickle.dump(saved_info, open(log_file_name, "wb"))
-                        ipdb.set_trace()
+                    # if steps > 30:
+                    #     pickle.dump(saved_info, open(log_file_name, "wb"))
+                    #     ipdb.set_trace()
                     # if args.debug:
                     #     ipdb.set_trace()
                     if infos["finished"]:

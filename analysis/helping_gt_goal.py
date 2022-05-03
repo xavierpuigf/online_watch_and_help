@@ -280,7 +280,8 @@ def main(cfg: DictConfig):
     episode_ids = sorted(episode_ids)
     episode_ids = episode_ids[::5]
     print(len(episode_ids))
-    #episode_ids = [304]
+    episode_ids = [466]
+    num_tries = 1
     f.close()
     # ipdb.set_trace()
 
@@ -660,7 +661,7 @@ def main(cfg: DictConfig):
 
                     for agent_id in range(2):
                         if agent_id in actions:
-                            saved_info['action'][agent_id].append(actions[agent_id])
+                            saved_info['action'][agent_id].append(selected_actions[agent_id])
                         else:
                             saved_info['action'][agent_id].append(None)
                             
