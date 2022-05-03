@@ -116,72 +116,6 @@ def get_edge_class(pred, t, source="pred"):
         for (obj1, obj2), num in curr_task_dict.items()
     }
 
-    # edge_pred = pred["edge_pred"][t] if source == "pred" else pred["edge_input"][t]
-    # pred_edge_names = pred["edge_names"]
-    # pred_nodes = pred["nodes"]
-    # pred_from_ids = pred["from_id"] if source == "pred" else pred["from_id_input"]
-    # pred_to_ids = pred["to_id"] if source == "pred" else pred["to_id_input"]
-
-    # # edge_prob = pred_edge_prob[t]
-    # # edge_pred = np.argmax(edge_prob, 1)
-
-    # edge_pred_class = {}
-
-    # num_edges = len(edge_pred)
-    # # print(pred_from_ids[t], num_edges)
-    # for edge_id in range(num_edges):
-    #     from_id = pred_from_ids[t][edge_id]
-    #     to_id = pred_to_ids[t][edge_id]
-    #     from_node_name = pred_nodes[from_id]
-    #     to_node_name = pred_nodes[to_id]
-    #     # if object_name in from_node_name or object_name in to_node_name:
-    #     edge_name = pred_edge_names[edge_pred[edge_id]]
-    #     if to_node_name.split(".")[1] == "-1":
-    #         continue
-    #     if edge_name in ["inside", "on"]:  # disregard room locations + plate
-    #         if to_node_name.split(".")[0] in [
-    #             "kitchen",
-    #             "livingroom",
-    #             "bedroom",
-    #             "bathroom",
-    #             "plate",
-    #         ]:
-    #             continue
-    #         if from_node_name.split(".")[0] in [
-    #             "kitchen",
-    #             "livingroom",
-    #             "bedroom",
-    #             "bathroom",
-    #             "character",
-    #         ]:
-    #             continue
-    #     else:
-    #         continue
-    #     # if from_node_name.split('.')[0] not in [
-    #     #     'apple',
-    #     #     'cupcake',
-    #     #     'plate',
-    #     #     'waterglass',
-    #     # ]:
-    #     #     continue
-
-    #     # if from_node_name.split('.')[0]
-
-    #     # # TODO: need to infer the correct edge class
-    #     # if 'table' in to_node_name.split('.')[0]:
-    #     #     ipdb.set_trace()
-    #     #     edge_name = 'on'
-
-    #     edge_class = "{}_{}_{}".format(
-    #         edge_name, from_node_name.split(".")[0], to_node_name.split(".")[1]
-    #     )
-    #     # print(from_node_name, to_node_name, edge_name)
-    #     if edge_class not in edge_pred_class:
-    #         edge_pred_class[edge_class] = 1
-    #     else:
-    #         edge_pred_class[edge_class] += 1
-    # return edge_pred_class
-
 
 def get_class_from_state(state):
     id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
@@ -308,7 +242,7 @@ def get_pred_name(container_name):
     return pred_name
 
 
-def get_edge_instance(pred, class2id, t, source="pred"):
+def get_edge_instance(pred, class2id, gt_container_id, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
 
@@ -339,7 +273,10 @@ def get_edge_instance(pred, class2id, t, source="pred"):
             continue
 
         if obj_name in class2id:
-            container_id = class2id[container_name][0]
+            if gt_container_id in class2id[container_name]:
+                container_id = gt_container_id
+            else:
+                container_id = class2id[container_name][0]
             pred_name = f"{pred_name}_{obj_name}_{container_id}"
             edge_pred_ins[pred_name] = {
                 "count": count,
@@ -395,7 +332,7 @@ def get_subgoals_from_init_state(state):
     return subgoals
 
 
-def get_edge_instance_from_pred(pred, class2id):
+def get_edge_instance_from_pred(pred, class2id, gt_container_id):
     # pred_edge_prob = pred['edge_prob']
     # print(len(pred['edge_input'][t]), len(pred['edge_pred'][t]))
 
@@ -447,7 +384,10 @@ def get_edge_instance_from_pred(pred, class2id):
             continue
 
         if from_node_name in class2id:
-            to_node_id = class2id[to_node_name][0]
+            if gt_container_id in class2id[to_node_name]:
+                to_node_id = gt_container_id
+            else:
+                to_node_id = class2id[to_node_name][0]
             edge_class = f"{edge_name}_{from_node_name}_{to_node_id}"
             edge_pred_ins[edge_name] = {
                 "count": count,
@@ -677,6 +617,7 @@ def pred_main_agent_plan(
     process_id,
     pred_task,
     class2id,
+    gt_container_id,
     t,
     pred_actions_fn,
     obs,
@@ -685,7 +626,7 @@ def pred_main_agent_plan(
     agent_id,
     res,
 ):
-    inferred_goal = get_edge_instance(pred_task, class2id, t)
+    inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
     print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
@@ -769,6 +710,7 @@ def main(cfg: DictConfig):
     args_pred = args.agent_pred_graph
     num_proc = 0
 
+    num_tries = args.num_tries
     num_tries = 1
     # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     # args.max_episode_length = 250
@@ -789,7 +731,11 @@ def main(cfg: DictConfig):
     episode_ids = []
     for filename in f:
         episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
-    episode_ids = sorted(episode_ids)
+    episode_ids0 = sorted(episode_ids)
+    if args.small_set:
+        episode_ids = list(episode_ids0[::5])
+    else:
+        episode_ids = list(episode_ids0)
     episode_ids = [466]
     print(len(episode_ids))
     f.close()
@@ -798,7 +744,7 @@ def main(cfg: DictConfig):
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
-        cachedir = f"{get_original_cwd()}/outputs/helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     else:
         cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
@@ -949,8 +895,6 @@ def main(cfg: DictConfig):
     # episode_ids = [0, 1, 2, 3, 4, 20, 21, 22, 23, 24]
     # episode_ids = [21, 22, 23, 24]
 
-    # num_tries = 5
-
     for iter_id in range(num_tries):
         # if iter_id > 0:
         # iter_id = 1
@@ -1054,6 +998,9 @@ def main(cfg: DictConfig):
                 init_state = obs[1]
                 arena.task_goal = None
                 gt_goal = arena.env.task_goal[0]
+
+                gt_container_id = list(gt_goal.values())[0]["container_ids"][0]
+
                 tv = False
                 food = False
                 dish = False
@@ -1078,7 +1025,7 @@ def main(cfg: DictConfig):
                     "gt_goals": arena.env.task_goal[0],
                     "goals": arena.task_goal,
                     "action": {0: [], 1: []},
-                    'executed_action': {0: [], 1: []},
+                    "executed_action": {0: [], 1: []},
                     "plan": {0: [], 1: []},
                     "subgoal": {0: [], 1: []},
                     "finished": None,
@@ -1112,12 +1059,14 @@ def main(cfg: DictConfig):
                     else:
                         saved_info["action"][agent_id].append(None)
 
-                if 'executed_script' in infos:
+                if "executed_script" in infos:
                     for agent_id in range(2):
-                        if agent_id in infos['executed_script']:
-                            saved_info['executed_action'][agent_id].append(infos['executed_script'][agent_id])
+                        if agent_id in infos["executed_script"]:
+                            saved_info["executed_action"][agent_id].append(
+                                infos["executed_script"][agent_id]
+                            )
                         else:
-                            saved_info['executed_action'][agent_id].append(None)  
+                            saved_info["executed_action"][agent_id].append(None)
                 if "graph" in infos:
                     saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
@@ -1164,12 +1113,14 @@ def main(cfg: DictConfig):
                     else:
                         saved_info["action"][agent_id].append(None)
 
-                if 'executed_script' in infos:
+                if "executed_script" in infos:
                     for agent_id in range(2):
-                        if agent_id in infos['executed_script']:
-                            saved_info['executed_action'][agent_id].append(infos['executed_script'][agent_id])
+                        if agent_id in infos["executed_script"]:
+                            saved_info["executed_action"][agent_id].append(
+                                infos["executed_script"][agent_id]
+                            )
                         else:
-                            saved_info['executed_action'][agent_id].append(None)  
+                            saved_info["executed_action"][agent_id].append(None)
 
                 if "graph" in infos:
                     saved_info["graph"].append(infos["graph"])
@@ -1349,6 +1300,7 @@ def main(cfg: DictConfig):
                                     index,
                                     task_result[index],
                                     class2id,
+                                    gt_container_id,
                                     steps - 3,
                                     arena.pred_actions,
                                     curr_obs,
@@ -1372,6 +1324,7 @@ def main(cfg: DictConfig):
                                             process_id,
                                             task_result[process_id],
                                             class2id,
+                                            gt_container_id,
                                             steps - 3,
                                             arena.pred_actions,
                                             curr_obs,
@@ -1437,7 +1390,7 @@ def main(cfg: DictConfig):
                                                 ] = estimated_steps
                                 # ipdb.set_trace()
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    task_result[pred_id], class2id
+                                    task_result[pred_id], class2id, gt_container_id
                                 )
                                 all_edges += edge_list
                                 estimated_steps = 100  # TODO: tune this
@@ -1503,7 +1456,7 @@ def main(cfg: DictConfig):
                                                     edge_steps[edge] = []
                                                 edge_steps[edge].append(estimated_steps)
                                 edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                                    proposal["pred"], class2id
+                                    proposal["pred"], class2id, gt_container_id
                                 )
                                 all_edges += edge_list
                                 estimated_steps = 100
@@ -1921,13 +1874,14 @@ def main(cfg: DictConfig):
                         else:
                             saved_info["action"][agent_id].append(None)
 
-                    if 'executed_script' in infos:
+                    if "executed_script" in infos:
                         for agent_id in range(2):
-                            if agent_id in infos['executed_script']:
-                                saved_info['executed_action'][agent_id].append(infos['executed_script'][agent_id])
+                            if agent_id in infos["executed_script"]:
+                                saved_info["executed_action"][agent_id].append(
+                                    infos["executed_script"][agent_id]
+                                )
                             else:
-                                saved_info['executed_action'][agent_id].append(None)  
-
+                                saved_info["executed_action"][agent_id].append(None)
 
                     saved_info["opponent_subgoal"].append(opponent_subgoal)
                     saved_info["helping_subgoal"].append(last_goal_edge)
@@ -1947,14 +1901,11 @@ def main(cfg: DictConfig):
                             saved_info["obs"].append(
                                 [node["id"] for node in info["obs"]]
                             )
-                    # if steps > 30:
-                    #     with open('debug_file.pkl', 'wb+') as f:
-                    #         pickle.dump(saved_info, f)
 
-                    #     pickle.dump(saved_info, open(log_file_name, "wb"))
-                    #     # ipdb.set_trace()
                     print("success:", infos["finished"])
-                    # pickle.dump(saved_info, open(log_file_name, "wb"))
+                    if steps > 30:
+                        pickle.dump(saved_info, open(log_file_name, "wb"))
+                        ipdb.set_trace()
                     # if args.debug:
                     #     ipdb.set_trace()
                     if infos["finished"]:
