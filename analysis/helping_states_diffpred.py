@@ -1285,7 +1285,7 @@ def main(cfg: DictConfig):
                                     )
                                 if args.debug:
                                     print(ind, task_graphs)
-                                    ipdb.set_trace()
+                                    # ipdb.set_trace()
                                 task_result.append(task_graphs)
 
                         print("planning for the helper agent")
@@ -1850,6 +1850,8 @@ def main(cfg: DictConfig):
                     prev_graph = copy.deepcopy(curr_graph)
 
                     try:
+                        from termcolor import colored
+                        print(colored(("taking step", selected_actions), "green"))
                         (curr_obs, reward, done, infos) = arena.step_given_action(
                             selected_actions
                         )
@@ -1907,8 +1909,8 @@ def main(cfg: DictConfig):
                     # if steps > 30:
                     #     pickle.dump(saved_info, open(log_file_name, "wb"))
                     #     ipdb.set_trace()
-                    if args.debug:
-                        ipdb.set_trace()
+                    # if args.debug:
+                    #     ipdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
@@ -1928,13 +1930,13 @@ def main(cfg: DictConfig):
                 saved_info["obs"].append([node["id"] for node in curr_obs[0]["nodes"]])
                 saved_info["finished"] = success
 
-                if not args.debug:
-                    Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                    if len(saved_info["obs"]) > 0:
-                        pickle.dump(saved_info, open(log_file_name, "wb"))
-                    else:
-                        with open(log_file_name, "w+") as f:
-                            f.write(json.dumps(saved_info, indent=4))
+                # if not args.debug:
+                Path(args.record_dir).mkdir(parents=True, exist_ok=True)
+                if len(saved_info["obs"]) > 0:
+                    pickle.dump(saved_info, open(log_file_name, "wb"))
+                else:
+                    with open(log_file_name, "w+") as f:
+                        f.write(json.dumps(saved_info, indent=4))
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)

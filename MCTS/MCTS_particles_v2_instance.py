@@ -371,11 +371,18 @@ class MCTS_particles_v2_instance:
         #     ipdb.set_trace()
         # import ipdb
         # ipdb.set_trace()
+        if len(plan) == 0:
+            if self.agent_id == 1:
+                pass
+                
+                # ipdb.set_trace()
+                # value, reward_rollout, actions_rollout = self.rollout(
+                #     leaf_node, tmp_t + it, curr_state, last_reward, verbose=True
+                # )
         return next_root, plan, subgoals, rewards
 
     def rollout(self, leaf_node, t, state_particle, lrw=0.0, verbose=False):
         reached_terminal = False
-
         leaf_node_values = leaf_node.id[1]
         goal_spec, num_steps, actions_parent = leaf_node_values
         curr_vh_state, curr_state, satisfied, unsatisfied = state_particle
@@ -447,7 +454,9 @@ class MCTS_particles_v2_instance:
                 self.opponent_subgoal,
             )
             subgoals += subgoals_hand
-
+            if verbose:
+                ipdb.set_trace()
+        
             # print("Roll", len(subgoals))
             if len(subgoals) == 0:
                 subgoals_finished = True
@@ -491,15 +500,27 @@ class MCTS_particles_v2_instance:
                 last_goal = goal_selected
 
             heuristic = self.heuristic_dict[goal_selected.split("_")[0]]
-
             actions, _, action_name = heuristic(
-                self.agent_id,
-                self.char_index,
-                unsatisfied,
-                curr_state,
-                self.env,
-                goal_selected,
+                    self.agent_id,
+                    self.char_index,
+                    unsatisfied,
+                    curr_state,
+                    self.env,
+                    goal_selected,
             )
+            if verbose:
+                
+                ipdb.set_trace()
+                actions, _, action_name = heuristic(
+                    self.agent_id,
+                    self.char_index,
+                    unsatisfied,
+                    curr_state,
+                    self.env,
+                    goal_selected,
+                    True
+                )
+                ipdb.set_trace()
             # print(actions)
             # if '336' in goal_selected:
             #     ipdb.set
@@ -508,7 +529,7 @@ class MCTS_particles_v2_instance:
                 print("Rollout: ", rollout_step)
                 print("Subgoals: ", subgoals, satisfied, unsatisfied)
                 print("Goal Selected: ", goal_selected)
-                print(actions[0])
+                # print(actions[0])
                 print()
 
             if len(hands_busy) == 2 and actions is not None:
