@@ -188,6 +188,12 @@ def inside_not_trans(graph):
 
 
 def convert_action(action_dict):
+    action_dict = copy.deepcopy(action_dict)
+    if 1 in action_dict:
+        if action_dict[1] is not None and 'walk' in action_dict[1]:
+            obj_str = ' '.join(action_dict[1].split()[1:])
+            action_dict[1] = '[walktowards] {} :3:'.format(obj_str)
+
     agent_do = [item for item, action in action_dict.items() if action is not None]
     # Make sure only one agent interact with the same object
     if len(action_dict.keys()) > 1:

@@ -280,8 +280,8 @@ def main(cfg: DictConfig):
     episode_ids = sorted(episode_ids)
     episode_ids = episode_ids[::5]
     print(len(episode_ids))
-    episode_ids = [466]
-    num_tries = 1
+    # episode_ids = [466]
+    # num_tries = 1
     f.close()
     # ipdb.set_trace()
 
