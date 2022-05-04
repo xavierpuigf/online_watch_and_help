@@ -324,7 +324,7 @@ class GraphPredNetworkVAETask3(nn.Module):
         self.hidden_size = args['hidden_size']
         self.z_dim = args['z_dim']
         self.num_states = args['num_states']
-
+        self.verbose = False
         self.latent_size = 128
         
         if self.predict_category:
@@ -461,7 +461,8 @@ class GraphPredNetworkVAETask3(nn.Module):
     def forward(self, inputs, cond=None, inference=False, z_vec=None, seed=None, verbose=False):
         # ipdb.set_trace()
         # Cond is an embedding of the past, optionally used
-        if verbose:
+
+        if self.verbose:
             ipdb.set_trace()
         inp_task_graph = F.one_hot(inputs['task_graph']['task_graph'].long(), self.max_counts)
         B, T, numpreds, nc = inp_task_graph.shape

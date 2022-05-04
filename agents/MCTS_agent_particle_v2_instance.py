@@ -278,12 +278,13 @@ def sit_heuristic(
         return find_actions + target_action, find_costs + cost, f'sit_{target_id}'
 
 
-def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, target):
+def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, target, verbose=False):
     # Modif, now put heristic is only the immaediate after action
     observations = simulator.get_observations(env_graph, char_index=char_index)
 
     target_grab, target_put = [int(x) for x in target.split('_')[-2:]]
-
+    if verbose:
+        ipdb.set_trace()
     if (
         sum(
             [
@@ -313,7 +314,7 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
         )
         > 0
     ):
-        # Object has been placed
+        # Object is being placed by another agent
         # ipdb.set_trace()
         return [], 0, []
 
@@ -327,13 +328,13 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
                 for edge in env_graph['edges']
                 if edge['from_id'] == agent_id
                 and 'HOLDS' in edge['relation_type']
-                and agent_id == 2
                 and edge['to_id'] == target_grab
             ]
         )
         > 0
     )
-
+    if verbose:
+        ipdb.set_trace()
     object_diff_room = None
     if not target_grabbed:
         grab_obj1, cost_grab_obj1, heuristic_name = grab_heuristic(
@@ -367,6 +368,8 @@ def put_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, targe
     res = grab_obj1 + find_obj2
     cost_list = cost_grab_obj1 + cost_find_obj2
 
+    if verbose:
+        ipdb.set_trace()
     if target_put > 2:  # not character
         action = [
             (
@@ -415,6 +418,7 @@ def putIn_heuristic(agent_id, char_index, unsatisfied, env_graph, simulator, tar
                 for edge in observations['edges']
                 if edge['to_id'] == target_grab
                 and edge['from_id'] != agent_id
+                and agent_id == 2
                 and 'HOLD' in edge['relation_type']
             ]
         )
@@ -998,6 +1002,7 @@ class MCTS_agent_particle_v2_instance:
     def get_action(
         self, obs, goal_spec, opponent_subgoal=None, length_plan=5, must_replan=False
     ):
+        # ipdb.set_trace()
         if len(goal_spec) == 0:
             ipdb.set_trace()
 
@@ -1267,6 +1272,9 @@ class MCTS_agent_particle_v2_instance:
             for goal_id in elems_grab:
                 self.last_loc[goal_id] = self.get_location_in_goal(obs, goal_id)
 
+            # if len(plan) == 0 and self.agent_id == 1:
+            #     ipdb.set_trace()
+
             if self.verbose:
                 print(colored(plan[: min(len(plan), 10)], 'cyan'))
             # ipdb.set_trace()
@@ -1338,6 +1346,9 @@ class MCTS_agent_particle_v2_instance:
             print("Replanning... ", should_replan or must_replan)
         if should_replan:
             print('Agent {} did replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
+            # if len(plan) == 0 and self.agent_id == 1:
+            #     ipdb.set_trace()
+
         else:
             print('Agent {} not replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
 

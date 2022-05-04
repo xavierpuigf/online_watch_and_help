@@ -12,6 +12,8 @@ from pathlib import Path
 import numpy as np
 import pdb
 import ipdb
+
+from torch import nn
 import hydra
 import time
 import multiprocessing as mp
@@ -1264,7 +1266,20 @@ def main(cfg: DictConfig):
                             )
                             task_result = []
                             num_tsteps = output_func["pred_graph"].shape[1]
-                            pred_graph = output_func["pred_graph"].argmax(-1)
+                            if not model.use_vae:
+                                # ipdb.set_trace()
+                                sample = True
+
+                                pred_graph_prob = output_func["pred_graph"]
+                                if not sample:
+                                    pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
+                                else:
+                                    pred_graph_prob = nn.functional.softmax(pred_graph_prob, dim=-1).cpu().numpy()
+                                    pred_graph = utils_models_wb.vectorized(pred_graph_prob)
+
+                            else:
+                                # VAE, take max
+                                pred_graph = output_func["pred_graph"].argmax(-1)
                             for ind in range(num_samples):
                                 task_graphs = []
                                 for tstep in range(num_tsteps):
@@ -1851,6 +1866,8 @@ def main(cfg: DictConfig):
                     prev_graph = copy.deepcopy(curr_graph)
 
                     try:
+                        from termcolor import colored
+                        print(colored(("taking step", selected_actions), "green"))
                         (curr_obs, reward, done, infos) = arena.step_given_action(
                             selected_actions
                         )
@@ -1908,8 +1925,8 @@ def main(cfg: DictConfig):
                     # if steps > 30:
                     #     pickle.dump(saved_info, open(log_file_name, "wb"))
                     #     ipdb.set_trace()
-                    if args.debug:
-                        ipdb.set_trace()
+                    # if args.debug:
+                    #     ipdb.set_trace()
                     if infos["finished"]:
                         success = True
                         break
@@ -1929,13 +1946,13 @@ def main(cfg: DictConfig):
                 saved_info["obs"].append([node["id"] for node in curr_obs[0]["nodes"]])
                 saved_info["finished"] = success
 
-                if not args.debug:
-                    Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                    if len(saved_info["obs"]) > 0:
-                        pickle.dump(saved_info, open(log_file_name, "wb"))
-                    else:
-                        with open(log_file_name, "w+") as f:
-                            f.write(json.dumps(saved_info, indent=4))
+                # if not args.debug:
+                Path(args.record_dir).mkdir(parents=True, exist_ok=True)
+                if len(saved_info["obs"]) > 0:
+                    pickle.dump(saved_info, open(log_file_name, "wb"))
+                else:
+                    with open(log_file_name, "w+") as f:
+                        f.write(json.dumps(saved_info, indent=4))
 
                 logger.removeHandler(logger.handlers[0])
                 os.remove(failure_file)
