@@ -209,7 +209,8 @@ def convert_action(action_dict):
                 agent_do = [random.choice([0, 1])]
 
     script_list = ['']
-    new_action_dict = {index: action_dict for index in agent_do}
+
+    new_action_dict = {index: action_dict[index] for index in agent_do}
     
     for agent_id in agent_do:
         script = action_dict[agent_id]
