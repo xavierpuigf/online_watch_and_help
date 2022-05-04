@@ -266,7 +266,7 @@ def get_metrics_reward(
             # pdb.set_trace()
             # print(episode_id)
             if len(L_A_seeds) > 0:
-                mSP.append(np.mean(L_A_seeds) / np.mean(Ls))
+                mSP.append(np.mean(L_A_seeds) / np.mean(Ls) - 1.0)
         else:
             Ls = [time_limit] * len(Ss)
             SWSs.append(0)
