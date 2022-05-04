@@ -265,7 +265,7 @@ def get_metrics_reward(
             # pdb.set_trace()
             # print(episode_id)
             if len(L_A_seeds) > 0:
-                mSP.append(np.mean(L_A_seeds) / np.mean(Ls))
+                mSP.append(np.mean(L_A_seeds) / np.mean(Ls) - 1.0)
         else:
             Ls = [time_limit] * len(Ss)
             SWSs.append(0)
@@ -317,15 +317,15 @@ def main(cfg: DictConfig):
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
     cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
-    cachedir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0'
+    cachedir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph.kl0.001_10_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
