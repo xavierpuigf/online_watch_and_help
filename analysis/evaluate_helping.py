@@ -283,6 +283,7 @@ def get_metrics_reward(
     ns = np.sqrt(len(mS))
     nsp = np.sqrt(len(mSP))
     nw = np.sqrt(len(mSwS))
+    # Success, Length, SpeedUp, Reward 
     return (
         np.mean(mS),
         np.mean(mL),
@@ -316,8 +317,9 @@ def main(cfg: DictConfig):
     args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik"
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
-    cachedir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0'
+    cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal_fast"
+
+    #cachedir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0'
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"
@@ -325,7 +327,7 @@ def main(cfg: DictConfig):
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    #cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
@@ -333,6 +335,7 @@ def main(cfg: DictConfig):
 
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
     cachedir_main = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/main_agent_only_large"
+    cachedir = cachedir_main
 
     agent_types = [
         ["full", 0, 0.05, False, 0, "uniform"],  # 0
@@ -477,14 +480,19 @@ def main(cfg: DictConfig):
     # print(main_results[152])
     # print(help_results)
 
-    SR, AL, SP, SWS, stdR, stdL, stdSP, stdS = get_metrics_reward(
+    SR, AL, SP, SWS, stdSR, stdL, stdSP, stdR = get_metrics_reward(
         main_results,
         help_results,
         episode_ids,
         num_tries,
         time_limit=args.max_episode_length,
     )
-    print(SR, AL, SP, SWS, stdR, stdL, stdSP, stdS)
+    # Success, Length, SpeedUp, Reward 
+    print("SR", "AL", "SP", "Reward")
+    print(SR, AL, SP, SWS)
+
+    print("stdSR", "stdL", "stdSP", "stdR")
+    print(stdSR, stdL, stdSP, stdR)
 
 
 if __name__ == "__main__":
