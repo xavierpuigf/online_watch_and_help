@@ -657,6 +657,13 @@ def pred_main_agent_plan(
     # print('main plan {}:'.format(process_id), plan)
 
 
+def convert_walktowards(action):
+    if action is not None:
+        return action.replace("walktowards", "walk")
+    else:
+        return action
+
+
 def get_helping_plan(
     process_id,
     edge,
@@ -1272,10 +1279,18 @@ def main(cfg: DictConfig):
 
                                 pred_graph_prob = output_func["pred_graph"]
                                 if not sample:
-                                    pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
+                                    pred_graph = (
+                                        pred_graph_prob.argmax(-1).cpu().numpy()
+                                    )
                                 else:
-                                    pred_graph_prob = nn.functional.softmax(pred_graph_prob, dim=-1).cpu().numpy()
-                                    pred_graph = utils_models_wb.vectorized(pred_graph_prob)
+                                    pred_graph_prob = (
+                                        nn.functional.softmax(pred_graph_prob, dim=-1)
+                                        .cpu()
+                                        .numpy()
+                                    )
+                                    pred_graph = utils_models_wb.vectorized(
+                                        pred_graph_prob
+                                    )
 
                             else:
                                 # VAE, take max
@@ -1818,7 +1833,7 @@ def main(cfg: DictConfig):
                                     )
                                 ):
                                     best_value = value
-                                    selected_actions[1] = plan[0]
+                                    selected_actions[1] = convert_walktowards(plan[0])
                                     last_goal_edge_curr = goal_edges[pred_id]
                                     best_estimated_steps = estimated_steps
                                     # print('accept', last_goal_edge)
@@ -1855,7 +1870,7 @@ def main(cfg: DictConfig):
                                     continue
                                 print(edge_class, edge_pred_class_estimated[edge_class])
                     else:
-                        selected_actions[1] = helper_action
+                        selected_actions[1] = convert_walktowards(helper_action)
 
                     print("selected_actions:", selected_actions, best_value)
                     print("opponent_subgoal:", opponent_subgoal)
@@ -1867,6 +1882,7 @@ def main(cfg: DictConfig):
 
                     try:
                         from termcolor import colored
+
                         print(colored(("taking step", selected_actions), "green"))
                         (curr_obs, reward, done, infos) = arena.step_given_action(
                             selected_actions
