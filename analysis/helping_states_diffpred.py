@@ -658,8 +658,8 @@ def pred_main_agent_plan(
 
 
 def convert_walktowards(action):
-    if action is not None:
-        return action.replace("walktowards", "walk")
+    if action is not None and "walktowards" not in action:
+        return action.replace("walk", "walktowards")
     else:
         return action
 
@@ -754,9 +754,9 @@ def main(cfg: DictConfig):
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
-        cachedir = f"{get_original_cwd()}/outputs/helping_states_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     else:
-        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/debug_helping_fastwalk_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
