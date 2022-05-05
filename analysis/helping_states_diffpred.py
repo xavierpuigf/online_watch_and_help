@@ -935,7 +935,7 @@ def main(cfg: DictConfig):
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
         # ipdb.set_trace()
-        if args_pred.name_log == 'uniform':
+        if args_pred.name_log == "uniform":
             model = agent_pref_policy.UniformModel()
         else:
             model = agent_pref_policy.GraphPredNetworkVAETask3(args_pred)
@@ -1160,7 +1160,10 @@ def main(cfg: DictConfig):
                         class2id[node["class_name"]] = []
                     class2id[node["class_name"]].append(node["id"])
 
-                while steps < max_steps:
+                early_stopping = False
+                cnt_same_action_steps = 0
+
+                while steps < max_steps and not early_stopping:
                     steps += 1
 
                     # ======================================================
@@ -1276,7 +1279,7 @@ def main(cfg: DictConfig):
                             )
                             task_result = []
                             num_tsteps = output_func["pred_graph"].shape[1]
-                            if not model.use_vae:
+                            if not model.use_vae and args.num_samples > 1:
                                 # ipdb.set_trace()
                                 sample = True
 
@@ -1296,11 +1299,11 @@ def main(cfg: DictConfig):
                                     )
 
                             else:
-                                if args_pred.name_log == 'uniform':
-                                    pred_graph = output_func['pred_graph']
+                                if args_pred.name_log == "uniform":
+                                    pred_graph = output_func["pred_graph"]
                                 else:
                                     # VAE, take max
-                                        pred_graph = output_func["pred_graph"].argmax(-1)
+                                    pred_graph = output_func["pred_graph"].argmax(-1)
                             for ind in range(num_samples):
                                 task_graphs = []
                                 for tstep in range(num_tsteps):
@@ -1933,8 +1936,14 @@ def main(cfg: DictConfig):
                         history_action.append(selected_actions[0])
                         prev_action = selected_actions[0]
                         new_action = True
+                        cnt_same_action_steps = 1
                     else:
                         new_action = False
+                        cnt_same_action_steps += 1
+                        if cnt_same_action_steps >= 10 and (
+                            "put" in prev_action or "grab" in prev_action
+                        ):
+                            early_stopping = True
 
                     if "satisfied_goals" in infos:
                         saved_info["goals_finished"].append(infos["satisfied_goals"])

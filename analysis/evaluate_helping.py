@@ -196,7 +196,7 @@ def get_metrics_reward(
     mL = []
     mSP = []
     mSwS = []
-    # pdb.set_trace()
+    # ipdb.set_trace()
     for seed in range(num_tries):
         alice_S = []
         alice_L = []
@@ -209,7 +209,7 @@ def get_metrics_reward(
         for seed_alice in range(num_tries):
             if episode_id not in alice_results:
                 S_A, L_A = 0, time_limit
-                pdb.set_trace()
+                ipdb.set_trace()
                 # continue
             else:
                 if alice_results[episode_id]["S"][seed_alice] == "":
@@ -243,7 +243,7 @@ def get_metrics_reward(
                 if L_B == time_limit:
                     S_B = 0.0
             except:
-                pdb.set_trace()
+                ipdb.set_trace()
 
             Ls.append(L_B)
             Ss.append(S_B)
@@ -253,7 +253,7 @@ def get_metrics_reward(
             Ls = [t for t in Ls if t < time_limit]
         if len(Ls) > 0:
             # if len([t for t in Ss if t == 0.]) > 0:
-            #     pdb.set_trace()
+            #     ipdb.set_trace()
             SWSs.append(
                 np.mean([-ls * 1.0 / time_limit + sb for ls, sb in zip(Ls, Ss)])
             )
@@ -262,7 +262,7 @@ def get_metrics_reward(
             #     cont_better += 1
             #
 
-            # pdb.set_trace()
+            # ipdb.set_trace()
             # print(episode_id)
             if len(L_A_seeds) > 0:
                 mSP.append(np.mean(L_A_seeds) / np.mean(Ls) - 1.0)
@@ -328,24 +328,36 @@ def main(cfg: DictConfig):
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
-    #  # oracle
-    # cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
-
-    # # ours
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-
-    # single particle
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
-
-    # # w/o inv plan
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
 
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
     cachedir_main = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/main_agent_only_large"
-    cachedir = cachedir_main
+
+    # # =======================
+    # # oracle
+    # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
+
+    # # =======================
+    # # ours
+    # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+
+    # =======================
+    # single particle
+    # =======================
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
+
+    # # =======================
+    # # w/o inv plan
+    # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+
+    # # # =======================
+    # # ours w/ uniform proposals
+    # # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_uniform_20_1.0_1.0_5.0"
 
     agent_types = [
         ["full", 0, 0.05, False, 0, "uniform"],  # 0
@@ -475,9 +487,15 @@ def main(cfg: DictConfig):
             # and 250 in help_results[episode_id]["L"]
         ):
             tmp_list = list(help_results[episode_id]["S"])
-            help_results[episode_id]["S"] = [x for x in tmp_list if x > 0]
+            help_results[episode_id]["S"] = [
+                x
+                for x, y in zip(tmp_list, help_results[episode_id]["L"])
+                if x > 0 and y < args.max_episode_length
+            ]
             tmp_list = list(help_results[episode_id]["L"])
-            help_results[episode_id]["L"] = [x for x in tmp_list if x < 250]
+            help_results[episode_id]["L"] = [
+                x for x in tmp_list if x < args.max_episode_length
+            ]
 
     # if np.mean(help_results[episode_id]["S"]) < np.mean(
     #     main_results[episode_id]["S"]
