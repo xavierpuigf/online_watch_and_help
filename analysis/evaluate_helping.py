@@ -220,7 +220,7 @@ def get_metrics_reward(
                 L_A = alice_results[episode_id]["L"][seed_alice]
                 L_A_seeds.append(L_A)
         if episode_id not in test_results:
-            print(episode_id, seed)
+            # print(episode_id, seed)
             continue
         L_A_seeds = [t for t in L_A_seeds if t is not None]
         if normalized_by_suc:
@@ -323,10 +323,19 @@ def main(cfg: DictConfig):
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph.kl0.001_10_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+
+    # # ours
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+
+    # single particle
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
+
+    # # w/o inv plan
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
@@ -484,7 +493,8 @@ def main(cfg: DictConfig):
         num_tries,
         time_limit=args.max_episode_length,
     )
-    print(SR, AL, SP, SWS, stdR, stdL, stdSP, stdS)
+    # print(SR, AL, SP, SWS, stdR, stdL, stdSP, stdS)
+    print("success rate: {} ({}), speed up: {} ({})".format(SR, stdR, SP, stdSP))
 
 
 if __name__ == "__main__":
