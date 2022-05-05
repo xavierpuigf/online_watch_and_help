@@ -745,7 +745,7 @@ def main(cfg: DictConfig):
     else:
         episode_ids = list(episode_ids0)
     if args.debug:
-        episode_ids = [466]
+        episode_ids = [323]
     print(len(episode_ids))
     f.close()
 
@@ -1560,10 +1560,14 @@ def main(cfg: DictConfig):
                         agent_id=0,
                     )
 
-                    # if steps > 30:
-                    #     arena.agents[0].verbose = True
-                    #     arena.agents[0].mcts.verbose = True
-                    #     ipdb.set_trace()
+                    #if steps > 35:
+                    #    # arena.agents[0].verbose = True
+                    #    # arena.agents[0].mcts.verbose = True
+                    #    Path(args.record_dir).mkdir(parents=True, exist_ok=True)
+                    #    # print(saved_info)
+                    #    if len(saved_info["obs"]) > 0:
+                    #        pickle.dump(saved_info, open(log_file_name, "wb"))
+                    #    ipdb.set_trace()
 
                     if selected_actions[0] is not None:
                         for obj_name in all_object_types:
