@@ -5,6 +5,7 @@ import shutil
 import os
 import logging
 import traceback
+import pickle as pkl
 import random
 import pickle
 import copy
@@ -213,7 +214,7 @@ def get_metrics_reward(
                 # continue
             else:
                 if alice_results[episode_id]["S"][seed_alice] == "":
-                    print(episode_id, seed)
+                    # print(episode_id, seed)
                     continue
 
                 S_A = alice_results[episode_id]["S"][seed_alice]
@@ -233,10 +234,10 @@ def get_metrics_reward(
                 continue
             try:
                 if test_results[episode_id]["S"][seed_bob] == "":
-                    print(episode_id, seed)
+                    # print(episode_id, seed)
                     continue
                 if test_results[episode_id]["S"][seed_bob] is None:
-                    print(episode_id, seed)
+                    # print(episode_id, seed)
                     continue
                 S_B = test_results[episode_id]["S"][seed_bob]
                 L_B = test_results[episode_id]["L"][seed_bob]
@@ -283,7 +284,7 @@ def get_metrics_reward(
     ns = np.sqrt(len(mS))
     nsp = np.sqrt(len(mSP))
     nw = np.sqrt(len(mSwS))
-    # Success, Length, SpeedUp, Reward
+    # Success, Length, SpeedUp, Reward 
     return (
         np.mean(mS),
         np.mean(mL),
@@ -305,6 +306,13 @@ def main(cfg: DictConfig):
     args_pred = args.agent_pred_graph
     num_proc = 0
 
+
+    with open(f"{get_original_cwd()}/analysis/metadata/task_name_dict.pik", 'rb') as f:
+        task_dict = pkl.load(f)
+    task_dict = task_dict['test']
+    ipdb.set_trace()
+
+
     num_tries = 5
     args.executable_file = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64"
     args.max_episode_length = 250
@@ -317,193 +325,192 @@ def main(cfg: DictConfig):
     args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_60_full_task.all.pik"
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    # cachedir = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+
+
+    #cachedir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0'
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_nohold_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_20_1.0_1.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph_10_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_newvaefull_encoder_task_graph.kl0.001_10_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_newvaefull_encoder_task_graph.kl0.001_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    #cachedir = f"{get_original_cwd()}/outputs/helping_states_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-
-    #  # oracle
-    # cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
-
-    # # ours
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-
-    # single particle
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
-
-    # # w/o inv plan
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
 
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
     cachedir_main = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/main_agent_only_large"
-    cachedir = cachedir_main
+    cachedir_det = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    #cachedir = cachedir_main
+    results = {}
+    results_per_task = {}
+    cachedirs = [("GT", f"{get_original_cwd()}/outputs/helping_gt_goal_fast"),
+                 ("Main", cachedir_main),
+                 ("DET", cachedir_det),
+                 ]
+    for name_exp, cachedir in cachedirs:
+        random_start = random.Random()
 
-    agent_types = [
-        ["full", 0, 0.05, False, 0, "uniform"],  # 0
-        ["full", 0.5, 0.01, False, 0, "uniform"],  # 1
-        ["full", -5, 0.05, False, 0, "uniform"],  # 2
-        ["partial", 0, 0.05, False, 0, "uniform"],  # 3
-        ["partial", 0, 0.05, False, 0, "spiked"],  # 4
-        ["partial", 0, 0.05, False, 0.2, "uniform"],  # 5
-        ["partial", 0, 0.01, False, 0.01, "spiked"],  # 6
-        ["partial", -5, 0.05, False, 0.2, "uniform"],  # 7
-        ["partial", 0.5, 0.05, False, 0.2, "uniform"],  # 8
-    ]
-    random_start = random.Random()
-    agent_id = 0
-    (
-        args.obs_type,
-        open_cost,
-        walk_cost,
-        should_close,
-        forget_rate,
-        belief_type,
-    ) = agent_types[0]
-    datafile = args.dataset_path.split("/")[-1].replace(".pik", "")
-    agent_args = {
-        "obs_type": args.obs_type,
-        "open_cost": open_cost,
-        "should_close": should_close,
-        "walk_cost": walk_cost,
-        "belief": {"forget_rate": forget_rate, "belief_type": belief_type},
-    }
-    # TODO: add num_samples to the argument
-    num_samples = args.num_samples
-    num_processes = args.num_processes
-    args.mode = "{}_".format(agent_id + 1) + "action_freq_{}".format(num_samples)
-    # args.mode += 'v9_particles_v2'
+        datafile = args.dataset_path.split("/")[-1].replace(".pik", "")
+        
+        # TODO: add num_samples to the argument
+        num_samples = args.num_samples
+        num_processes = args.num_processes
+        # args.mode = "{}_".format(agent_id + 1) + "action_freq_{}".format(num_samples)
+        # args.mode += 'v9_particles_v2'
 
-    # env_task_set = pickle.load(open(args.dataset_path, 'rb'))
-    # # print(env_task_set)
-    # print(len(env_task_set))
+        # env_task_set = pickle.load(open(args.dataset_path, 'rb'))
+        # # print(env_task_set)
+        # print(len(env_task_set))
 
-    args.record_dir = "{}/{}".format(cachedir, datafile)
-    record_dir_main = "{}/{}".format(cachedir_main, datafile)
-    error_dir = "{}/logging/{}".format(cachedir, datafile)
-    # if not os.path.exists(args.record_dir):
-    #     os.makedirs(args.record_dir)
+        args.record_dir = "{}/{}".format(cachedir, datafile)
+        record_dir_main = "{}/{}".format(cachedir_main, datafile)
+        error_dir = "{}/logging/{}".format(cachedir, datafile)
+        # if not os.path.exists(args.record_dir):
+        #     os.makedirs(args.record_dir)
 
-    # if not os.path.exists(error_dir):
-    #     os.makedirs(error_dir)
+        # if not os.path.exists(error_dir):
+        #     os.makedirs(error_dir)
 
-    executable_args = {
-        "file_name": args.executable_file,
-        "x_display": 0,
-        "no_graphics": True,
-    }
+        executable_args = {
+            "file_name": args.executable_file,
+            "x_display": 0,
+            "no_graphics": True,
+        }
 
-    id_run = 0
-    # random.seed(id_run)
-    # episode_ids = list(range(len(env_task_set)))
-    # episode_ids = sorted(episode_ids)
-    # random_start.shuffle(episode_ids)
-    # episode_ids = episode_ids[10:]
+        id_run = 0
+        # random.seed(id_run)
+        # episode_ids = list(range(len(env_task_set)))
+        # episode_ids = sorted(episode_ids)
+        # random_start.shuffle(episode_ids)
+        # episode_ids = episode_ids[10:]
 
-    valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
-    f = open(valid_set_path, "r")
-    episode_ids = []
-    for filename in f:
-        episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
-    episode_ids = sorted(episode_ids)
-    print(len(episode_ids))
-    f.close()
+        valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
+        f = open(valid_set_path, "r")
+        episode_ids = []
+        for filename in f:
+            episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
+        episode_ids = sorted(episode_ids)
+        print(len(episode_ids))
+        f.close()
 
-    # episode_ids = [3]
+        # episode_ids = [3]
 
-    # # episode_ids = [20] #episode_ids
-    # # num_tries = 1
-    # episode_ids = [1]
-    # ndict = {'on_book_329': 1}
-    # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
-    # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
+        # # episode_ids = [20] #episode_ids
+        # # num_tries = 1
+        # episode_ids = [1]
+        # ndict = {'on_book_329': 1}
+        # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
+        # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
-    # test_results_
+        # test_results_
 
-    main_results, help_results = {}, {}
-    num_tries = 3
+        main_results, help_results = {}, {}
+        num_tries = 3
 
-    for iter_id in range(0, num_tries):
-        # if iter_id > 0:
-        # iter_id = 1
+        for iter_id in range(0, num_tries):
+            # if iter_id > 0:
+            # iter_id = 1
 
-        steps_list, failed_tasks = [], []
-        current_tried = iter_id
+            steps_list, failed_tasks = [], []
+            current_tried = iter_id
 
-        # test_results = {}
-        print(args.record_dir)
+            # test_results = {}
+            print(args.record_dir)
 
-        if not os.path.isfile(args.record_dir + "/results_{}.pik".format(iter_id)):
-            test_results = {}
-        else:
-            test_results = pickle.load(
-                open(args.record_dir + "/results_{}.pik".format(iter_id), "rb")
+            if not os.path.isfile(args.record_dir + "/results_{}.pik".format(iter_id)):
+                test_results = {}
+            else:
+                test_results = pickle.load(
+                    open(args.record_dir + "/results_{}.pik".format(iter_id), "rb")
+                )
+                help_results = dict(test_results)
+
+            # print(iter_id, len(test_results))
+
+            if not os.path.isfile(record_dir_main + "/results_{}.pik".format(iter_id)):
+                test_results = {}
+            else:
+                test_results = pickle.load(
+                    open(record_dir_main + "/results_{}.pik".format(iter_id), "rb")
+                )
+                main_results = dict(test_results)
+
+            # print(test_results)
+
+        print(len(help_results))
+
+        for episode_id in help_results:
+            try:
+                print(episode_id, main_results[episode_id], help_results[episode_id])
+            except:
+                ipdb.set_trace()
+
+            if (
+                np.mean(help_results[episode_id]["S"])
+                > 0
+                # and 250 in help_results[episode_id]["L"]
+            ):
+                tmp_list = list(help_results[episode_id]["S"])
+                help_results[episode_id]["S"] = [x for x in tmp_list if x > 0]
+                tmp_list = list(help_results[episode_id]["L"])
+                help_results[episode_id]["L"] = [x for x in tmp_list if x < 250]
+
+        # if np.mean(help_results[episode_id]["S"]) < np.mean(
+        #     main_results[episode_id]["S"]
+        # ):
+        #     log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
+        #         episode_id, 0
+        #     )
+        #     log_res = pickle.load(open(log_file_name, "rb"))
+        #     ipdb.set_trace()
+        # print(main_results[152])
+        # print(help_results)
+
+        SR, AL, SP, SWS, stdSR, stdL, stdSP, stdR = get_metrics_reward(
+            main_results,
+            help_results,
+            episode_ids,
+            num_tries,
+            time_limit=args.max_episode_length,
+        )
+
+        # Success, Length, SpeedUp, Reward 
+        print("SR", "AL", "SP", "Reward")
+        print(SR, AL, SP, SWS)
+
+        print("stdSR", "stdL", "stdSP", "stdR")
+        results[name_exp] = {}
+        print(stdSR, stdL, stdSP, stdR)
+        results[name_exp]['all'] = {
+            'SR': [SR, stdSR],
+            'AL': [AL, stdL],
+            'SP': [SP, stdSP],
+            'Reward': [SWS, stdR]
+        }
+        task_types = task_dict.keys()
+        for task_type in task_types:
+            episode_ids_task = task_dict[task_type]
+            episode_ids_task = list(set(episode_ids).intersection(episode_ids_task))
+            SR, AL, SP, SWS, stdSR, stdL, stdSP, stdR = get_metrics_reward(
+                main_results,
+                help_results,
+                episode_ids_task,
+                num_tries,
+                time_limit=args.max_episode_length,
             )
-            help_results = dict(test_results)
+            results[name_exp][task_type] = {
+                'SR': [SR, stdSR],
+                'AL': [AL, stdL],
+                'SP': [SP, stdSP],
+                'Reward': [SWS, stdR]
+            }   
 
-        print(iter_id, len(test_results))
-
-        if not os.path.isfile(record_dir_main + "/results_{}.pik".format(iter_id)):
-            test_results = {}
-        else:
-            test_results = pickle.load(
-                open(record_dir_main + "/results_{}.pik".format(iter_id), "rb")
-            )
-            main_results = dict(test_results)
-
-        # print(test_results)
-
-    print(len(help_results))
-
-    for episode_id in help_results:
-        try:
-            print(episode_id, main_results[episode_id], help_results[episode_id])
-        except:
-            ipdb.set_trace()
-
-        if (
-            np.mean(help_results[episode_id]["S"])
-            > 0
-            # and 250 in help_results[episode_id]["L"]
-        ):
-            tmp_list = list(help_results[episode_id]["S"])
-            help_results[episode_id]["S"] = [x for x in tmp_list if x > 0]
-            tmp_list = list(help_results[episode_id]["L"])
-            help_results[episode_id]["L"] = [x for x in tmp_list if x < 250]
-
-    # if np.mean(help_results[episode_id]["S"]) < np.mean(
-    #     main_results[episode_id]["S"]
-    # ):
-    #     log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
-    #         episode_id, 0
-    #     )
-    #     log_res = pickle.load(open(log_file_name, "rb"))
-    #     ipdb.set_trace()
-    # print(main_results[152])
-    # print(help_results)
-
-    SR, AL, SP, SWS, stdSR, stdL, stdSP, stdR = get_metrics_reward(
-        main_results,
-        help_results,
-        episode_ids,
-        num_tries,
-        time_limit=args.max_episode_length,
-    )
-    # Success, Length, SpeedUp, Reward
-    print("SR", "AL", "SP", "Reward")
-    print(SR, AL, SP, SWS)
-
-    print("stdSR", "stdL", "stdSP", "stdR")
-    print(stdSR, stdL, stdSP, stdR)
-
+    with open(f"{get_original_cwd()}/results_eval_helping.pik", "wb+") as f:
+        pkl.dump(results, f)
 
 if __name__ == "__main__":
     start_time = time.time()

@@ -1,3 +1,4 @@
+import numpy as np
 from . import base_nets
 import torch
 import torch.nn.functional as F
@@ -294,7 +295,44 @@ class GraphPredNetworkVAETask2(nn.Module):
 
 
 
+class UniformModel():
+    def __init__(self, repeat_every_tstep=False):
+        self.every_tstep = repeat_every_tstep
+        max_vec = ("0 0 0 2 0 5 0 3 0 0 2 0 0 0 1 0 0 0 0 0 "
+                   "0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
+                   "0 0 0 0 0 0 0 2 0 7 0 2 0 0 2 0 0 0 3 7 "
+                   "0 0 3 0 0 0 0 0 0 3 7 0 0 3 0 0 0 0 0 0 "
+                   "2 0 6 0 3 0 0 2 0 0 0 1 0 0 0 0 0 0 0 0 "
+                   "0 0 2 0 7 0 3 0 0 2 0 0 0 2 6 0 0 3 0 0 "
+                   "0 0 0 0 3 6 0 0 3 0 0 0 0 0 1 1")
+        max_vec = np.array([int(x) for x in max_vec.split()])
+        self.max_vec = max_vec
+        self.use_vae = True
 
+    def get_random(self, size, random_state):
+        # returns a tensor of size [size, 136] with random samples
+        
+        new_size = list(size)+[self.max_vec.shape[0]]
+        res = random_state.rand(*new_size)
+        
+        res *= self.max_vec
+        res = res.astype(np.int32)
+        return res
+
+    def __call__(self, inputs, cond=None, inference=False, z_vec=None, seed=None, verbose=False):
+        random_state = np.random.RandomState(seed) 
+        size = inputs['task_graph']['task_graph'].shape[:-1]
+        pred_graph = self.get_random(size, random_state)
+        # pred_graph = 
+        T = size[1]
+
+        if self.every_tstep:
+            # Make a prediction per tstep
+            pred_graph = pred_graph[:, :1, ...].repeat(1, T, 1)
+        prev_pred_graph = pred_graph
+        output = {'pred_mask': None, 'pred_graph': pred_graph, 'pred_graph_total': prev_pred_graph}
+        # ipdb.set_trace()
+        return output
 
 class GraphPredNetworkVAETask3(nn.Module):
     # Similar to VAE2, but the decoder decodes to the 136

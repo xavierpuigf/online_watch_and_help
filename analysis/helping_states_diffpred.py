@@ -750,6 +750,7 @@ def main(cfg: DictConfig):
     f.close()
 
     network_name = args_pred.name_log
+
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
@@ -933,16 +934,19 @@ def main(cfg: DictConfig):
         #     # + "time_model.LSTM-stateenc.TF-globalrepr.pool-edgepred.concat-lr0.0001-bs.32-goalenc.False_extended._costclose.1.0_costgoal.1.0_agentembed.False_predchange.node_inputgoal.False_excledge.True/test_env_task_set_10_full/1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0"
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
+        # ipdb.set_trace()
+        if args_pred.name_log == 'uniform':
+            model = agent_pref_policy.UniformModel()
+        else:
+            model = agent_pref_policy.GraphPredNetworkVAETask3(args_pred)
+            state_dict = torch.load(args_pred.ckpt_load)["model"]
+            state_dict_new = {}
 
-        model = agent_pref_policy.GraphPredNetworkVAETask3(args_pred)
-        state_dict = torch.load(args_pred.ckpt_load)["model"]
-        state_dict_new = {}
+            for param_name, param_value in state_dict.items():
+                state_dict_new[param_name.replace("module.", "")] = param_value
 
-        for param_name, param_value in state_dict.items():
-            state_dict_new[param_name.replace("module.", "")] = param_value
-
-        model.load_state_dict(state_dict_new)
-        model.eval()
+            model.load_state_dict(state_dict_new)
+            model.eval()
 
         curr_file = (
             "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah"
@@ -967,7 +971,6 @@ def main(cfg: DictConfig):
         # for env_task in env_task_set:
 
         for episode_id in episode_ids:
-
             steps_list, failed_tasks = [], []
             current_tried = iter_id
 
@@ -1293,8 +1296,11 @@ def main(cfg: DictConfig):
                                     )
 
                             else:
-                                # VAE, take max
-                                pred_graph = output_func["pred_graph"].argmax(-1)
+                                if args_pred.name_log == 'uniform':
+                                    pred_graph = output_func['pred_graph']
+                                else:
+                                    # VAE, take max
+                                        pred_graph = output_func["pred_graph"].argmax(-1)
                             for ind in range(num_samples):
                                 task_graphs = []
                                 for tstep in range(num_tsteps):

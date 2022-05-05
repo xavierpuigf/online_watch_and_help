@@ -93,6 +93,19 @@ CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
 
 
 
+#=========
+# SMALL SET w/ uniform proposal
+#=========
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det" num_processes=30 agent_pred_graph.name_log="uniform" \
+    small_set=True num_tries=3 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8186 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
 #========
 # DEBUG
 #========

@@ -4,6 +4,7 @@ tensorboard/*
 outputs/*
 .DS_Store
 port_*.txt
+*/._*
 *.txt
 rl/*
 logs_exec/*

@@ -280,12 +280,12 @@ def main(cfg: DictConfig):
     episode_ids = sorted(episode_ids)
     episode_ids = episode_ids[::5]
     print(len(episode_ids))
-    # episode_ids = [466]
+    #episode_ids = [466]
     # num_tries = 1
     f.close()
     # ipdb.set_trace()
 
-    cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal'
+    cachedir = f'{get_original_cwd()}/outputs/helping_gt_goal_fast'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
