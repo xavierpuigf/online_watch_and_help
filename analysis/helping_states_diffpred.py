@@ -754,9 +754,9 @@ def main(cfg: DictConfig):
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
-        cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     else:
-        cachedir = f"{get_original_cwd()}/outputs/debug_helping_fastwalk_states_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_fastwalk_r_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
@@ -935,7 +935,7 @@ def main(cfg: DictConfig):
         # )
         # gt_p = Path(gt_dir).glob("*.pik")
         # ipdb.set_trace()
-        if args_pred.name_log == 'uniform':
+        if args_pred.name_log == "uniform":
             model = agent_pref_policy.UniformModel()
         else:
             model = agent_pref_policy.GraphPredNetworkVAETask3(args_pred)
@@ -1160,14 +1160,18 @@ def main(cfg: DictConfig):
                         class2id[node["class_name"]] = []
                     class2id[node["class_name"]].append(node["id"])
 
-                while steps < max_steps:
+                early_stopping = False
+                cnt_same_action_steps = 0
+
+                while steps < max_steps and not early_stopping:
                     steps += 1
 
                     # ======================================================
                     # reject inconsistent proposals
                     all_reject = False
                     if (
-                        len(proposals) > 0
+                        args.inv_plan
+                        and len(proposals) > 0
                         and steps_since_last_prediction < pred_main_plan_length
                     ):
                         last_observed_main_action = history_action[-1]
@@ -1275,7 +1279,7 @@ def main(cfg: DictConfig):
                             )
                             task_result = []
                             num_tsteps = output_func["pred_graph"].shape[1]
-                            if not model.use_vae:
+                            if not model.use_vae and args.num_samples > 1:
                                 # ipdb.set_trace()
                                 sample = True
 
@@ -1295,11 +1299,11 @@ def main(cfg: DictConfig):
                                     )
 
                             else:
-                                if args_pred.name_log == 'uniform':
-                                    pred_graph = output_func['pred_graph']
+                                if args_pred.name_log == "uniform":
+                                    pred_graph = output_func["pred_graph"]
                                 else:
                                     # VAE, take max
-                                        pred_graph = output_func["pred_graph"].argmax(-1)
+                                    pred_graph = output_func["pred_graph"].argmax(-1)
                             for ind in range(num_samples):
                                 task_graphs = []
                                 for tstep in range(num_tsteps):
@@ -1322,7 +1326,16 @@ def main(cfg: DictConfig):
                                 if args.debug:
                                     print(ind, task_graphs)
                                     # ipdb.set_trace()
-                                task_result.append(task_graphs)
+
+                                goal_pred = get_edge_class(
+                                    task_graphs,
+                                    len(task_graphs) - 1,
+                                )
+                                if (
+                                    is_in_goal(grabbed_obj, goal_pred)
+                                    or not args.inv_plan
+                                ):
+                                    task_result.append(task_graphs)
 
                         print("planning for the helper agent")
                         action_freq = {}
@@ -1331,7 +1344,7 @@ def main(cfg: DictConfig):
 
                         if args.num_processes == 0:
                             res = {}
-                            for index in range(num_samples):
+                            for index in range(len(task_result)):
 
                                 pred_main_agent_plan(
                                     index,
@@ -1348,9 +1361,11 @@ def main(cfg: DictConfig):
                                 )
                         else:
                             res = manager.dict()
-                            for start_root_id in range(0, num_samples, num_processes):
+                            for start_root_id in range(
+                                0, len(task_result), num_processes
+                            ):
                                 end_root_id = min(
-                                    start_root_id + num_processes, num_samples
+                                    start_root_id + num_processes, len(task_result)
                                 )
                                 jobs = []
                                 for process_id in range(start_root_id, end_root_id):
@@ -1574,303 +1589,20 @@ def main(cfg: DictConfig):
                     saved_info["graph_results"].append(task_result)
                     saved_info["proposals"].append(proposals)
 
-                    if replan_for_helper:
+                    if len(task_result) == 0:
+                        last_goal_edge = None
+                        selected_actions[1] = None
+                    else:
+                        if replan_for_helper:
 
-                        # ======================================================
-                        # get helper agent's actio
+                            # ======================================================
+                            # get helper agent's actio
 
-                        print("gt goal:", gt_goal)
-                        print("pred goal")
-                        edge_pred_class_estimated = aggregate_multiple_pred(
-                            task_result, steps - 3, change=True
-                        )
-                        for edge_class, count in edge_pred_class_estimated.items():
-                            if (
-                                edge_pred_class_estimated[edge_class][0] < 1e-6
-                                and edge_pred_class_estimated[edge_class][1] < 1e-6
-                            ):
-                                continue
-                            print(edge_class, edge_pred_class_estimated[edge_class])
-                        print("edge freq:")
-                        _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
-                        goal_edges = []
-                        for edge in edge_freq:
-                            edge_steps[edge] = np.mean(edge_steps[edge])
-                            print(
-                                edge,
-                                edge_freq[edge],
-                                edge_steps[edge],
-                                edge_steps[edge] > 1 + 1e-6,
-                                edge not in curr_edge_list,
-                            )
-                            if (
-                                edge_steps[edge] > 1 + 1e-6
-                                and edge not in curr_edge_list
-                            ):
-                                # if tv and (
-                                #     not (
-                                #         "chips" in edge
-                                #         or "remotecontrol" in edge
-                                #         or "condimentbottle" in edge
-                                #         or "condimentshaker" in edge
-                                #     )
-                                # ):
-                                #     continue
-                                # if food and (
-                                #     not (
-                                #         "salmon" in edge
-                                #         or "apple" in edge
-                                #         or "cupcake" in edge
-                                #         or "pudding" in edge
-                                #     )
-                                # ):
-                                #     continue
-                                # if dish and (
-                                #     not (
-                                #         "plate" in edge
-                                #         or "fork" in edge
-                                #         or "glass" in edge
-                                #     )
-                                # ):
-                                #     continue
-                                goal_edges.append(edge)
-                        # if args.debug and steps == 4:
-                        #     ipdb.set_trace()
-                        max_freq = 0
-                        opponent_subgoal = None
-                        for subgoal, count in opponent_subgoal_freq.items():
-                            if count > max_freq:
-                                max_freq = count
-                                opponent_subgoal = subgoal
-                            print(subgoal, count / len(proposals))
-                        print("predicted main's subgoal:", opponent_subgoal)
-                        # ipdb.set_trace()
-                        del res
-
-                        return_subgoals = get_subgoals_from_init_state(init_state)
-                        # print(goal_edges)
-                        # print(return_subgoals)
-                        # ipdb.set_trace()
-
-                        num_pred_goal_edges = len(goal_edges)
-
-                        goal_edges += list(
-                            return_subgoals
-                        )  # add returning objects subgoals
-
-                        res = manager.dict()
-                        num_goals = len(goal_edges)
-                        if num_processes == 0:
-                            for process_id in range(num_goals):
-                                get_helping_plan(
-                                    process_id,
-                                    goal_edges[process_id],
-                                    steps - 3,
-                                    None,
-                                    arena.get_actions,
-                                    curr_obs,
-                                    10,
-                                    {0: True, 1: True},
-                                    1,
-                                    res,
-                                )
-                        else:
-                            for start_root_id in range(0, num_goals, num_processes):
-                                end_root_id = min(
-                                    start_root_id + num_processes, num_goals
-                                )
-                                jobs = []
-                                for process_id in range(start_root_id, end_root_id):
-                                    # print(process_id)
-                                    p = mp.Process(
-                                        target=get_helping_plan,
-                                        args=(
-                                            process_id,
-                                            goal_edges[process_id],
-                                            steps - 3,
-                                            None,
-                                            arena.get_actions,
-                                            curr_obs,
-                                            10,
-                                            {0: True, 1: True},
-                                            1,
-                                            res,
-                                        ),
-                                    )
-                                    jobs.append(p)
-                                    p.start()
-                                for p in jobs:
-                                    p.join()
-
-                        # select best subgoal and action based on value
-                        best_value = args.min_acceptable_value
-                        best_estimated_steps = 1e6
-                        last_goal_edge_curr = None
-                        if True:  # not all_reject:
-                            for pred_id, (
-                                subgoal,
-                                plan,
-                                plan_states,
-                                plan_cost,
-                            ) in res.items():
-                                estimated_steps = 0
-                                if plan is None:
-                                    if pred_id >= num_pred_goal_edges:
-                                        estimated_steps = 0
-                                    else:
-                                        estimated_steps = None
-                                else:
-                                    first_walk_steps = 0
-                                    for action, cost in zip(plan, plan_cost):
-                                        if "walk" in action:
-                                            if (
-                                                "kitchen" in action
-                                                or "livingroom" in action
-                                                or "bedroom" in action
-                                                or "bathroom" in action
-                                            ):
-                                                if estimated_steps == 0:
-                                                    first_walk_steps += int(cost + 0.5)
-                                        #        estimated_steps += 5
-                                        #     else:
-                                        #         estimated_steps += 2
-                                        # else:
-                                        #     estimated_steps += 1
-                                        estimated_steps += max(int(cost + 0.5), 1)
-                                dist = compute_dist_instance(
-                                    init_state, curr_obs[1], goal_edges[pred_id]
-                                )
-                                if goal_edges[pred_id].startswith("offer"):
-                                    dist = 2
-                                if goal_edges[pred_id].endswith("init"):
-                                    if (
-                                        dist == 0
-                                        or estimated_steps
-                                        == 0  # TODO: check when dist !=0 but estimated_steps = 0
-                                    ):  # still in the initial location
-                                        continue
-                                    value = (
-                                        -args.beta * estimated_steps - args.lam * dist
-                                    )
-                                    estimated_steps_back = 0
-                                elif estimated_steps is None:
-                                    value = -1e6
-                                    estimated_steps_back = None
-                                else:
-                                    if dist < 0:  # remove accidental retuning subgoals?
-                                        continue
-                                    estimated_steps_back = (
-                                        estimated_steps - first_walk_steps
-                                    )
-                                    edge_goal_name = edge2name(goal_edges[pred_id])
-                                    value = (
-                                        args.alpha
-                                        * (
-                                            min(
-                                                edge_steps[goal_edges[pred_id]]
-                                                - estimated_steps,
-                                                args.max_benefit,
-                                            )
-                                        )
-                                        * min(1, edge_freq[goal_edges[pred_id]])
-                                        - args.beta
-                                        * estimated_steps_back
-                                        * max(0, 1 - edge_freq[goal_edges[pred_id]])
-                                        - args.lam * dist
-                                    )
-                                if goal_edges[pred_id].endswith("init"):
-                                    print(
-                                        goal_edges[pred_id],
-                                        1,
-                                        0,
-                                        0,
-                                        estimated_steps,
-                                        dist,
-                                        value,
-                                    )
-                                else:
-                                    print(
-                                        goal_edges[pred_id],
-                                        edge_freq[goal_edges[pred_id]],
-                                        edge_steps[goal_edges[pred_id]],
-                                        estimated_steps,
-                                        estimated_steps_back,
-                                        dist,
-                                        value,
-                                    )
-                                # if (
-                                #     value > best_value
-                                #     or abs(value - best_value) < 1e-6
-                                #     and last_goal_edge is not None
-                                #     and (
-                                #         'chips' in last_goal_edge
-                                #         or 'remotecontrol' in last_goal_edge
-                                #     )
-                                #     and estimated_steps < best_estimated_steps
-                                # ):
-
-                                # if (
-                                #     value > best_value
-                                #     or abs(value - best_value) < 1e-6
-                                #     and (
-                                #         last_goal_edge_curr != last_goal_edge
-                                #         and (
-                                #             estimated_steps < best_estimated_steps
-                                #             and (
-                                #                 'chips' not in goal_edges[pred_id]
-                                #                 and 'remotecontrol'
-                                #                 not in goal_edges[pred_id]
-                                #             )
-                                #             or last_goal_edge is not None
-                                #             and (
-                                #                 'chips' in last_goal_edge
-                                #                 or 'remotecontrol' in last_goal_edge
-                                #             )
-                                #         )
-                                #     )
-                                # ):
-                                if (
-                                    value > best_value
-                                    or abs(value - best_value) < 1e-6
-                                    and (
-                                        last_goal_edge_curr != last_goal_edge
-                                        and (
-                                            estimated_steps
-                                            < best_estimated_steps
-                                            # or last_goal_edge is not None
-                                        )
-                                    )
-                                ):
-                                    best_value = value
-                                    selected_actions[1] = convert_walktowards(plan[0])
-                                    last_goal_edge_curr = goal_edges[pred_id]
-                                    best_estimated_steps = estimated_steps
-                                    # print('accept', last_goal_edge)
-                                    if value > 0:
-                                        print(
-                                            "accept",
-                                            value,
-                                            best_value,
-                                            estimated_steps,
-                                            best_estimated_steps,
-                                            goal_edges[pred_id],
-                                            last_goal_edge_curr,
-                                            last_goal_edge,
-                                        )
-                            last_goal_edge = last_goal_edge_curr
-                            # ipdb.set_trace()
-
+                            print("gt goal:", gt_goal)
+                            print("pred goal")
                             edge_pred_class_estimated = aggregate_multiple_pred(
                                 task_result, steps - 3, change=True
                             )
-
-                            # for goal_object in goal_objects:
-                            print("-------------------------------------")
-                            print("gt goal")
-                            # print(gt_goal)
-                            for pred, count in gt_goal.items():
-                                print(pred, count)
-                            print("pred goal")
                             for edge_class, count in edge_pred_class_estimated.items():
                                 if (
                                     edge_pred_class_estimated[edge_class][0] < 1e-6
@@ -1878,8 +1610,311 @@ def main(cfg: DictConfig):
                                 ):
                                     continue
                                 print(edge_class, edge_pred_class_estimated[edge_class])
-                    else:
-                        selected_actions[1] = convert_walktowards(helper_action)
+                            print("edge freq:")
+                            _, curr_edge_list = get_edge_instance_from_state(
+                                curr_obs[1]
+                            )
+                            goal_edges = []
+                            for edge in edge_freq:
+                                edge_steps[edge] = np.mean(edge_steps[edge])
+                                print(
+                                    edge,
+                                    edge_freq[edge],
+                                    edge_steps[edge],
+                                    edge_steps[edge] > 1 + 1e-6,
+                                    edge not in curr_edge_list,
+                                )
+                                if (
+                                    edge_steps[edge] > 1 + 1e-6
+                                    and edge not in curr_edge_list
+                                ):
+                                    # if tv and (
+                                    #     not (
+                                    #         "chips" in edge
+                                    #         or "remotecontrol" in edge
+                                    #         or "condimentbottle" in edge
+                                    #         or "condimentshaker" in edge
+                                    #     )
+                                    # ):
+                                    #     continue
+                                    # if food and (
+                                    #     not (
+                                    #         "salmon" in edge
+                                    #         or "apple" in edge
+                                    #         or "cupcake" in edge
+                                    #         or "pudding" in edge
+                                    #     )
+                                    # ):
+                                    #     continue
+                                    # if dish and (
+                                    #     not (
+                                    #         "plate" in edge
+                                    #         or "fork" in edge
+                                    #         or "glass" in edge
+                                    #     )
+                                    # ):
+                                    #     continue
+                                    goal_edges.append(edge)
+                            # if args.debug and steps == 4:
+                            #     ipdb.set_trace()
+                            max_freq = 0
+                            opponent_subgoal = None
+                            for subgoal, count in opponent_subgoal_freq.items():
+                                if count > max_freq:
+                                    max_freq = count
+                                    opponent_subgoal = subgoal
+                                print(subgoal, count / len(proposals))
+                            print("predicted main's subgoal:", opponent_subgoal)
+                            # ipdb.set_trace()
+                            del res
+
+                            return_subgoals = get_subgoals_from_init_state(init_state)
+                            # print(goal_edges)
+                            # print(return_subgoals)
+                            # ipdb.set_trace()
+
+                            num_pred_goal_edges = len(goal_edges)
+
+                            goal_edges += list(
+                                return_subgoals
+                            )  # add returning objects subgoals
+
+                            res = manager.dict()
+                            num_goals = len(goal_edges)
+                            if num_processes == 0:
+                                for process_id in range(num_goals):
+                                    get_helping_plan(
+                                        process_id,
+                                        goal_edges[process_id],
+                                        steps - 3,
+                                        None,
+                                        arena.get_actions,
+                                        curr_obs,
+                                        10,
+                                        {0: True, 1: True},
+                                        1,
+                                        res,
+                                    )
+                            else:
+                                for start_root_id in range(0, num_goals, num_processes):
+                                    end_root_id = min(
+                                        start_root_id + num_processes, num_goals
+                                    )
+                                    jobs = []
+                                    for process_id in range(start_root_id, end_root_id):
+                                        # print(process_id)
+                                        p = mp.Process(
+                                            target=get_helping_plan,
+                                            args=(
+                                                process_id,
+                                                goal_edges[process_id],
+                                                steps - 3,
+                                                None,
+                                                arena.get_actions,
+                                                curr_obs,
+                                                10,
+                                                {0: True, 1: True},
+                                                1,
+                                                res,
+                                            ),
+                                        )
+                                        jobs.append(p)
+                                        p.start()
+                                    for p in jobs:
+                                        p.join()
+
+                            # select best subgoal and action based on value
+                            best_value = args.min_acceptable_value
+                            best_estimated_steps = 1e6
+                            last_goal_edge_curr = None
+                            if True:  # not all_reject:
+                                for pred_id, (
+                                    subgoal,
+                                    plan,
+                                    plan_states,
+                                    plan_cost,
+                                ) in res.items():
+                                    estimated_steps = 0
+                                    if plan is None:
+                                        if pred_id >= num_pred_goal_edges:
+                                            estimated_steps = 0
+                                        else:
+                                            estimated_steps = None
+                                    else:
+                                        first_walk_steps = 0
+                                        for action, cost in zip(plan, plan_cost):
+                                            if "walk" in action:
+                                                if (
+                                                    "kitchen" in action
+                                                    or "livingroom" in action
+                                                    or "bedroom" in action
+                                                    or "bathroom" in action
+                                                ):
+                                                    if estimated_steps == 0:
+                                                        first_walk_steps += int(
+                                                            cost + 0.5
+                                                        )
+                                            #        estimated_steps += 5
+                                            #     else:
+                                            #         estimated_steps += 2
+                                            # else:
+                                            #     estimated_steps += 1
+                                            estimated_steps += max(int(cost + 0.5), 1)
+                                    dist = compute_dist_instance(
+                                        init_state, curr_obs[1], goal_edges[pred_id]
+                                    )
+                                    if goal_edges[pred_id].startswith("offer"):
+                                        dist = 2
+                                    if goal_edges[pred_id].endswith("init"):
+                                        if (
+                                            dist == 0
+                                            or estimated_steps
+                                            == 0  # TODO: check when dist !=0 but estimated_steps = 0
+                                        ):  # still in the initial location
+                                            continue
+                                        value = (
+                                            -args.beta * estimated_steps
+                                            - args.lam * dist
+                                        )
+                                        estimated_steps_back = 0
+                                    elif estimated_steps is None:
+                                        value = -1e6
+                                        estimated_steps_back = None
+                                    else:
+                                        if (
+                                            dist < 0
+                                        ):  # remove accidental retuning subgoals?
+                                            continue
+                                        estimated_steps_back = (
+                                            estimated_steps - first_walk_steps
+                                        )
+                                        edge_goal_name = edge2name(goal_edges[pred_id])
+                                        value = (
+                                            args.alpha
+                                            * (
+                                                min(
+                                                    edge_steps[goal_edges[pred_id]]
+                                                    - estimated_steps,
+                                                    args.max_benefit,
+                                                )
+                                            )
+                                            * min(1, edge_freq[goal_edges[pred_id]])
+                                            - args.beta
+                                            * estimated_steps_back
+                                            * max(0, 1 - edge_freq[goal_edges[pred_id]])
+                                            - args.lam * dist
+                                        )
+                                    if goal_edges[pred_id].endswith("init"):
+                                        print(
+                                            goal_edges[pred_id],
+                                            1,
+                                            0,
+                                            0,
+                                            estimated_steps,
+                                            dist,
+                                            value,
+                                        )
+                                    else:
+                                        print(
+                                            goal_edges[pred_id],
+                                            edge_freq[goal_edges[pred_id]],
+                                            edge_steps[goal_edges[pred_id]],
+                                            estimated_steps,
+                                            estimated_steps_back,
+                                            dist,
+                                            value,
+                                        )
+                                    # if (
+                                    #     value > best_value
+                                    #     or abs(value - best_value) < 1e-6
+                                    #     and last_goal_edge is not None
+                                    #     and (
+                                    #         'chips' in last_goal_edge
+                                    #         or 'remotecontrol' in last_goal_edge
+                                    #     )
+                                    #     and estimated_steps < best_estimated_steps
+                                    # ):
+
+                                    # if (
+                                    #     value > best_value
+                                    #     or abs(value - best_value) < 1e-6
+                                    #     and (
+                                    #         last_goal_edge_curr != last_goal_edge
+                                    #         and (
+                                    #             estimated_steps < best_estimated_steps
+                                    #             and (
+                                    #                 'chips' not in goal_edges[pred_id]
+                                    #                 and 'remotecontrol'
+                                    #                 not in goal_edges[pred_id]
+                                    #             )
+                                    #             or last_goal_edge is not None
+                                    #             and (
+                                    #                 'chips' in last_goal_edge
+                                    #                 or 'remotecontrol' in last_goal_edge
+                                    #             )
+                                    #         )
+                                    #     )
+                                    # ):
+                                    if (
+                                        value > best_value
+                                        or abs(value - best_value) < 1e-6
+                                        and (
+                                            last_goal_edge_curr != last_goal_edge
+                                            and (
+                                                estimated_steps
+                                                < best_estimated_steps
+                                                # or last_goal_edge is not None
+                                            )
+                                        )
+                                    ):
+                                        best_value = value
+                                        selected_actions[1] = convert_walktowards(
+                                            plan[0]
+                                        )
+                                        last_goal_edge_curr = goal_edges[pred_id]
+                                        best_estimated_steps = estimated_steps
+                                        # print('accept', last_goal_edge)
+                                        if value > 0:
+                                            print(
+                                                "accept",
+                                                value,
+                                                best_value,
+                                                estimated_steps,
+                                                best_estimated_steps,
+                                                goal_edges[pred_id],
+                                                last_goal_edge_curr,
+                                                last_goal_edge,
+                                            )
+                                last_goal_edge = last_goal_edge_curr
+                                # ipdb.set_trace()
+
+                                edge_pred_class_estimated = aggregate_multiple_pred(
+                                    task_result, steps - 3, change=True
+                                )
+
+                                # for goal_object in goal_objects:
+                                print("-------------------------------------")
+                                print("gt goal")
+                                # print(gt_goal)
+                                for pred, count in gt_goal.items():
+                                    print(pred, count)
+                                print("pred goal")
+                                for (
+                                    edge_class,
+                                    count,
+                                ) in edge_pred_class_estimated.items():
+                                    if (
+                                        edge_pred_class_estimated[edge_class][0] < 1e-6
+                                        and edge_pred_class_estimated[edge_class][1]
+                                        < 1e-6
+                                    ):
+                                        continue
+                                    print(
+                                        edge_class,
+                                        edge_pred_class_estimated[edge_class],
+                                    )
+                        else:
+                            selected_actions[1] = convert_walktowards(helper_action)
 
                     print("selected_actions:", selected_actions, best_value)
                     print("opponent_subgoal:", opponent_subgoal)
@@ -1905,8 +1940,14 @@ def main(cfg: DictConfig):
                         history_action.append(selected_actions[0])
                         prev_action = selected_actions[0]
                         new_action = True
+                        cnt_same_action_steps = 1
                     else:
                         new_action = False
+                        cnt_same_action_steps += 1
+                        if cnt_same_action_steps >= 10 and (
+                            "put" in prev_action or "grab" in prev_action
+                        ):
+                            early_stopping = True
 
                     if "satisfied_goals" in infos:
                         saved_info["goals_finished"].append(infos["satisfied_goals"])
