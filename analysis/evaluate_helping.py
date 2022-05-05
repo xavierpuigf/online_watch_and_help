@@ -264,7 +264,7 @@ def get_metrics_reward(
 
             # ipdb.set_trace()
             # print(episode_id)
-            if len(L_A_seeds) > 0:
+            if len(L_A_seeds) > 0:  # and np.mean(Ls) > 30:
                 mSP.append(np.mean(L_A_seeds) / np.mean(Ls) - 1.0)
         else:
             Ls = [time_limit] * len(Ss)
@@ -339,15 +339,15 @@ def main(cfg: DictConfig):
     # # =======================
     # cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
 
-    # # =======================
-    # # ours
-    # # =======================
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # =======================
+    # ours
+    # =======================
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
-    # =======================
-    # single particle
-    # =======================
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
+    # # =======================
+    # # single particle
+    # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
 
     # # =======================
     # # w/o inv plan
@@ -486,6 +486,12 @@ def main(cfg: DictConfig):
             > 0
             # and 250 in help_results[episode_id]["L"]
         ):
+            if episode_id in [139]:
+                log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
+                    episode_id, 2
+                )
+                log_res = pickle.load(open(log_file_name, "rb"))
+                ipdb.set_trace()
             tmp_list = list(help_results[episode_id]["S"])
             help_results[episode_id]["S"] = [
                 x
