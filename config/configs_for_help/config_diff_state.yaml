@@ -12,7 +12,7 @@ base_port: 8081
 use_editor: False
 num_processes: 20
 num_samples: 20
-reset_steps: 5
+reset_steps: 15
 alpha: 1.0
 beta: 1.0
 lam: 5.0
