@@ -3,7 +3,6 @@ import sys
 sys.path.append(".")
 import shutil
 import os
-from torch import nn
 import logging
 import traceback
 import pickle as pkl
@@ -744,7 +743,7 @@ def main(cfg: DictConfig):
     # episode_ids_prepare_food = [162, 180, 193, 225]
 
     all_content = {"smart_reset": []}
-    for ep_id, filename in zip(episode_ids, filenames):
+    for ep_id, filename in zip(filenames, episode_ids):
         # if ep_id not in episode_ids_prepare_food:
         #     continue
 
@@ -918,7 +917,7 @@ def main(cfg: DictConfig):
             task_graph_end - task_graph_init, np.zeros(task_graph_init.shape)
         )
 
-        curr_values = []
+        curr_metrics = []
         curr_graphs = content["graph"][0]
         graphs = [utils_environment.inside_not_trans(curr_graph)]
         obs = [content["obs"][0]]
@@ -928,7 +927,7 @@ def main(cfg: DictConfig):
         pred_graphs = [
             particle["pred_graph"][-1][-1] for particle in particle_pred.particles
         ]
-        curr_values.append({'pred_task': pred_graphs, 'gt_task': task_graph_gt})
+        curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
         steps_since_last_prediction = 0
         t = 1
         cont_t_keep = 1
@@ -1002,8 +1001,7 @@ def main(cfg: DictConfig):
                 pred_graphs = [
                     particle["pred_graph"][-1][-1] for particle in particle_pred.particles
                 ]
-                # curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
-                curr_values.append({'pred_task': pred_graphs, 'gt_task': task_graph_gt})
+                curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
                 cont_t_keep += 1
 
             t += 1
@@ -1062,14 +1060,26 @@ def main(cfg: DictConfig):
         #         curr_metrics2.append(compute_metrics(pred_graphs, task_graph_gt))
 
         #     t += 1
-        method_name = args.log_name
-        filename_last = '.'.join(filename.split('/')[-1].split('.')[:-1])
-        if not os.path.isdir(f"results/results_smallset_inference_online/{method_name}"):
-            os.makedirs(f"results/results_smallset_inference_online/{method_name}")
-        
-        with open(f"results/results_smallset_inference_online/{method_name}/{filename_last}.pkl", "wb+") as f:
-            pkl.dump(curr_values, f)
-    #ipdb.set_trace()
+
+        # aggregate metrics
+        final_metric_dict = {}
+        for metric_name in curr_metrics[0].keys():
+            final_metric_dict[metric_name] = np.array(
+                [metric[metric_name].item() for metric in curr_metrics]
+            )
+
+        # final_metric_dict2 = {}
+        # for metric_name in curr_metrics2[0].keys():
+        #     final_metric_dict2[metric_name] = np.array(
+        #         [metric[metric_name].item() for metric in curr_metrics2]
+        #     )
+
+        all_content["smart_reset"].append(final_metric_dict)
+        # all_content["all_reset"] = final_metric_dict2
+
+    with open("result_inference_prepare_food_particle.pkl", "wb+") as f:
+        pkl.dump(all_content, f)
+    ipdb.set_trace()
 
 
 if __name__ == "__main__":

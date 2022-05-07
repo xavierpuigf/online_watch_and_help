@@ -996,6 +996,8 @@ class MCTS_agent_particle_v2_instance:
             else:
                 curr_loc_index = curr_loc_inside[0]['to_id']
             if len(curr_loc_on) > 1 or len(curr_loc_inside) > 1:
+                print(curr_loc_on)
+                print(curr_loc_inside)
                 ipdb.set_trace()
         return curr_loc_index
 

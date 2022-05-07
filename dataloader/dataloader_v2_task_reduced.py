@@ -18,12 +18,13 @@ import numpy as np
 
 
 class AgentTypeDataset(Dataset):
-    def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False, first_last=False):
+    def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False, first_last=False, data_ratio=1.0, small_set=False):
         self.path_init = path_init
         self.predict_diff_preds = args_config.model.predict_diff_preds
         self.max_num_edges = 200
         self.first_last = first_last
         self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], toy_dataset=args_config['model']['reduced_graph'])
+        self.data_ratio = data_ratio
         self.get_edges = True # args_config['model']['state_encoder'] == 'GNN'
         # Build the agent types
 
@@ -48,10 +49,20 @@ class AgentTypeDataset(Dataset):
                 pkl_files.append(filename)
                 labels.append(label_agent)
 
-
         self.max_labels = agent_type_max+1 
         self.labels = labels
         self.pkl_files = pkl_files
+        if small_set:
+            episodes_keep = [3, 139, 162, 180, 193, 225, 290, 304, 323, 366, 401, 419, 428, 466, 523, 556, 573, 591, 606, 621]
+            # 1_full_opencost0_closecostFalse_walkcost0.05_forgetrate0/logs_episode.534_iter.0.pik
+            self.pkl_files = sorted([pkl_file for pkl_file in self.pkl_files if int(pkl_file.split('.')[-3].split('_')[0]) in episodes_keep]) 
+        if self.data_ratio < 1.0:
+            indices = list(range(len(self.pkl_files)))
+            len_data = int(len(self.pkl_files) * self.data_ratio)
+            rand_obj = random.Random(5)
+            indices_shuffled = rand_obj.sample(indices, len(indices))
+            indices = indices_shuffled[:len_data]
+            self.pkl_files = [self.pkl_files[indi] for indi in indices]
 
         if args_config['train']['overfit']:
             self.pkl_files = pkl_files[:1]

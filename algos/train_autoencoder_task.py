@@ -1127,10 +1127,12 @@ def get_loaders(args):
     first_last = False
     dataset = AgentTypeDataset(
         path_init='{}/agent_preferences/dataset/{}'.format(
-            curr_file, args['data']['train_data'] 
+            curr_file, args['data']['train_data']
         ),
         first_last=first_last,
         args_config=args,
+        data_ratio=args.data_ratio
+
     )
     if not args['train']['overfit']:
         dataset_test = AgentTypeDataset(

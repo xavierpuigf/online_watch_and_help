@@ -2221,7 +2221,9 @@ class LoggerSteps:
     def get_experiment_name(self):
         args = self.args
         pred_change = 'none'
-
+        ratio_name = 'nil'
+        if 'data_ratio' in args:
+            ratio_name = args['data_ratio']
         if args['model']['predict_edge_change']:
             pred_change = 'edge'
         if args['model']['predict_node_change']:
@@ -2230,7 +2232,7 @@ class LoggerSteps:
             'predict_graph/train_data.{}/'
             'lr{}-bs.{}-klcoff.{}-'
             'goalenc.{}_predchange.{}_inputgoal.{}_excledge.{}_preddiff.{}'
-            '{}_logname.{}'
+            '{}_logname.{}_dataratio.{}'
         ).format(
             args['data']['train_data'],
             args['train']['lr'],
@@ -2242,7 +2244,7 @@ class LoggerSteps:
             args['model']['exclusive_edge'],
             args['model']['predict_diff'],
             'reduced_walk' if args['model']['condense_walking'] else '',
-            args['name_log']
+            args['name_log'], ratio_name
         )
         if args['model']['gated']:
             experiment_name += '_gated'

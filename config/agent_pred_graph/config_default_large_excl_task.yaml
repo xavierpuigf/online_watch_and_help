@@ -8,6 +8,7 @@ hydra:
   run:  
     dir: .
 
+data_ratio: 1.0
 cuda: True
 logging: True
 name_log: ''
