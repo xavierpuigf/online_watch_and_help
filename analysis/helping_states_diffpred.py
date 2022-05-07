@@ -754,9 +754,9 @@ def main(cfg: DictConfig):
     if network_name == "newvaefull_encoder_task_graph":
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
-        cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r{int(args.reset_steps)}_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
     else:
-        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_fastwalk_r_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+        cachedir = f"{get_original_cwd()}/outputs/debug_helping_states_fastwalk_r{int(args.reset_steps)}_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
@@ -1067,6 +1067,18 @@ def main(cfg: DictConfig):
                         saved_info["action"][agent_id].append(actions[agent_id])
                     else:
                         saved_info["action"][agent_id].append(None)
+                    if agent_id == 2:
+                        if (
+                            agent_id in action
+                            and len(saved_info["action"][agent_id]) > 1
+                            and saved_info["action"][agent_id][-1]
+                            == saved_info["action"][agent_id][-2]
+                        ):
+                            cnt_same_help_action_steps += 1
+                            if cnt_same_help_action_steps >= 10:
+                                early_stopping = True
+                        else:
+                            cnt_same_help_action_steps = 1
 
                 if "executed_script" in infos:
                     for agent_id in range(2):
@@ -1172,7 +1184,7 @@ def main(cfg: DictConfig):
                     if (
                         args.inv_plan
                         and len(proposals) > 0
-                        and steps_since_last_prediction < pred_main_plan_length
+                        and steps_since_last_prediction < args.reset_steps
                     ):
                         last_observed_main_action = history_action[-1]
                         if last_observed_main_action is not None:
