@@ -343,6 +343,7 @@ def main(cfg: DictConfig):
     # ours
     # =======================
     cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r2_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
 
     # # =======================
     # # single particle
@@ -358,6 +359,11 @@ def main(cfg: DictConfig):
     # # ours w/ uniform proposals
     # # # =======================
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_uniform_20_1.0_1.0_5.0"
+
+    # # =======================
+    # empowerment
+    # # =======================
+    cachedir = f"{get_original_cwd()}/outputs/helping_empowerment_fastwalk_r15_1_3_ip0_uniform_20_1.0_1.0_5.0"
 
     agent_types = [
         ["full", 0, 0.05, False, 0, "uniform"],  # 0
@@ -486,12 +492,12 @@ def main(cfg: DictConfig):
             > 0
             # and 250 in help_results[episode_id]["L"]
         ):
-            if episode_id in [139]:
-                log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
-                    episode_id, 2
-                )
-                log_res = pickle.load(open(log_file_name, "rb"))
-                ipdb.set_trace()
+            # if episode_id in [139]:
+            #     log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
+            #         episode_id, 2
+            #     )
+            #     log_res = pickle.load(open(log_file_name, "rb"))
+            #     ipdb.set_trace()
             tmp_list = list(help_results[episode_id]["S"])
             help_results[episode_id]["S"] = [
                 x

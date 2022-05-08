@@ -979,6 +979,8 @@ def main(cfg: DictConfig):
             pred_graphs = [
                 particle["pred_graph"][-1][-1] for particle in particle_pred.particles
             ]
+            print(len(pred_graphs))
+            ipdb.set_trace()
             curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
             cont_t_keep += 1
 
