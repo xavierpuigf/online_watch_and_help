@@ -379,7 +379,6 @@ class GoalInferenceParticle:
         self.grabbed_obj = {x: False for x in all_object_types}
 
     def get_rejected_particles(self, current_action):
-        ipdb.set_trace()
         index_reject = []
         if current_action is not None:
             current_action.replace("walktowards", "walk")
@@ -399,8 +398,12 @@ class GoalInferenceParticle:
                 )
                 - 1,
             )
-            if not is_present and not is_in_goal(self.grabbed_obj, goal_pred):
+            if not is_present or not is_in_goal(self.grabbed_obj, goal_pred):
                 index_reject.append(index)
+            # print(
+            #     index, is_present, is_in_goal(self.grabbed_obj, goal_pred), index_reject
+            # )
+            # ipdb.set_trace()
         return index_reject
 
     def get_pred_name(self, container_name):
@@ -542,7 +545,7 @@ class GoalInferenceParticle:
         for particle_id in particle_ids:
             self.particles[particle_id]["plan"] = res[index]
             index += 1
-        ipdb.set_trace()
+        # ipdb.set_trace()
 
     def regen_particles(self, graphs, observations, actions, particle_ids, t=None):
         if particle_ids is None:
@@ -982,7 +985,7 @@ def main(cfg: DictConfig):
                 print(t)
                 print(rejected_particles)
 
-                particle_pred.particles = []
+                # particle_pred.particles = []
 
                 if len(particle_pred.particles) < 1:
                     steps_since_last_prediction = 0
@@ -1030,7 +1033,7 @@ def main(cfg: DictConfig):
                     for particle in particle_pred.particles
                 ]
                 print(len(pred_graphs))
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 # curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
                 curr_values.append({"pred_task": pred_graphs, "gt_task": task_graph_gt})
                 cont_t_keep += 1
