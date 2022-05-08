@@ -1,9 +1,8 @@
 import sys
-
+from torch import nn
 sys.path.append(".")
 import shutil
 import os
-from torch import nn
 import logging
 import traceback
 import pickle as pkl
@@ -379,7 +378,6 @@ class GoalInferenceParticle:
         self.grabbed_obj = {x: False for x in all_object_types}
 
     def get_rejected_particles(self, current_action):
-        ipdb.set_trace()
         index_reject = []
         if current_action is not None:
             current_action.replace("walktowards", "walk")
@@ -542,7 +540,6 @@ class GoalInferenceParticle:
         for particle_id in particle_ids:
             self.particles[particle_id]["plan"] = res[index]
             index += 1
-        ipdb.set_trace()
 
     def regen_particles(self, graphs, observations, actions, particle_ids, t=None):
         if particle_ids is None:
@@ -575,13 +572,16 @@ class GoalInferenceParticle:
                 output_func = self.prediction_net(inputs_func, inference=True)
 
         num_tsteps = output_func["pred_graph"].shape[1]
-
         if not self.prediction_net.use_vae:
             pred_graph_prob = output_func["pred_graph"]
             pred_graph_prob = (
-                nn.functional.softmax(pred_graph_prob, dim=-1).cpu().numpy()
+                nn.functional.softmax(pred_graph_prob, dim=-1)
+                .cpu()
+                .numpy()
             )
-            pred_graph = utils_models_wb.vectorized(pred_graph_prob)
+            pred_graph = utils_models_wb.vectorized(
+                pred_graph_prob
+            )
         else:
             pred_graph = output_func["pred_graph"].argmax(-1)
 
@@ -730,49 +730,26 @@ def main(cfg: DictConfig):
     episode_ids = []
     filenames = []
     for filename in f:
-        episode_id = int(filename.split("episode.")[-1].split("_")[0])
-
-        episodes_keep = [
-            3,
-            139,
-            162,
-            180,
-            193,
-            225,
-            290,
-            304,
-            323,
-            366,
-            401,
-            419,
-            428,
-            466,
-            523,
-            556,
-            573,
-            591,
-            606,
-            621,
-        ]
-        if episode_id in episodes_keep:
-            episode_ids.append(episode_id)
-            filenames.append(filename)
+        episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
+        filenames.append(filename)
     # episode_ids = sorted(episode_ids)
-    # print(len(episode_ids))
+    print(len(episode_ids))
     f.close()
-    # episode_ids_prepare_food = [162, 180, 193, 225]
 
-    all_content = {"smart_reset": []}
+    episode_ids_prepare_food = [162, 180, 193, 225]
+
+    all_content = {"smart_reset_prepare_food": []}
+
     for ep_id, filename in zip(episode_ids, filenames):
-        # if ep_id not in episode_ids_prepare_food:
-        #     continue
+        if ep_id not in episode_ids_prepare_food:
+            continue
 
         graph_helper = utils_rl_agent.GraphHelper(
             max_num_objects=args_pred["model"]["max_nodes"],
             toy_dataset=args_pred["model"]["reduced_graph"],
         )
 
-        print(filename)
+        # print(filenames[0])
         # ipdb.set_trace()
         with open(filename.strip(), "rb") as f:
             content = pkl.load(f)
@@ -780,8 +757,8 @@ def main(cfg: DictConfig):
             content_reduced = pkl.load(f)
 
         # with open(
-        #     "{}/VAE.KL.0.001/{}_result.pkl".format(
-        #         pred_result_path, filename.split("/")[-1].strip()
+        #     "{}/detfull_encoder_task_graph/{}_result.pkl".format(
+        #         pred_result_path, filenames[0].split("/")[-1].strip()
         #     ),
         #     "rb",
         # ) as f:
@@ -937,7 +914,7 @@ def main(cfg: DictConfig):
             task_graph_end - task_graph_init, np.zeros(task_graph_init.shape)
         )
 
-        curr_values = []
+        curr_metrics = []
         curr_graphs = content["graph"][0]
         graphs = [utils_environment.inside_not_trans(curr_graph)]
         obs = [content["obs"][0]]
@@ -947,7 +924,7 @@ def main(cfg: DictConfig):
         pred_graphs = [
             particle["pred_graph"][-1][-1] for particle in particle_pred.particles
         ]
-        curr_values.append({"pred_task": pred_graphs, "gt_task": task_graph_gt})
+        curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
         steps_since_last_prediction = 0
         t = 1
         cont_t_keep = 1
@@ -979,9 +956,6 @@ def main(cfg: DictConfig):
                 else:
                     particle_pred.particles = []
 
-                print(t)
-                print(rejected_particles)
-
                 particle_pred.particles = []
 
                 if len(particle_pred.particles) < 1:
@@ -995,9 +969,7 @@ def main(cfg: DictConfig):
                     )
                     filtered_graph_obs = {
                         "nodes": [
-                            node
-                            for node in graphs[-1]["nodes"]
-                            if node["id"] in obs[-1]
+                            node for node in graphs[-1]["nodes"] if node["id"] in obs[-1]
                         ],
                         "edges": [
                             edge
@@ -1010,9 +982,7 @@ def main(cfg: DictConfig):
                     particle_pred.arena.sim_agents[0].reset(
                         filtered_graph_obs, graphs[-1], None, seed=0
                     )
-                    particle_pred.plan_for_particles(
-                        filtered_graph_obs, rejected_particles
-                    )
+                    particle_pred.plan_for_particles(filtered_graph_obs, rejected_particles)
 
                     rejected_particles = particle_pred.get_rejected_particles(
                         current_action=None
@@ -1026,13 +996,9 @@ def main(cfg: DictConfig):
                     steps_since_last_prediction += 1
 
                 pred_graphs = [
-                    particle["pred_graph"][-1][-1]
-                    for particle in particle_pred.particles
+                    particle["pred_graph"][-1][-1] for particle in particle_pred.particles
                 ]
-                print(len(pred_graphs))
-                ipdb.set_trace()
-                # curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
-                curr_values.append({"pred_task": pred_graphs, "gt_task": task_graph_gt})
+                curr_metrics.append(compute_metrics(pred_graphs, task_graph_gt))
                 cont_t_keep += 1
 
             t += 1
@@ -1091,19 +1057,26 @@ def main(cfg: DictConfig):
         #         curr_metrics2.append(compute_metrics(pred_graphs, task_graph_gt))
 
         #     t += 1
-        method_name = args.log_name
-        filename_last = ".".join(filename.split("/")[-1].split(".")[:-1])
-        if not os.path.isdir(
-            f"results/results_smallset_inference_online/{method_name}"
-        ):
-            os.makedirs(f"results/results_smallset_inference_online/{method_name}")
 
-        with open(
-            f"results/results_smallset_inference_online/{method_name}/{filename_last}.pkl",
-            "wb+",
-        ) as f:
-            pkl.dump(curr_values, f)
-    # ipdb.set_trace()
+        # aggregate metrics
+        final_metric_dict = {}
+        for metric_name in curr_metrics[0].keys():
+            final_metric_dict[metric_name] = np.array(
+                [metric[metric_name].item() for metric in curr_metrics]
+            )
+
+        # final_metric_dict2 = {}
+        # for metric_name in curr_metrics2[0].keys():
+        #     final_metric_dict2[metric_name] = np.array(
+        #         [metric[metric_name].item() for metric in curr_metrics2]
+        #     )
+
+        all_content["smart_reset_prepare_food"].append(final_metric_dict)
+        # all_content["all_reset"] = final_metric_dict2
+
+    with open("result_goal_inference_prepare_food.pkl", "wb+") as f:
+        pkl.dump(all_content, f)
+    ipdb.set_trace()
 
 
 if __name__ == "__main__":

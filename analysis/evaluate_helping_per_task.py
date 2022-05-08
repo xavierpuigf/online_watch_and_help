@@ -310,7 +310,6 @@ def main(cfg: DictConfig):
     with open(f"{get_original_cwd()}/analysis/metadata/task_name_dict.pik", 'rb') as f:
         task_dict = pkl.load(f)
     task_dict = task_dict['test']
-    ipdb.set_trace()
 
 
     num_tries = 5
@@ -340,16 +339,21 @@ def main(cfg: DictConfig):
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_v2_20'
     # cachedir = f'{get_original_cwd()}/outputs/helping_action_freq_1'
+    tshu_dir = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences'
 
     cachedir_main = f"{get_original_cwd()}/outputs/main_agent_only_large"
     cachedir_main = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/main_agent_only_large"
-    cachedir_det = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    cachedir_det = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/agent_preferences/tshu/agent_preferences/outputs/helping_states_fastwalk_1_3_ip1_detfull_encoder_task_graph_20_c10_1.0_5.0"
     #cachedir = cachedir_main
     results = {}
     results_per_task = {}
-    cachedirs = [("GT", f"{get_original_cwd()}/outputs/helping_gt_goal_fast"),
+    cachedirs = [
                  ("Main", cachedir_main),
-                 ("DET", cachedir_det),
+                 ("GT", f"{get_original_cwd()}/outputs/helping_gt_goal_fast"),
+                 ("Uniform", f"{tshu_dir}/outputs/helping_states_fastwalk_r_1_3_ip1_uniform_20_1.0_1.0_5.0"),
+                 ("w/o InvPlanning", f"{tshu_dir}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"),
+                 ("1 Goal", f"{tshu_dir}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"),
+                 ("Ours", f"{tshu_dir}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0")
                  ]
     for name_exp, cachedir in cachedirs:
         random_start = random.Random()

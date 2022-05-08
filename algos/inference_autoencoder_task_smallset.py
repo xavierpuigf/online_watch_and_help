@@ -383,7 +383,7 @@ def inference(
                     else:
                         cpred_mask = gt['gt_mask'].cpu().numpy()
                         cpred_graph = utils_models.vectorized(pred_graph)
-                    z_vector = np.zeros((num_samples, 128))
+                    z_vector = np.zeros((pred_graph.shape[0], 128))
                 predicted_mask.append(cpred_mask)
                 predicted_graph.append(cpred_graph)
                 z_vec.append(z_vector)
@@ -456,8 +456,8 @@ def inference(
                     pv = '_posterior'
                 expath = logger.results_path
 
-                if 'logs_episode.551_iter.0.pik_result' not in sfname:
-                    continue
+                #if 'logs_episode.551_iter.0.pik_result' not in sfname:
+                #    continue
                     # ipdb.set_trace()
                 # else:
                 #     pass
@@ -521,20 +521,21 @@ def inference(
                         with open(dict_result_name, 'wb+') as f:
                             pkl.dump(list_names, f)
                     #ipdb.set_trace()
-                    results = {
-                        'results_total': res_total_new[index],
-                        'results_total_tstep': res_total_new_tstep[index],
-                        'gt_task': gt_task[index],
-                        'inp_task': inp_task[index],
-                        'z_vec': z_vec[:, index],
-                        'pred_task': predicted_graphc[:, index],
-                        'length': len_mask[index].sum().cpu().numpy()
-                    }
-
+                    try:
+                        results = {
+                            'results_total': res_total_new[index],
+                            'results_total_tstep': res_total_new_tstep[index],
+                            'gt_task': gt_task[index],
+                            'inp_task': inp_task[index],
+                            'z_vec': z_vec[:, index],
+                            'pred_task': predicted_graphc[:, index],
+                            'length': len_mask[index].sum().cpu().numpy()
+                        }
+                    except:
+                        ipdb.set_trace()
                     # ipdb.set_trace()
                     if not os.path.isdir(dir_name):
                         os.makedirs(dir_name)
-                    ipdb.set_trace()
                     with open(result_name, 'wb') as f:
                        pkl.dump(results, f)
 
@@ -1056,6 +1057,7 @@ def get_loaders(args):
             ),
             first_last=first_last,
             args_config=args,
+            small_set=True,
         )
     else:
         dataset_test = AgentTypeDataset(
@@ -1095,7 +1097,6 @@ def get_loaders(args):
 @hydra.main(config_path="..", config_name="inference")
 def main(cfg: DictConfig):
     config = cfg
-    config['data_ratio'] = 1.0
     print("Config")
     print(OmegaConf.to_yaml(cfg))
 
@@ -1140,7 +1141,7 @@ def main(cfg: DictConfig):
         criterions['category'] = criterion_task
     
     logger = LoggerSteps(config, log_steps=False)
-    logger.results_path = 'results_inference_small_testset/{}'.format(config.name_log)
+    logger.results_path = 'results/results_smallset_inference_offline/{}'.format(config.name_log)
         
     inference(
         test_loader,
