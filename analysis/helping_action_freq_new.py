@@ -629,7 +629,7 @@ def pred_main_agent_plan(
     res,
 ):
     inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
-    print("pred {}:".format(process_id), inferred_goal)
+    # print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
         opponent_actions, opponent_info = pred_actions_fn(
@@ -679,7 +679,7 @@ def get_helping_plan(
     res,
 ):
     inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
-    print("pred {}:".format(process_id), inferred_goal)
+    # print("pred {}:".format(process_id), inferred_goal)
     subgoal, action, plan, plan_states = None, None, None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
 
@@ -692,10 +692,10 @@ def get_helping_plan(
             opponent_subgoal=opponent_subgoal,
         )
         # print('actions:', actions)
-        print("pred {}:".format(process_id), inferred_goal)
-        print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
+        # print("pred {}:".format(process_id), inferred_goal)
+        # print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
         if info[1]["subgoals"] is None or len(info[1]["subgoals"]) == 0:
-            res[process_id] = (None, None, None, None)
+            res[process_id] = None
             return
 
         # Here you can get the intermediate states
@@ -709,7 +709,7 @@ def get_helping_plan(
             and len(info[agent_id]["subgoals"]) > 0
             else None
         )
-    res[process_id] = (subgoal, action)
+    res[process_id] = action  # (subgoal, action)
 
 
 @hydra.main(config_path="../config/configs_for_help", config_name="config_diff_state")
@@ -1194,27 +1194,25 @@ def main(cfg: DictConfig):
                             )
                         remained_proposals = {}
                         for pred_id, proposal in proposals.items():
-                            print(pred_id)
+                            # print(pred_id)
                             goal_pred = get_edge_class(
                                 proposal["pred"],
                                 len(proposal["pred"]) - 1,
                             )
-                            print(goal_pred)
-                            if not is_in_goal(grabbed_obj, goal_pred):
-                                print("reject")
-                            else:
-                                print(last_observed_main_action, proposal["plan"])
+                            # print(goal_pred)
+                            if is_in_goal(grabbed_obj, goal_pred):
+                                # print(last_observed_main_action, proposal["plan"])
                                 if last_observed_main_action is None:
                                     remained_proposals[pred_id] = proposal
-                                    print("accept")
+                                    # print("accept")
                                 else:
                                     if is_in_plan(
                                         last_observed_main_action, proposal["plan"]
                                     ):
                                         remained_proposals[pred_id] = proposal
-                                        print("accept")
-                                    else:
-                                        print("reject")
+                                        # print("accept")
+                                    # else:
+                                    #     print("reject")
                         proposals = dict(remained_proposals)
                         if len(proposals) == 0:
                             all_reject = True
@@ -1605,20 +1603,20 @@ def main(cfg: DictConfig):
                         # ======================================================
                         # get helper agent's action
                         action_freq = {}
-                        print("gt goal:", gt_goal)
-                        print("pred goal")
-                        edge_pred_class_estimated = aggregate_multiple_pred(
-                            task_result, steps - 3, change=True
-                        )
-                        for edge_class, count in edge_pred_class_estimated.items():
-                            if (
-                                edge_pred_class_estimated[edge_class][0] < 1e-6
-                                and edge_pred_class_estimated[edge_class][1] < 1e-6
-                            ):
-                                continue
-                            print(edge_class, edge_pred_class_estimated[edge_class])
-                        print("edge freq:")
-                        _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
+                        # print("gt goal:", gt_goal)
+                        # print("pred goal")
+                        # edge_pred_class_estimated = aggregate_multiple_pred(
+                        #     task_result, steps - 3, change=True
+                        # )
+                        # for edge_class, count in edge_pred_class_estimated.items():
+                        #     if (
+                        #         edge_pred_class_estimated[edge_class][0] < 1e-6
+                        #         and edge_pred_class_estimated[edge_class][1] < 1e-6
+                        #     ):
+                        #         continue
+                        #     print(edge_class, edge_pred_class_estimated[edge_class])
+                        # print("edge freq:")
+                        # _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
 
                         max_freq = 0
                         opponent_subgoal = None
@@ -1684,16 +1682,16 @@ def main(cfg: DictConfig):
 
                         # ipdb.set_trace()
 
-                        for pred_id, (subgoal, action) in res.items():
+                        for pred_id, action in res.items():
                             if action is not None:
                                 if action not in action_freq:
                                     action_freq[action] = 1
                                 else:
                                     action_freq[action] += 1
 
-                                edge_pred_class_estimated = aggregate_multiple_pred(
-                                    task_result, steps - 3, change=True
-                                )
+                                # edge_pred_class_estimated = aggregate_multiple_pred(
+                                #     task_result, steps - 3, change=True
+                                # )
 
                         N_preds = num_samples
                         max_freq = 0
