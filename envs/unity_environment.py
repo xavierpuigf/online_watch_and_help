@@ -241,6 +241,14 @@ class UnityEnvironment(BaseUnityEnvironment):
         else:
             raise NotImplementedError
 
+    def rescale_objects_to_place(self, updated_graph):
+        new_graph  = copy.deepcopy(updated_graph)
+        objects_change = ['pudding', 'chips', 'condimentbottle', 'condimentshaker', 'salmon', 'plate']
+        for node in new_graph['nodes']:
+            if node['class_name'].lower().replace('_', '') in objects_change:
+                node['obj_transform']['scale'] = [x*0.4 for x in node['obj_transform']['scale']]
+        return new_graph
+
     def reset(self, environment_graph=None, task_id=None):
 
         # Make sure that characters are out of graph, and ids are ok
@@ -330,6 +338,7 @@ class UnityEnvironment(BaseUnityEnvironment):
                 ]
                 updated_graph['nodes'] += nodes_trash
                 updated_graph['edges'] += edges_trash
+            updated_graph = self.rescale_objects_to_place(updated_graph)
             success, m = self.comm.expand_scene(updated_graph)
         else:
             updated_graph = self.init_graph
@@ -348,6 +357,7 @@ class UnityEnvironment(BaseUnityEnvironment):
                 updated_graph['nodes'] += nodes_trash
                 updated_graph['edges'] += edges_trash
             try:
+                updated_graph = self.rescale_objects_to_place(updated_graph)
                 success, m = self.comm.expand_scene(updated_graph)
             except:
                 print("Failure starting graph")

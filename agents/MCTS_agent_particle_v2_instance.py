@@ -1179,7 +1179,8 @@ class MCTS_agent_particle_v2_instance:
         lg = ''
         if last_subgoal is not None and len(last_subgoal) > 0:
             lg = last_subgoal[0]
-        print('-------- Agent {}: {} --------'.format(self.agent_id, 'replan' if should_replan else 'no replan'))
+        if self.verbose:
+            print('-------- Agent {}: {} --------'.format(self.agent_id, 'replan' if should_replan else 'no replan'))
         if should_replan or must_replan:
             # ipdb.set_trace()
             for particle_id, particle in enumerate(self.particles):
@@ -1210,9 +1211,10 @@ class MCTS_agent_particle_v2_instance:
                     init_state, goal_spec
                 )
                 if 'offer' in list(goal_spec.keys())[0]:
-                    print('offer:')
-                    print(satisfied)
-                    print(unsatisfied)
+                    if self.verbose:
+                        print('offer:')
+                        print(satisfied)
+                        print(unsatisfied)
                     # ipdb.set_trace()
                 init_vh_state = self.sim_env.get_vh_state(init_state)
                 # print(colored(unsatisfied, "yellow"))
@@ -1347,12 +1349,14 @@ class MCTS_agent_particle_v2_instance:
         if self.verbose:
             print("Replanning... ", should_replan or must_replan)
         if should_replan:
-            print('Agent {} did replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
+            if self.verbose:
+                print('Agent {} did replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
             # if len(plan) == 0 and self.agent_id == 1:
             #     ipdb.set_trace()
 
         else:
-            print('Agent {} not replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
+            if self.verbose:
+                print('Agent {} not replan: '.format(self.agent_id), self.last_loc, obj_grab, curr_loc_index, plan)
 
         if action is not None and 'grab' in action:
             if self.agent_id == 2:
