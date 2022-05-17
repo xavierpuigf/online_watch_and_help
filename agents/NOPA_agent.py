@@ -810,7 +810,7 @@ class NOPA_agent:
 
     def get_action(self, obs, goal_spec, previous_main_action, steps, opponent_subgoal=None):
         init_state = obs
-
+        selected_actions = {1: None}
         if previous_main_action is not None:
             for obj_name in all_object_types:
                 if obj_name in previous_main_action:
