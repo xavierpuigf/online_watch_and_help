@@ -424,6 +424,20 @@ def same_action(action1, action2):
 
     return False
 
+def edge2name(edge):
+    elements = edge.split("_")
+    edge_name = elements[0]
+    from_node_id = int(elements[1].split(".")[-1])
+    from_node_name = elements[1].split(".")[0]
+    to_node_id = int(elements[2].split(".")[-1])
+    to_node_name = elements[2].split(".")[0]
+    if edge_name == "offer":
+        goal_name = "{}_{}_{}".format(edge_name, to_node_name, from_node_id)
+    else:
+        goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
+    return goal_name
+
+
 class NOPA_agent:
     """
     Random agent
