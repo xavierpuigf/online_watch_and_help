@@ -93,16 +93,38 @@ def get_rand_uniform():
     size = [1]
     # returns a tensor of size [size, 136] with random samples
     max_vec = ("0 0 0 2 0 5 0 3 0 0 2 0 0 0 1 0 0 0 0 0 "
-	       "0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
-	      "0 0 0 0 0 0 0 2 0 7 0 2 0 0 2 0 0 0 3 7 "
-	     "0 0 3 0 0 0 0 0 0 3 7 0 0 3 0 0 0 0 0 0 "
-	    "2 0 6 0 3 0 0 2 0 0 0 1 0 0 0 0 0 0 0 0 "
-	   "0 0 2 0 7 0 3 0 0 2 0 0 0 2 6 0 0 3 0 0 "
-	  "0 0 0 0 3 6 0 0 3 0 0 0 0 0 1 1")
+               "0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
+              "0 0 0 0 0 0 0 2 0 7 0 2 0 0 2 0 0 0 3 7 "
+             "0 0 3 0 0 0 0 0 0 3 7 0 0 3 0 0 0 0 0 0 "
+            "2 0 6 0 3 0 0 2 0 0 0 1 0 0 0 0 0 0 0 0 "
+           "0 0 2 0 7 0 3 0 0 2 0 0 0 2 6 0 0 3 0 0 "
+          "0 0 0 0 3 6 0 0 3 0 0 0 0 0 1 1")
+    max_vec = np.array([int(x) for x in max_vec.split()])
+    max_vec = np.minimum(max_vec, 3*np.ones(max_vec.shape))
+    different_zero = list(np.where(max_vec))
+    preds_keep = np.array(random.choices(different_zero, k=6))
+    new_max_vec = np.zeros(max_vec.shape)
+    new_max_vec[preds_keep] = max_vec[preds_keep]
+    new_size = list(size)+[max_vec.shape[0]]
+    res = np.random.rand(*new_size)
+    res *= new_max_vec
+    res = np.round(res).astype(np.int32)
+    return res
+
+def get_rand_uniform_old():
+    size = [1]
+    # returns a tensor of size [size, 136] with random samples
+    max_vec = ("0 0 0 2 0 5 0 3 0 0 2 0 0 0 1 0 0 0 0 0 "
+               "0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 "
+              "0 0 0 0 0 0 0 2 0 7 0 2 0 0 2 0 0 0 3 7 "
+             "0 0 3 0 0 0 0 0 0 3 7 0 0 3 0 0 0 0 0 0 "
+            "2 0 6 0 3 0 0 2 0 0 0 1 0 0 0 0 0 0 0 0 "
+           "0 0 2 0 7 0 3 0 0 2 0 0 0 2 6 0 0 3 0 0 "
+          "0 0 0 0 3 6 0 0 3 0 0 0 0 0 1 1")
     max_vec = np.array([int(x) for x in max_vec.split()])
     new_size = list(size)+[max_vec.shape[0]]
     res = np.random.rand(*new_size)
-		
+                
     res *= max_vec
     res = res.astype(np.int32)
     return res
@@ -322,6 +344,7 @@ def get_helping_plan(
 @hydra.main(config_path="../config/", config_name="config_default_large_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
+    verbose = False
     print("Config")
     print(OmegaConf.to_yaml(cfg))
     args = config
@@ -347,14 +370,15 @@ def main(cfg: DictConfig):
         episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
 
     episode_ids = sorted(episode_ids)
-    episode_ids = episode_ids[::5]
+    episode_ids_remove = episode_ids[::5]
+    episode_ids = [episode_id for episode_id in episode_ids if episode_id not in episode_ids_remove]
     print(len(episode_ids))
     #episode_ids = [466]
     # num_tries = 1
     f.close()
     # ipdb.set_trace()
 
-    cachedir = f'{get_original_cwd()}/results/results_smallset_help/helping_random_goal_fast'
+    cachedir = f'{get_original_cwd()}/results/results_smallset_help/helping_random_goal_wah_fast'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
 
     agent_types = [
@@ -587,7 +611,8 @@ def main(cfg: DictConfig):
             try:
                 obs = arena.reset(episode_id)
                 arena.task_goal = None
-                print(arena.env.task_goal, arena.env.agent_goals)
+                if verbose:
+                    print(arena.env.task_goal, arena.env.agent_goals)
                 gt_goal = arena.env.task_goal[0]
                 # print(
                 #     [edge for edge in obs[0]['edges'] if edge['from_id'] == 351]
@@ -729,14 +754,14 @@ def main(cfg: DictConfig):
 
                     # get two agents' action
                     # arena.task_goal = None
-                    print('planning for the main agent')
+                    if verbose: print('planning for the main agent')
                     selected_actions, curr_info = arena.get_actions(
                         curr_obs, length_plan=10, agent_id=0, must_replan={0: False, 1: False}
                     )
                     selected_actions_2, curr_info = arena.get_actions(
                             curr_obs, length_plan=10, agent_id=1, inferred_goal=fixed_random_goal, must_replan={0: False, 1: False}
                     )
-                    print('selected_actions:', selected_actions)
+                    if verbose: print('selected_actions:', selected_actions)
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)
@@ -745,14 +770,16 @@ def main(cfg: DictConfig):
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
                     )
-                    print("agents' positions")
-                    print(
-                        [
-                            (node['id'], node['bounding_box']['center'])
-                            for node in curr_obs[0]['nodes']
-                            if node['id'] < 3
-                        ]
-                    )
+                    if verbose:
+
+                        print("agents' positions")
+                        print(
+                            [
+                                (node['id'], node['bounding_box']['center'])
+                                for node in curr_obs[0]['nodes']
+                                if node['id'] < 3
+                            ]
+                        )
                     curr_graph = infos['graph']
                     # history_obs.append(curr_obs[0])
                     # history_graph.append(curr_graph)
@@ -790,7 +817,7 @@ def main(cfg: DictConfig):
                                 [node['id'] for node in info['obs']]
                             )
 
-                    print('success:', infos['finished'])
+                    if verbose: print('success:', infos['finished'])
                     # pdb.set_trace()
                     if infos['finished']:
                         success = True
