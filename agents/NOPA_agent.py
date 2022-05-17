@@ -398,6 +398,125 @@ def pred_main_agent_plan(
     # print('main pred {}:'.format(process_id), inferred_goal)
     # print('main plan {}:'.format(process_id), plan)
 
+
+
+def get_class_from_state(state):
+    id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
+    edges = state["edges"]
+    nodes = state["nodes"]
+
+    edge_class_count = {}
+
+    num_edges = len(edges)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = edges[edge_id]["from_id"]
+        to_id = edges[edge_id]["to_id"]
+        from_node_name = id2node[from_id]
+        to_node_name = id2node[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = edges[edge_id]["relation_type"].lower()
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
+            ]:
+                continue
+            if from_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "character",
+            ]:
+                continue
+        else:
+            continue
+
+        edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_node_name)
+        if edge_class not in edge_class_count:
+            edge_class_count[edge_class] = 1
+        else:
+            edge_class_count[edge_class] += 1
+    return edge_class_count
+
+
+def compute_dist_instance(init_state, curr_state, subgoal_instance):
+    init_edge_class = get_class_from_state(init_state)
+    curr_edge_class = get_class_from_state(curr_state)
+    base_dist = 0
+    for edge in init_edge_class:
+        if edge not in curr_edge_class:
+            curr_edge_class[edge] = 0
+    for edge in curr_edge_class:
+        if edge not in init_edge_class:
+            init_edge_class[edge] = 0
+    for edge in init_edge_class:
+        # if init_edge_class[edge] != curr_edge_class[edge]:
+        #     print(edge, init_edge_class[edge], curr_edge_class[edge])
+        base_dist += abs(init_edge_class[edge] - curr_edge_class[edge])
+
+    id2node = {node["id"]: node["class_name"] for node in curr_state["nodes"]}
+
+    elements = subgoal_instance.split("_")
+    edge_type, from_id, to_id = (
+        elements[0],
+        int(elements[1].split(".")[1]),
+        int(elements[2].split(".")[1]),
+    )
+    object_id = from_id if edge_type in ["on", "inside"] else to_id
+    found = False
+    for edge in curr_state["edges"]:
+        if edge["from_id"] == object_id:
+            edge_class = "{}_{}_{}".format(
+                edge["relation_type"].lower(),
+                id2node[edge["from_id"]],
+                id2node[edge["to_id"]],
+            )
+            # print(edge_class)
+            if edge["relation_type"] in ["ON", "INSIDE"]:
+                if id2node[edge["to_id"]] in [
+                    "kitchen",
+                    "livingroom",
+                    "bedroom",
+                    "bathroom",
+                    "plate",
+                ]:
+                    continue
+
+                curr_edge_class[edge_class] -= 1
+                # print(edge_class, "-")
+                found = True
+    if edge_type in ["on", "inside"]:
+        edge_class = "{}_{}_{}".format(
+            edge_type, elements[1].split(".")[0], elements[2].split(".")[0]
+        )
+        # print(edge_class, "+")
+        if edge_class not in curr_edge_class:
+            curr_edge_class[edge_class] = 1
+        else:
+            curr_edge_class[edge_class] += 1
+    dist = -base_dist
+    for edge in init_edge_class:
+        if edge not in curr_edge_class:
+            curr_edge_class[edge] = 0
+    for edge in curr_edge_class:
+        if edge not in init_edge_class:
+            init_edge_class[edge] = 0
+    for edge in init_edge_class:
+        # if init_edge_class[edge] != curr_edge_class[edge]:
+        #     print(edge, init_edge_class[edge], curr_edge_class[edge])
+        dist += abs(init_edge_class[edge] - curr_edge_class[edge])
+
+    if dist == 1 and edge_type in ["on", "inside"]:
+        if not found:
+            dist += 1
+    return dist
+
+
 def same_action(action1, action2):
 
     if action1 == action2:
@@ -437,6 +556,81 @@ def edge2name(edge):
         goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
     return goal_name
 
+def get_helping_plan(
+    process_id,
+    edge,
+    t,
+    opponent_subgoal,
+    get_actions_fn,
+    obs,
+    length_plan,
+    must_replan,
+    agent_id,
+    res,
+    verbose=False
+):
+    inferred_goal = edge2goal(edge)
+    if verbose:
+        print("pred {}:".format(process_id), inferred_goal)
+    subgoal, action, plan, plan_states = None, None, None, None
+    if len(inferred_goal) > 0:  # if no edge prediction then None action
+
+        actions, info = get_actions_fn(
+            obs,
+            length_plan=length_plan,
+            must_replan=must_replan,
+            agent_id=agent_id,
+            inferred_goal=inferred_goal,
+            opponent_subgoal=opponent_subgoal,
+        )
+        # print('actions:', actions)
+        if verbose:
+            print("pred {}:".format(process_id), inferred_goal)
+            print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
+        if info[1]["subgoals"] is None or len(info[1]["subgoals"]) == 0:
+            res[process_id] = (None, None, None, None)
+            return
+
+        # Here you can get the intermediate states
+        plan_states = info[agent_id]["plan_states"]
+        plan_cost = info[agent_id]["plan_cost"]
+        plan = info[agent_id]["plan"]
+        action = actions[agent_id]
+        subgoal = (
+            info[agent_id]["subgoals"][0][0]
+            if info[agent_id]["subgoals"] is not None
+            and len(info[agent_id]["subgoals"]) > 0
+            else None
+        )
+    res[process_id] = (subgoal, plan, plan_states, plan_cost)
+
+
+def edge2goal(edge):
+    # edge format: edgeName_fromNodeName.id_toNodeName.id
+    elements = edge.split("_")
+    edge_name = elements[0]
+    from_node_id = int(elements[1].split(".")[-1])
+    from_node_name = elements[1].split(".")[0]
+    to_node_id = int(elements[2].split(".")[-1])
+
+    goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
+    if edge_name == "offer":
+        goal = {
+            goal_name: {
+                "count": 1,
+                "grab_obj_ids": [to_node_id],
+                "container_ids": [from_node_id],
+            }
+        }
+    else:
+        goal = {
+            goal_name: {
+                "count": 1,
+                "grab_obj_ids": [from_node_id],
+                "container_ids": [to_node_id],
+            }
+        }
+    return goal
 
 class NOPA_agent:
     """
@@ -499,7 +693,7 @@ class NOPA_agent:
             c_base=100,
             num_samples=1,
             num_processes=0,
-            num_particles=20,
+            num_particles=1,
             logging=True,
             logging_graphs=True,
             get_plan_states=True,
@@ -547,32 +741,7 @@ class NOPA_agent:
         self.model = model
         self.class2id = {}
 
-    def edge2goal(self, edge):
-        # edge format: edgeName_fromNodeName.id_toNodeName.id
-        elements = edge.split("_")
-        edge_name = elements[0]
-        from_node_id = int(elements[1].split(".")[-1])
-        from_node_name = elements[1].split(".")[0]
-        to_node_id = int(elements[2].split(".")[-1])
 
-        goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
-        if edge_name == "offer":
-            goal = {
-                goal_name: {
-                    "count": 1,
-                    "grab_obj_ids": [to_node_id],
-                    "container_ids": [from_node_id],
-                }
-            }
-        else:
-            goal = {
-                goal_name: {
-                    "count": 1,
-                    "grab_obj_ids": [from_node_id],
-                    "container_ids": [to_node_id],
-                }
-            }
-        return goal
 
 
 
@@ -719,7 +888,7 @@ class NOPA_agent:
                 if edge["from_id"] == 2 and "HOLD" in edge["relation_type"]
             ]
             if len(in_helper_hands) > 0:
-                inferred_goal = self.edge2goal(self.last_goal_edge)
+                inferred_goal = edge2goal(self.last_goal_edge)
                 print("last helper goal:", inferred_goal)
                 if (
                     len(inferred_goal) > 0
@@ -1129,7 +1298,7 @@ class NOPA_agent:
                 else:
                     for start_root_id in range(0, num_goals, self.num_processes):
                         end_root_id = min(
-                            start_root_id + num_processes, num_goals
+                            start_root_id + self.num_processes, num_goals
                         )
                         jobs = []
                         for process_id in range(start_root_id, end_root_id):
@@ -1226,7 +1395,7 @@ class NOPA_agent:
                                     min(
                                         edge_steps[goal_edges[pred_id]]
                                         - estimated_steps,
-                                        args.max_benefit,
+                                        self.args.max_benefit,
                                     )
                                 )
                                 * min(1, edge_freq[goal_edges[pred_id]])
