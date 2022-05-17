@@ -498,7 +498,7 @@ class NOPA_agent:
             c_init=0.1,
             c_base=100,
             num_samples=1,
-            num_processes=10,
+            num_processes=0,
             num_particles=20,
             logging=True,
             logging_graphs=True,
@@ -640,7 +640,7 @@ class NOPA_agent:
         }
 
     def get_action(self, obs, goal_spec, previous_main_action, steps, opponent_subgoal=None):
-                
+        init_state = obs
 
         if previous_main_action is not None:
             for obj_name in all_object_types:
@@ -857,6 +857,7 @@ class NOPA_agent:
                     )
             else:
                 res = manager.dict()
+                print(len(task_result), self.num_processes)
                 for start_root_id in range(
                     0, len(task_result), self.num_processes
                 ):
@@ -1111,7 +1112,7 @@ class NOPA_agent:
 
                 res = manager.dict()
                 num_goals = len(goal_edges)
-                if num_processes == 0:
+                if self.num_processes == 0:
                     for process_id in range(num_goals):
                         get_helping_plan(
                             process_id,
@@ -1126,7 +1127,7 @@ class NOPA_agent:
                             res,
                         )
                 else:
-                    for start_root_id in range(0, num_goals, num_processes):
+                    for start_root_id in range(0, num_goals, self.num_processes):
                         end_root_id = min(
                             start_root_id + num_processes, num_goals
                         )
