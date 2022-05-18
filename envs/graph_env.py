@@ -145,7 +145,7 @@ class VhGraphEnv:
     house_obj = ['floor', 'wall', 'ceiling']
 
     def __init__(self, n_chars=1, max_nodes=200):
-        self.graph_helper = graph_dict_helper()
+        self.graph_helper = None # graph_dict_helper()
         self.n_chars = n_chars
         self.name_equivalence = None
 
@@ -576,6 +576,7 @@ class VhGraphEnv:
                 if x.positive not in states_graph_old
                 and x.negative not in states_graph_old
             ]
+            print(node['class_name'], [x.default for x in bin_vars_missing])
             states_graph = states_graph_old + [x.default for x in bin_vars_missing]
             # fill out the rest of info regarding the states
             node['states'] = states_graph
@@ -588,8 +589,8 @@ class VhGraphEnv:
         state = self._remove_house_obj(state)
 
         # Fill out the missing states
-        self.fill_missing_states(state)
-
+        #self.fill_missing_states(state)
+        #ipdb.set_trace()
         for i in range(self.n_chars):
             self.executor = ScriptExecutor(
                 EnvironmentGraph(state), self.name_equivalence, i

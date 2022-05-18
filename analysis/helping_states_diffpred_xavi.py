@@ -627,9 +627,11 @@ def pred_main_agent_plan(
     must_replan,
     agent_id,
     res,
+    verbose=False
 ):
     inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
-    print("pred {}:".format(process_id), inferred_goal)
+    if verbose:
+        print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
         opponent_actions, opponent_info = pred_actions_fn(
@@ -675,9 +677,11 @@ def get_helping_plan(
     must_replan,
     agent_id,
     res,
+    verbose=False
 ):
     inferred_goal = edge2goal(edge)
-    print("pred {}:".format(process_id), inferred_goal)
+    if verbose:
+        print("pred {}:".format(process_id), inferred_goal)
     subgoal, action, plan, plan_states = None, None, None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
 
@@ -690,8 +694,9 @@ def get_helping_plan(
             opponent_subgoal=opponent_subgoal,
         )
         # print('actions:', actions)
-        print("pred {}:".format(process_id), inferred_goal)
-        print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
+        if verbose:
+            print("pred {}:".format(process_id), inferred_goal)
+            print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
         if info[1]["subgoals"] is None or len(info[1]["subgoals"]) == 0:
             res[process_id] = (None, None, None, None)
             return
@@ -718,8 +723,9 @@ def main(cfg: DictConfig):
     args = config
     args_pred = args.agent_pred_graph
     num_proc = 0
-
-    num_tries = args.num_tries
+    
+    verbose = False
+    num_tries = 3
     # args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta4/linux_exec.v2.2.5_beta4.x86_64'
     # args.max_episode_length = 250
     # args.num_per_apartment = 20
@@ -741,11 +747,15 @@ def main(cfg: DictConfig):
         episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
     episode_ids0 = sorted(episode_ids)
     if args.small_set:
-        episode_ids = list(episode_ids0[::5])
+        pass
     else:
         episode_ids = list(episode_ids0)
+        #episode_ids = [episode_id for episode_id in episode_ids if episode_id not in [180, 323, 523, 556, 573, 573, 591, 621]]
+        #episode_ids_red = list(episode_ids0[::5])
+        #episode_ids = [episode for episode in list(episode_ids0) if episode not in episode_ids_red]
+        #episode_ids = sorted(set(episode_ids+[180, 323, 523, 556, 573, 573, 591, 621]))
     if args.debug:
-        episode_ids = [323]
+        episode_ids = [420]
     print(len(episode_ids))
     f.close()
 
@@ -755,6 +765,8 @@ def main(cfg: DictConfig):
         network_name += ".kl{}".format(args_pred.model.kl_coeff)
     if not args.debug:
         cachedir = f"{get_original_cwd()}/results/results_smallset_help/helping_states_fastwalk_r{int(args.reset_steps)}_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
+    else:
+        cachedir = f"{get_original_cwd()}/results/debug_results_smallset_help/helping_states_fastwalk_r{int(args.reset_steps)}_{int(args.small_set)}_{args.num_tries}_ip{int(args.inv_plan)}_{network_name}_{args.num_samples}_{args.alpha}_{args.beta}_{args.lam}"
 
     # cachedir = f'{get_original_cwd()}/outputs/helping_toy_states_{args.num_samples}_{args.alpha}_{args.beta}'
     # cachedir = f'{rootdir}/dataset_episodes/helping_toy'
@@ -1107,19 +1119,19 @@ def main(cfg: DictConfig):
                 prev_action = actions[0]
                 history_action.append(prev_action)
                 new_action = True
-
+                ipdb.set_trace()
                 (curr_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
-
-                print("agents' positions")
-                print(
-                    [
-                        (node["id"], node["bounding_box"]["center"])
-                        for node in curr_obs[0]["nodes"]
-                        if node["id"] < 3
-                    ]
-                )
+                if verbose:
+                    print("agents' positions")
+                    print(
+                        [
+                            (node["id"], node["bounding_box"]["center"])
+                            for node in curr_obs[0]["nodes"]
+                            if node["id"] < 3
+                        ]
+                    )
 
                 curr_graph = infos["graph"]
 
@@ -1191,27 +1203,33 @@ def main(cfg: DictConfig):
                             )
                         remained_proposals = {}
                         for pred_id, proposal in proposals.items():
-                            print(pred_id)
+                            if verbose:
+                                print(pred_id)
                             goal_pred = get_edge_class(
                                 proposal["pred"],
                                 len(proposal["pred"]) - 1,
                             )
-                            print(goal_pred)
+                            if verbose:
+                                print(goal_pred)
                             if not is_in_goal(grabbed_obj, goal_pred):
-                                print("reject")
+                                if verbose:
+                                    print("reject")
                             else:
                                 print(last_observed_main_action, proposal["plan"])
                                 if last_observed_main_action is None:
                                     remained_proposals[pred_id] = proposal
-                                    print("accept")
+                                    if verbose:
+                                        print("accept")
                                 else:
                                     if is_in_plan(
                                         last_observed_main_action, proposal["plan"]
                                     ):
                                         remained_proposals[pred_id] = proposal
-                                        print("accept")
+                                        if verbose:
+                                            print("accept")
                                     else:
-                                        print("reject")
+                                        if verbose:
+                                            print("reject")
                         proposals = dict(remained_proposals)
                         if len(proposals) == 0:
                             all_reject = True
@@ -1235,7 +1253,8 @@ def main(cfg: DictConfig):
                         ]
                         if len(in_helper_hands) > 0:
                             inferred_goal = edge2goal(last_goal_edge)
-                            print("last helper goal:", inferred_goal)
+                            if verbose:
+                                print("last helper goal:", inferred_goal)
                             if (
                                 len(inferred_goal) > 0
                             ):  # if no edge prediction then None action
@@ -1261,8 +1280,9 @@ def main(cfg: DictConfig):
 
                     if len(proposals) < 1:  # args.num_samples / 3:
                         steps_since_last_prediction = 0
-                        print(len(history_graph))
-                        print(len(history_action))
+                        if verbose:
+                            print(len(history_graph))
+                            print(len(history_action))
                         assert len(history_graph) == len(history_obs)
                         assert len(history_graph) == len(history_action)
                         # if len(proposals) == 0:
@@ -1334,6 +1354,7 @@ def main(cfg: DictConfig):
                                         )
                                     )
                                 if args.debug:
+
                                     print(ind, task_graphs)
                                     # ipdb.set_trace()
 
@@ -1372,10 +1393,10 @@ def main(cfg: DictConfig):
                         else:
                             res = manager.dict()
                             for start_root_id in range(
-                                0, len(task_result), num_processes
+                                0, len(task_result), self.num_processes
                             ):
                                 end_root_id = min(
-                                    start_root_id + num_processes, len(task_result)
+                                    start_root_id + self.num_processes, len(task_result)
                                 )
                                 jobs = []
                                 for process_id in range(start_root_id, end_root_id):
@@ -1593,8 +1614,8 @@ def main(cfg: DictConfig):
                             or "fork" in selected_actions[0]
                         ):
                             dish = True
-
-                    print("main agent subgoal:", curr_info[0]["subgoals"])
+                    if verbose:
+                        print("main agent subgoal:", curr_info[0]["subgoals"])
 
                     saved_info["graph_results"].append(task_result)
                     saved_info["proposals"].append(proposals)
@@ -1607,33 +1628,35 @@ def main(cfg: DictConfig):
 
                             # ======================================================
                             # get helper agent's actio
-
-                            print("gt goal:", gt_goal)
-                            print("pred goal")
+                            if verbose:
+                                print("gt goal:", gt_goal)
+                                print("pred goal")
                             edge_pred_class_estimated = aggregate_multiple_pred(
                                 task_result, steps - 3, change=True
                             )
-                            for edge_class, count in edge_pred_class_estimated.items():
-                                if (
-                                    edge_pred_class_estimated[edge_class][0] < 1e-6
-                                    and edge_pred_class_estimated[edge_class][1] < 1e-6
-                                ):
-                                    continue
-                                print(edge_class, edge_pred_class_estimated[edge_class])
-                            print("edge freq:")
+                            if verbose:
+                                for edge_class, count in edge_pred_class_estimated.items():
+                                    if (
+                                        edge_pred_class_estimated[edge_class][0] < 1e-6
+                                        and edge_pred_class_estimated[edge_class][1] < 1e-6
+                                    ):
+                                        continue
+                                    print(edge_class, edge_pred_class_estimated[edge_class])
+                                print("edge freq:")
                             _, curr_edge_list = get_edge_instance_from_state(
                                 curr_obs[1]
                             )
                             goal_edges = []
                             for edge in edge_freq:
                                 edge_steps[edge] = np.mean(edge_steps[edge])
-                                print(
-                                    edge,
-                                    edge_freq[edge],
-                                    edge_steps[edge],
-                                    edge_steps[edge] > 1 + 1e-6,
-                                    edge not in curr_edge_list,
-                                )
+                                if verbose:
+                                    print(
+                                        edge,
+                                        edge_freq[edge],
+                                        edge_steps[edge],
+                                        edge_steps[edge] > 1 + 1e-6,
+                                        edge not in curr_edge_list,
+                                    )
                                 if (
                                     edge_steps[edge] > 1 + 1e-6
                                     and edge not in curr_edge_list
@@ -1673,8 +1696,10 @@ def main(cfg: DictConfig):
                                 if count > max_freq:
                                     max_freq = count
                                     opponent_subgoal = subgoal
-                                print(subgoal, count / len(proposals))
-                            print("predicted main's subgoal:", opponent_subgoal)
+                                if verbose:
+                                    print(subgoal, count / len(proposals))
+                            if verbose:
+                                print("predicted main's subgoal:", opponent_subgoal)
                             # ipdb.set_trace()
                             del res
 
@@ -1814,7 +1839,7 @@ def main(cfg: DictConfig):
                                             * max(0, 1 - edge_freq[goal_edges[pred_id]])
                                             - args.lam * dist
                                         )
-                                    if goal_edges[pred_id].endswith("init"):
+                                    if goal_edges[pred_id].endswith("init") and verbose:
                                         print(
                                             goal_edges[pred_id],
                                             1,
@@ -1825,15 +1850,16 @@ def main(cfg: DictConfig):
                                             value,
                                         )
                                     else:
-                                        print(
-                                            goal_edges[pred_id],
-                                            edge_freq[goal_edges[pred_id]],
-                                            edge_steps[goal_edges[pred_id]],
-                                            estimated_steps,
-                                            estimated_steps_back,
-                                            dist,
-                                            value,
-                                        )
+                                        if verbose:
+                                            print(
+                                                goal_edges[pred_id],
+                                                edge_freq[goal_edges[pred_id]],
+                                                edge_steps[goal_edges[pred_id]],
+                                                estimated_steps,
+                                                estimated_steps_back,
+                                                dist,
+                                                value,
+                                            )
                                     # if (
                                     #     value > best_value
                                     #     or abs(value - best_value) < 1e-6
@@ -1903,33 +1929,34 @@ def main(cfg: DictConfig):
                                 )
 
                                 # for goal_object in goal_objects:
-                                print("-------------------------------------")
-                                print("gt goal")
-                                # print(gt_goal)
-                                for pred, count in gt_goal.items():
-                                    print(pred, count)
-                                print("pred goal")
-                                for (
-                                    edge_class,
-                                    count,
-                                ) in edge_pred_class_estimated.items():
-                                    if (
-                                        edge_pred_class_estimated[edge_class][0] < 1e-6
-                                        and edge_pred_class_estimated[edge_class][1]
-                                        < 1e-6
-                                    ):
-                                        continue
-                                    print(
+                                if verbose:
+                                    print("-------------------------------------")
+                                    print("gt goal")
+                                    # print(gt_goal)
+                                    for pred, count in gt_goal.items():
+                                        print(pred, count)
+                                    print("pred goal")
+                                    for (
                                         edge_class,
-                                        edge_pred_class_estimated[edge_class],
-                                    )
+                                        count,
+                                    ) in edge_pred_class_estimated.items():
+                                        if (
+                                            edge_pred_class_estimated[edge_class][0] < 1e-6
+                                            and edge_pred_class_estimated[edge_class][1]
+                                            < 1e-6
+                                        ):
+                                            continue
+                                        print(
+                                            edge_class,
+                                            edge_pred_class_estimated[edge_class],
+                                        )
                         else:
                             selected_actions[1] = convert_walktowards(helper_action)
-
-                    print("selected_actions:", selected_actions, best_value)
-                    print("opponent_subgoal:", opponent_subgoal)
-                    print("last_goal_edge:", last_goal_edge)
-                    print("step:", steps)
+                    if verbose:
+                        print("selected_actions:", selected_actions, best_value)
+                        print("opponent_subgoal:", opponent_subgoal)
+                        print("last_goal_edge:", last_goal_edge)
+                        print("step:", steps)
 
                     prev_obs = copy.deepcopy(curr_obs)
                     prev_graph = copy.deepcopy(curr_graph)

@@ -1,4 +1,3 @@
-
 import multiprocessing as mp
 import numpy as np
 import random
@@ -20,10 +19,11 @@ from utils import utils_rl_agent
 
 from torch import nn
 import sys
-sys.path.append('..')
+
+sys.path.append("..")
 from utils import utils_environment as utils_env
-from  utils import utils_models_wb
-from . import MCTS_agent_particle_v2_instance
+from utils import utils_models_wb
+from .MCTS_agent_particle_v2_instance import MCTS_agent_particle_v2_instance
 
 from models import agent_pref_policy_task as agent_pref_policy
 
@@ -107,13 +107,15 @@ def convert_walktowards(action):
         return action.replace("walk", "walktowards")
     else:
         return action
-        
+
+
 def get_pred_name(container_name):
     pred_name = "on"
     room_list = ["kitchen", "livingroom", "bedroom", "bathroom"]
     if container_name in info_objects["objects_inside"] or container_name in room_list:
         pred_name = "inside"
     return pred_name
+
 
 def get_edge_instance(pred, class2id, gt_container_id, t, source="pred"):
     # pred_edge_prob = pred['edge_prob']
@@ -286,8 +288,6 @@ def get_edge_instance_from_pred(pred, class2id, gt_container_id):
     return edge_pred_ins, edge_list
 
 
-
-
 def get_edge_instance_from_state(state):
     id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
     # print(id2node)
@@ -397,7 +397,6 @@ def pred_main_agent_plan(
         res[process_id] = (None, [], [], 0.0)
     # print('main pred {}:'.format(process_id), inferred_goal)
     # print('main plan {}:'.format(process_id), plan)
-
 
 
 def get_class_from_state(state):
@@ -543,6 +542,7 @@ def same_action(action1, action2):
 
     return False
 
+
 def edge2name(edge):
     elements = edge.split("_")
     edge_name = elements[0]
@@ -556,6 +556,7 @@ def edge2name(edge):
         goal_name = "{}_{}_{}".format(edge_name, from_node_name, to_node_id)
     return goal_name
 
+
 def get_helping_plan(
     process_id,
     edge,
@@ -567,7 +568,7 @@ def get_helping_plan(
     must_replan,
     agent_id,
     res,
-    verbose=False
+    verbose=False,
 ):
     inferred_goal = edge2goal(edge)
     if verbose:
@@ -632,20 +633,37 @@ def edge2goal(edge):
         }
     return goal
 
+
 class NOPA_agent:
     """
     Random agent
     """
-    def __init__(self, agent_id, char_index,
-                 max_episode_length, num_simulation, max_rollout_steps, c_init, c_base, recursive=False,
-                 num_samples=1, num_processes=1, comm=None, logging=False, logging_graphs=False, inv_plan=True, seed=None):
-        self.agent_type = 'NOPA'
+
+    def __init__(
+        self,
+        agent_id,
+        char_index,
+        max_episode_length,
+        num_simulation,
+        max_rollout_steps,
+        c_init,
+        c_base,
+        recursive=False,
+        num_samples=1,
+        num_processes=1,
+        comm=None,
+        logging=False,
+        logging_graphs=False,
+        inv_plan=True,
+        seed=None,
+    ):
+        self.agent_type = "NOPA"
         self.verbose = False
         self.recursive = recursive
 
-        #self.env = unity_env.env
+        # self.env = unity_env.env
         if seed is None:
-            seed = random.randint(0,100)
+            seed = random.randint(0, 100)
         self.seed = seed
         self.logging = logging
         self.logging_graphs = logging_graphs
@@ -661,9 +679,8 @@ class NOPA_agent:
         self.c_init = c_init
         self.c_base = c_base
         self.num_samples = num_samples
-        
-        self.num_processes = num_processes
-        
+
+
         self.previous_belief_graph = None
         self.verbose = False
 
@@ -672,7 +689,7 @@ class NOPA_agent:
         self.history_action = []
         self.history_obs = []
         self.history_graph = []
-        
+
         self.proposals = {}
         self.max_plan_length = 10
         self.pred_main_plan_length = 15
@@ -701,11 +718,11 @@ class NOPA_agent:
         )
 
         agent_args = {
-            "obs_type": 'full',
+            "obs_type": "full",
             "open_cost": 0,
             "should_close": False,
             "walk_cost": 0.05,
-            "belief": {"forget_rate": 0, "belief_type": 'uniform'},
+            "belief": {"forget_rate": 0, "belief_type": "uniform"},
         }
 
         args_agent1 = {"agent_id": 1, "char_index": 0}
@@ -717,14 +734,21 @@ class NOPA_agent:
         args_agent2["agent_params"] = agent_args
         args_agent2["num_simulation"] = 50
         self.agents = {
-            0: MCTS_agent_particle_v2_instance.MCTS_agent_particle_v2_instance(**args_agent1),
-            1: MCTS_agent_particle_v2_instance.MCTS_agent_particle_v2_instance(**args_agent2)
+            0: MCTS_agent_particle_v2_instance(**args_agent1),
+            1: MCTS_agent_particle_v2_instance(**args_agent2),
         }
 
-        self.args = OmegaConf.load("/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/config/configs_for_help/config_diff_state.yaml")
-        self.num_processes = self.args.num_processes
-        self.args_pred = OmegaConf.load("/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/config/configs_for_help/agent_pred_graph/config_det_0.05.yaml")
-        self.args_pred.ckpt_load = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph/290.pt'
+        self.args = OmegaConf.load(
+            "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/config/configs_for_help/config_diff_state.yaml"
+        )
+        self.num_processes = 40 #self.args.num_processes
+        # self.args.num_samples = 2
+
+        self.reset_steps = self.args.reset_steps
+        self.args_pred = OmegaConf.load(
+            "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/config/configs_for_help/agent_pred_graph/config_det_0.05.yaml"
+        )
+        self.args_pred.ckpt_load = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph/290.pt"
         self.graph_helper = None
         if self.args_pred.name_log == "uniform":
             model = agent_pref_policy.UniformModel()
@@ -741,41 +765,37 @@ class NOPA_agent:
         self.model = model
         self.class2id = {}
 
-
-
-
-
     def filtering_graph(self, graph):
         new_edges = []
         edge_dict = {}
-        for edge in graph['edges']:
-            key = (edge['from_id'], edge['to_id'])
+        for edge in graph["edges"]:
+            key = (edge["from_id"], edge["to_id"])
             if key not in edge_dict:
-                edge_dict[key] = [edge['relation_type']]
+                edge_dict[key] = [edge["relation_type"]]
                 new_edges.append(edge)
             else:
-                if edge['relation_type'] not in edge_dict[key]:
-                    edge_dict[key] += [edge['relation_type']]
+                if edge["relation_type"] not in edge_dict[key]:
+                    edge_dict[key] += [edge["relation_type"]]
                     new_edges.append(edge)
 
-        graph['edges'] = new_edges
+        graph["edges"] = new_edges
         return graph
-
 
     def get_relations_char(self, graph):
         # TODO: move this in vh_mdp
-        char_id = [node['id'] for node in graph['nodes'] if node['class_name'] == 'character'][0]
-        edges = [edge for edge in graph['edges'] if edge['from_id'] == char_id]
-        print('Character:')
+        char_id = [
+            node["id"] for node in graph["nodes"] if node["class_name"] == "character"
+        ][0]
+        edges = [edge for edge in graph["edges"] if edge["from_id"] == char_id]
+        print("Character:")
         print(edges)
-        print('---')
+        print("---")
 
     def is_in_plan(self, action, plan):
         for tmp_action in plan:
             if same_action(action, tmp_action):
                 return True
         return False
-
 
     def is_in_goal(self, grabbed_obj, goals):
         """check if grabbed objects are part of the goal"""
@@ -789,7 +809,6 @@ class NOPA_agent:
                 # ipdb.set_trace()
                 return False
         return True
-
 
     def get_edge_class(self, pred, t, source="pred"):
         # index 0 has pred, index 1 has mask, index 2 has input
@@ -808,9 +827,10 @@ class NOPA_agent:
             for (obj1, obj2), num in curr_task_dict.items()
         }
 
-    def get_action(self, obs, goal_spec, previous_main_action, steps, opponent_subgoal=None):
+    def get_action(
+        self, obs, goal_spec, previous_main_action, steps, opponent_subgoal=None
+    ):
         init_state = obs
-        selected_actions = {1: None}
         if previous_main_action is not None:
             for obj_name in all_object_types:
                 if obj_name in previous_main_action:
@@ -820,8 +840,11 @@ class NOPA_agent:
         curr_graph = obs
         num_samples = self.args.num_samples
         task_result = []
-        selected_actions = {}
-        if len(self.history_action) == 0 or self.history_action[-1] != previous_main_action:
+        selected_actions = {1: None}
+        if (
+            len(self.history_action) == 0
+            or self.history_action[-1] != previous_main_action
+        ):
             self.history_action.append(previous_main_action)
             self.new_action = True
             # cnt_same_action_steps = 1
@@ -833,7 +856,6 @@ class NOPA_agent:
             # ):
             #     early_stopping = True
 
-
         if (
             self.inv_plan
             and len(self.proposals) > 0
@@ -841,8 +863,8 @@ class NOPA_agent:
         ):
             last_observed_main_action = self.history_action[-1]
             if last_observed_main_action is not None:
-                last_observed_main_action = (
-                    last_observed_main_action.replace("walktowards", "walk")
+                last_observed_main_action = last_observed_main_action.replace(
+                    "walktowards", "walk"
                 )
             remained_proposals = {}
             for pred_id, proposal in self.proposals.items():
@@ -859,9 +881,7 @@ class NOPA_agent:
                         remained_proposals[pred_id] = proposal
                         print("accept")
                     else:
-                        if self.is_in_plan(
-                            last_observed_main_action, proposal["plan"]
-                        ):
+                        if self.is_in_plan(last_observed_main_action, proposal["plan"]):
                             remained_proposals[pred_id] = proposal
                             print("accept")
                         else:
@@ -873,12 +893,10 @@ class NOPA_agent:
         else:
             self.proposals = {}
 
-
         # NEW PROPOSALS
         if self.new_action:
-            self.history_obs.append([node["id"] for node in obs['nodes']])
+            self.history_obs.append([node["id"] for node in obs["nodes"]])
             self.history_graph.append(copy.deepcopy(obs))
-
 
         replan_for_helper = True
         if self.last_goal_edge is not None and "offer" not in self.last_goal_edge:
@@ -890,21 +908,17 @@ class NOPA_agent:
             if len(in_helper_hands) > 0:
                 inferred_goal = edge2goal(self.last_goal_edge)
                 print("last helper goal:", inferred_goal)
-                if (
-                    len(inferred_goal) > 0
-                ):  # if no edge prediction then None action
+                if len(inferred_goal) > 0:  # if no edge prediction then None action
                     actions, info = self.get_actions(
-                        obs,
+                        curr_obs,
                         length_plan=10,
                         must_replan=True,
-                        agent_id=2,
+                        agent_id=1,
                         inferred_goal=inferred_goal,
                         opponent_subgoal=None,
                     )
                     helper_action = (
-                        actions[0]
-                        if actions is not None and len(actions) > 0
-                        else None
+                        actions[0] if actions is not None and len(actions) > 0 else None
                     )
                 else:
                     helper_action = None
@@ -915,19 +929,21 @@ class NOPA_agent:
 
         if len(self.proposals) < 1:  # args.num_samples / 3:
             self.steps_since_last_prediction = 0
-            print(len(self.history_graph))
-            print(len(self.history_action))
-            print(len(self.history_obs))
-            assert len(self.history_graph) == len(self.history_obs)
-            assert len(self.history_graph) == len(self.history_action)
-            # if len(proposals) == 0:
-            #     history_graph = [history_graph[-1:]]
-            #     history_obs = [history_obs[-1:]]
-            #     history_action = [history_action[-1:]]
-            if self.history_action[-1] is not None:
-                # ipdb.set_trace()
-                inputs_func = (
-                    utils_models_wb.prepare_graph_for_task_model_diff(
+            if False: #not self.new_action:
+                task_result = []
+            else:
+                print(len(self.history_graph))
+                print(len(self.history_action))
+                print(len(self.history_obs))
+                assert len(self.history_graph) == len(self.history_obs)
+                assert len(self.history_graph) == len(self.history_action)
+                # if len(proposals) == 0:
+                #     history_graph = [history_graph[-1:]]
+                #     history_obs = [history_obs[-1:]]
+                #     history_action = [history_action[-1:]]
+                if self.history_action[-1] is not None:
+                    # ipdb.set_trace()
+                    inputs_func = utils_models_wb.prepare_graph_for_task_model_diff(
                         self.history_graph,
                         self.history_obs,
                         self.history_action,
@@ -935,73 +951,68 @@ class NOPA_agent:
                         self.graph_helper,
                         batch_repeat=num_samples,
                     )
-                )
-                with torch.no_grad():
-                    output_func = self.model(inputs_func, inference=True)
-                # ipdb.set_trace()
-                # First particle, first timestep, since all the particles have the same time graph
-                task_graph_input = self.graph_helper.get_task_graph(
-                    inputs_func["input_task_graph"][0, 0], use_dict=True
-                )
-                task_result = []
-                num_tsteps = output_func["pred_graph"].shape[1]
-                if not self.model.use_vae and self.args.num_samples > 1:
+                    with torch.no_grad():
+                        output_func = self.model(inputs_func, inference=True)
                     # ipdb.set_trace()
-                    sample = True
-
-                    pred_graph_prob = output_func["pred_graph"]
-                    if not sample:
-                        pred_graph = (
-                            pred_graph_prob.argmax(-1).cpu().numpy()
-                        )
-                    else:
-                        pred_graph_prob = (
-                            nn.functional.softmax(pred_graph_prob, dim=-1)
-                            .cpu()
-                            .numpy()
-                        )
-                        pred_graph = utils_models_wb.vectorized(
-                            pred_graph_prob
-                        )
-
-                else:
-                    if self.args_pred.name_log == "uniform":
-                        pred_graph = output_func["pred_graph"]
-                    else:
-                        # VAE, take max
-                        pred_graph = output_func["pred_graph"].argmax(-1)
-                for ind in range(num_samples):
-                    task_graphs = []
-                    for tstep in range(num_tsteps):
-                        try:
-                            curr_task_graph = self.graph_helper.get_task_graph(
-                                pred_graph[ind, tstep], use_dict=True
-                            )
-                        except:
-                            ipdb.set_trace()
-                        # ipdb.set_trace()
-                        # curr_mask_task = mask_task_graph[ind, tstep]
-                        curr_mask_task = None
-                        task_graphs.append(
-                            (
-                                curr_task_graph,
-                                curr_mask_task,
-                                task_graph_input,
-                            )
-                        )
-                    # if args.debug:
-                    #     print(ind, task_graphs)
-                    #     # ipdb.set_trace()
-
-                    goal_pred = self.get_edge_class(
-                        task_graphs,
-                        len(task_graphs) - 1,
+                    # First particle, first timestep, since all the particles have the same time graph
+                    task_graph_input = self.graph_helper.get_task_graph(
+                        inputs_func["input_task_graph"][0, 0], use_dict=True
                     )
-                    if (
-                        self.is_in_goal(self.grabbed_obj, goal_pred)
-                        or not self.inv_plan
-                    ):
-                        task_result.append(task_graphs)
+                    task_result = []
+                    num_tsteps = output_func["pred_graph"].shape[1]
+                    if not self.model.use_vae and self.args.num_samples > 1:
+                        # ipdb.set_trace()
+                        sample = True
+
+                        pred_graph_prob = output_func["pred_graph"]
+                        if not sample:
+                            pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
+                        else:
+                            pred_graph_prob = (
+                                nn.functional.softmax(pred_graph_prob, dim=-1)
+                                .cpu()
+                                .numpy()
+                            )
+                            pred_graph = utils_models_wb.vectorized(pred_graph_prob)
+
+                    else:
+                        if self.args_pred.name_log == "uniform":
+                            pred_graph = output_func["pred_graph"]
+                        else:
+                            # VAE, take max
+                            pred_graph = output_func["pred_graph"].argmax(-1)
+                    for ind in range(num_samples):
+                        task_graphs = []
+                        for tstep in range(num_tsteps):
+                            try:
+                                curr_task_graph = self.graph_helper.get_task_graph(
+                                    pred_graph[ind, tstep], use_dict=True
+                                )
+                            except:
+                                ipdb.set_trace()
+                            # ipdb.set_trace()
+                            # curr_mask_task = mask_task_graph[ind, tstep]
+                            curr_mask_task = None
+                            task_graphs.append(
+                                (
+                                    curr_task_graph,
+                                    curr_mask_task,
+                                    task_graph_input,
+                                )
+                            )
+                        # if args.debug:
+                        #     print(ind, task_graphs)
+                        #     # ipdb.set_trace()
+
+                        goal_pred = self.get_edge_class(
+                            task_graphs,
+                            len(task_graphs) - 1,
+                        )
+                        if (
+                            self.is_in_goal(self.grabbed_obj, goal_pred)
+                            or not self.inv_plan
+                        ):
+                            task_result.append(task_graphs)
             print("planning for the helper agent")
             action_freq = {}
             opponent_subgoal_freq = {}
@@ -1027,9 +1038,7 @@ class NOPA_agent:
             else:
                 res = manager.dict()
                 print(len(task_result), self.num_processes)
-                for start_root_id in range(
-                    0, len(task_result), self.num_processes
-                ):
+                for start_root_id in range(0, len(task_result), self.num_processes):
                     end_root_id = min(
                         start_root_id + self.num_processes, len(task_result)
                     )
@@ -1075,7 +1084,6 @@ class NOPA_agent:
                     "plan_cost": plan_cost,
                     "edge_steps": {},
                 }
-
 
                 if subgoal is not None:
                     if subgoal not in opponent_subgoal_freq:
@@ -1135,7 +1143,7 @@ class NOPA_agent:
             # print(edge_freq)
             # ipdb.set_trace()
         else:
-            steps_since_last_prediction += 1
+            self.steps_since_last_prediction += 1
             edge_freq = {}
             edge_steps = {}
             combined_edge_freq = {}
@@ -1206,13 +1214,11 @@ class NOPA_agent:
                 combined_edge_freq[edge_goal_name] += freq
 
         if len(task_result) == 0:
-            last_goal_edge = None
+            self.last_goal_edge = None
             selected_actions[1] = None
         else:
             if replan_for_helper:
-                _, curr_edge_list = get_edge_instance_from_state(
-                    curr_obs[1]
-                )
+                _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
                 goal_edges = []
                 for edge in edge_freq:
                     edge_steps[edge] = np.mean(edge_steps[edge])
@@ -1226,33 +1232,8 @@ class NOPA_agent:
                     if (
                         edge_steps[edge] > 1 + 1e-6
                         and edge not in curr_edge_list
+                        and edge_freq[edge] > 0.2
                     ):
-                        # if tv and (
-                        #     not (
-                        #         "chips" in edge
-                        #         or "remotecontrol" in edge
-                        #         or "condimentbottle" in edge
-                        #         or "condimentshaker" in edge
-                        #     )
-                        # ):
-                        #     continue
-                        # if food and (
-                        #     not (
-                        #         "salmon" in edge
-                        #         or "apple" in edge
-                        #         or "cupcake" in edge
-                        #         or "pudding" in edge
-                        #     )
-                        # ):
-                        #     continue
-                        # if dish and (
-                        #     not (
-                        #         "plate" in edge
-                        #         or "fork" in edge
-                        #         or "glass" in edge
-                        #     )
-                        # ):
-                        #     continue
                         goal_edges.append(edge)
                 # if args.debug and steps == 4:
                 #     ipdb.set_trace()
@@ -1297,9 +1278,7 @@ class NOPA_agent:
                         )
                 else:
                     for start_root_id in range(0, num_goals, self.num_processes):
-                        end_root_id = min(
-                            start_root_id + self.num_processes, num_goals
-                        )
+                        end_root_id = min(start_root_id + self.num_processes, num_goals)
                         jobs = []
                         for process_id in range(start_root_id, end_root_id):
                             # print(process_id)
@@ -1351,9 +1330,7 @@ class NOPA_agent:
                                         or "bathroom" in action
                                     ):
                                         if estimated_steps == 0:
-                                            first_walk_steps += int(
-                                                cost + 0.5
-                                            )
+                                            first_walk_steps += int(cost + 0.5)
                                 #        estimated_steps += 5
                                 #     else:
                                 #         estimated_steps += 2
@@ -1373,21 +1350,16 @@ class NOPA_agent:
                             ):  # still in the initial location
                                 continue
                             value = (
-                                -self.args.beta * estimated_steps
-                                -self.args.lam * dist
+                                -self.args.beta * estimated_steps - self.args.lam * dist
                             )
                             estimated_steps_back = 0
                         elif estimated_steps is None:
                             value = -1e6
                             estimated_steps_back = None
                         else:
-                            if (
-                                dist < 0
-                            ):  # remove accidental retuning subgoals?
+                            if dist < 0:  # remove accidental retuning subgoals?
                                 continue
-                            estimated_steps_back = (
-                                estimated_steps - first_walk_steps
-                            )
+                            estimated_steps_back = estimated_steps - first_walk_steps
                             edge_goal_name = edge2name(goal_edges[pred_id])
                             value = (
                                 self.args.alpha
@@ -1424,60 +1396,11 @@ class NOPA_agent:
                                 dist,
                                 value,
                             )
-                        # if (
-                        #     value > best_value
-                        #     or abs(value - best_value) < 1e-6
-                        #     and last_goal_edge is not None
-                        #     and (
-                        #         'chips' in last_goal_edge
-                        #         or 'remotecontrol' in last_goal_edge
-                        #     )
-                        #     and estimated_steps < best_estimated_steps
-                        # ):
-
-                        # if (
-                        #     value > best_value
-                        #     or abs(value - best_value) < 1e-6
-                        #     and (
-                        #         last_goal_edge_curr != last_goal_edge
-                        #         and (
-                        #             estimated_steps < best_estimated_steps
-                        #             and (
-                        #                 'chips' not in goal_edges[pred_id]
-                        #                 and 'remotecontrol'
-                        #                 not in goal_edges[pred_id]
-                        #             )
-                        #             or last_goal_edge is not None
-                        #             and (
-                        #                 'chips' in last_goal_edge
-                        #                 or 'remotecontrol' in last_goal_edge
-                        #             )
-                        #         )
-                        #     )
-                        # ):
-                        # if (
-                        #     value > best_value
-                        #     or abs(value - best_value) < 1e-6
-                        #     and (
-                        #         last_goal_edge_curr != last_goal_edge
-                        #         and (
-                        #             (
-                        #                 estimated_steps
-                        #                 < best_estimated_steps
-                        #                 # or last_goal_edge is not None
-                        #             )
-                        #             and "offer" not in goal_edges[pred_id]
-                        #             or last_goal_edge_curr is not None
-                        #             and "offer" in last_goal_edge_curr
-                        #             and ("offer" not in goal_edges[pred_id])
-                        #         )
-                        #     )
-                        # ):
                         if (
                             value > best_value
                             or abs(value - best_value) < 1e-6
                             and (
-                                last_goal_edge_curr != last_goal_edge
+                                last_goal_edge_curr != self.last_goal_edge
                                 and (
                                     (
                                         estimated_steps
@@ -1493,9 +1416,7 @@ class NOPA_agent:
                         ):
 
                             best_value = value
-                            selected_actions[1] = convert_walktowards(
-                                plan[0]
-                            )
+                            selected_actions[1] = convert_walktowards(plan[0])
                             last_goal_edge_curr = goal_edges[pred_id]
                             best_estimated_steps = estimated_steps
                             # print('accept', last_goal_edge)
@@ -1508,9 +1429,9 @@ class NOPA_agent:
                                     best_estimated_steps,
                                     goal_edges[pred_id],
                                     last_goal_edge_curr,
-                                    last_goal_edge,
+                                    self.last_goal_edge,
                                 )
-                    last_goal_edge = last_goal_edge_curr
+                    self.last_goal_edge = last_goal_edge_curr
 
             else:
                 selected_actions[1] = convert_walktowards(helper_action)
@@ -1518,11 +1439,7 @@ class NOPA_agent:
         prev_obs = copy.deepcopy(curr_obs)
         prev_graph = copy.deepcopy(curr_graph)
 
-
-
         return selected_actions[1], {}
-
-
 
     def get_goal2(self, task_spec):
         # pred = [x for x, y in task_spec.items() if y['count'] > 0 and x.split('_')[0] in ['on', 'inside']]
@@ -1531,31 +1448,52 @@ class NOPA_agent:
         res_dict = {
             goal_k: copy.deepcopy(goal_c)
             for goal_k, goal_c in task_spec.items()
-            if goal_c['count'] > 0
+            if goal_c["count"] > 0
         }
         for goal_k, goal_dict in res_dict.items():
-            goal_dict.update({'final': True, 'reward': 2})
+            goal_dict.update({"final": True, "reward": 2})
         # res_dict.update(predicates_grab)
         return res_dict
 
-
-    def get_actions(self, obs, length_plan, must_replan, agent_id, inferred_goal=None, opponent_subgoal=None):
+    def get_actions(
+        self,
+        obs,
+        length_plan,
+        must_replan,
+        agent_id,
+        inferred_goal=None,
+        opponent_subgoal=None,
+    ):
+        dict_actions = {0: None, 1:None}
+        dict_info = {0: None, 1:None}
         goal_spec = self.get_goal2(inferred_goal)
         dict_actions = {}
         dict_info = {}
-        dict_actions[agent_id], dict_info[agent_id] = self.agents[agent_id].get_action(
-                    obs[agent_id],
-                    goal_spec,
-                    opponent_subgoal,
-                    length_plan=length_plan,
-                    must_replan=must_replan,
-                )
+        #if agent_id in self.agents:
+        try:
+            dict_actions[agent_id], dict_info[agent_id] = self.agents[agent_id].get_action(
+                obs[agent_id],
+                goal_spec,
+                opponent_subgoal,
+                length_plan=length_plan,
+                must_replan=must_replan,
+            )
+        except:
+            import ipdb
+            ipdb.set_trace()
         return dict_actions, dict_info
 
-
-    def reset(self, observed_graph, gt_graph, container_id, task_goal, seed=0, simulator_type='python', is_alice=False):
+    def reset(
+        self,
+        observed_graph,
+        gt_graph,
+        container_id,
+        task_goal,
+        seed=0,
+        simulator_type="python",
+        is_alice=False,
+    ):
         self.class2id = {}
-        
 
         self.gt_container_id = container_id
 
@@ -1569,7 +1507,9 @@ class NOPA_agent:
         self.last_action = None
         self.last_subgoal = None
         for ind_agent in range(len(self.agents)):
-            self.agents[ind_agent].reset(observed_graph, gt_graph, task_goal, seed, simulator_type, is_alice)
+            self.agents[ind_agent].reset(
+                observed_graph, gt_graph, task_goal, seed, simulator_type, is_alice
+            )
         self.history_action = []
         self.history_obs = []
         self.history_graph = []
@@ -1582,9 +1522,7 @@ class NOPA_agent:
 
         self.steps_since_last_prediction = 0
         self.all_reject = False
-        self.reset_steps = None
+        # self.reset_steps = None
         self.new_action = True
         self.steps_since_last_prediction = 0
         self.last_goal_edge = None
-        
-

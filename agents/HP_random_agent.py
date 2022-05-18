@@ -630,9 +630,9 @@ def edge2goal(edge):
     return goal
 
 
-class HP_agent:
+class HP_random_agent:
     """
-    Hierarchical Planner agent
+    Hierarchical Planner with Random Goals agent
     """
 
     def __init__(
@@ -653,7 +653,7 @@ class HP_agent:
         inv_plan=True,
         seed=None,
     ):
-        self.agent_type = "HP_GP"
+        self.agent_type = "HP_Random"
         self.verbose = False
         self.recursive = recursive
 
@@ -743,6 +743,7 @@ class HP_agent:
         )
         self.args_pred.ckpt_load = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph/290.pt"
         self.graph_helper = None
+        self.args_pred.name_log = "uniform"
         if self.args_pred.name_log == "uniform":
             model = agent_pref_policy.UniformModel()
         else:
@@ -831,7 +832,6 @@ class HP_agent:
         curr_obs = {0: obs, 1: obs}
         curr_graph = obs
         num_samples = self.num_samples
-        task_result = []
         selected_actions = {1: None}
         if (
             len(self.history_action) == 0
@@ -848,49 +848,12 @@ class HP_agent:
             # ):
             #     early_stopping = True
 
-        if (
-            self.inv_plan
-            and len(self.proposals) > 0
-            and self.steps_since_last_prediction < self.reset_steps
-        ):
-            last_observed_main_action = self.history_action[-1]
-            if last_observed_main_action is not None:
-                last_observed_main_action = last_observed_main_action.replace(
-                    "walktowards", "walk"
-                )
-            remained_proposals = {}
-            for pred_id, proposal in self.proposals.items():
-                print(pred_id)
-                goal_pred = self.get_edge_class(
-                    proposal["pred"],
-                    len(proposal["pred"]) - 1,
-                )
-                if not self.is_in_goal(self.grabbed_obj, goal_pred):
-                    print("reject")
-                else:
-                    print(last_observed_main_action, proposal["plan"])
-                    if last_observed_main_action is None:
-                        remained_proposals[pred_id] = proposal
-                        print("accept")
-                    else:
-                        if self.is_in_plan(last_observed_main_action, proposal["plan"]):
-                            remained_proposals[pred_id] = proposal
-                            print("accept")
-                        else:
-                            print("reject")
-            self.proposals = dict(remained_proposals)
-            if len(self.proposals) == 0:
-                all_reject = True
-            # ipdb.set_trace()
-        else:
-            self.proposals = {}
-
         # NEW PROPOSALS
         if self.new_action:
             self.history_obs.append([node["id"] for node in obs["nodes"]])
             self.history_graph.append(copy.deepcopy(obs))
 
-        if len(self.proposals) < 1:  # args.num_samples / 3:
+        if len(self.task_result) < 1:  # args.num_samples / 3:
             self.steps_since_last_prediction = 0
             print(len(self.history_graph))
             print(len(self.history_action))
@@ -918,7 +881,6 @@ class HP_agent:
                 task_graph_input = self.graph_helper.get_task_graph(
                     inputs_func["input_task_graph"][0, 0], use_dict=True
                 )
-                task_result = []
                 num_tsteps = output_func["pred_graph"].shape[1]
                 if not self.model.use_vae and self.num_samples > 1:
                     # ipdb.set_trace()
@@ -962,39 +924,172 @@ class HP_agent:
                     #     print(ind, task_graphs)
                     #     # ipdb.set_trace()
 
-                    goal_pred = self.get_edge_class(
-                        task_graphs,
-                        len(task_graphs) - 1,
-                    )
-                    if (
-                        self.is_in_goal(self.grabbed_obj, goal_pred)
-                        or not self.inv_plan
-                    ):
-                        task_result.append(task_graphs)
-            print("planning for the helper agent")
-            action_freq = {}
+                    # goal_pred = self.get_edge_class(
+                    #     task_graphs,
+                    #     len(task_graphs) - 1,
+                    # )
+                    self.task_result.append(task_graphs)
 
-            self.proposals = {}
-            combined_edge_freq = {}
-            for pred_id, (pred) in enumerate(task_result):
-                self.proposals[pred_id] = {
-                    "pred": pred,
-                }
-        else:
-            self.steps_since_last_prediction += 1
+        action_freq = {}
+        # opponent_subgoal_freq = {}
+        manager = mp.Manager()
+        task_result = self.task_result
 
-        if len(self.proposals) == 0:
+        # if self.num_processes == 0:
+        #     res = {}
+        #     for index in range(len(task_result)):
+
+        #         pred_main_agent_plan(
+        #             index,
+        #             task_result[index],
+        #             self.class2id,
+        #             self.gt_container_id,
+        #             steps - 3,
+        #             self.get_actions,
+        #             curr_obs,
+        #             self.pred_main_plan_length,
+        #             {0: True, 1: True},
+        #             1,
+        #             res,
+        #         )
+        # else:
+        #     res = manager.dict()
+        #     for start_root_id in range(0, len(task_result), self.num_processes):
+        #         end_root_id = min(start_root_id + self.num_processes, len(task_result))
+        #         jobs = []
+        #         for process_id in range(start_root_id, end_root_id):
+        #             # print(process_id)
+        #             p = mp.Process(
+        #                 target=pred_main_agent_plan,
+        #                 args=(
+        #                     process_id,
+        #                     task_result[process_id],
+        #                     self.class2id,
+        #                     self.gt_container_id,
+        #                     steps - 3,
+        #                     self.get_actions,
+        #                     curr_obs,
+        #                     15,
+        #                     {0: True, 1: True},
+        #                     1,
+        #                     res,
+        #                 ),
+        #             )
+        #             jobs.append(p)
+        #             p.start()
+        #         for p in jobs:
+        #             p.join()
+        # # all_plan_states = []
+        # edge_freq = {}
+        # edge_steps = {}
+        # self.proposals = {}
+        # combined_edge_freq = {}
+        # for pred_id, (
+        #     subgoal,
+        #     plan,
+        #     plan_states,
+        #     plan_cost,
+        # ) in res.items():
+        #     self.proposals[pred_id] = {
+        #         "pred": task_result[pred_id],
+        #         "subgoal": subgoal,
+        #         "plan": plan,
+        #         "plan_states": plan_states,
+        #         "plan_cost": plan_cost,
+        #         "edge_steps": {},
+        #     }
+
+        #     if subgoal is not None:
+        #         if subgoal not in opponent_subgoal_freq:
+        #             opponent_subgoal_freq[subgoal] = 1
+        #         else:
+        #             opponent_subgoal_freq[subgoal] += 1
+        #         # print(len(plan_states))
+        #         if plan_states is not None and len(plan_states) > 0:
+        #             # all_plan_states.append(plan_states)
+        #             all_edges = []
+        #             estimated_steps = 0
+
+        #             for t, (action, state, cost) in enumerate(
+        #                 zip(plan, plan_states, plan_cost)
+        #             ):
+        #                 (
+        #                     edge_pred_ins,
+        #                     edge_list,
+        #                 ) = get_edge_instance_from_state(state)
+
+        #                 all_edges += edge_list
+        #                 estimated_steps += max(int(cost + 0.5), 1)
+
+        #                 for edge in edge_list:
+        #                     if edge not in edge_freq:
+        #                         edge_freq[edge] = 0
+        #                         if edge not in edge_steps:
+        #                             edge_steps[edge] = []
+        #                         edge_steps[edge].append(estimated_steps)
+        #                         self.proposals[pred_id]["edge_steps"][
+        #                             edge
+        #                         ] = estimated_steps
+        #         # ipdb.set_trace()
+        #         edge_pred_ins, edge_list = get_edge_instance_from_pred(
+        #             task_result[pred_id], self.class2id, self.gt_container_id
+        #         )
+        #         all_edges += edge_list
+        #         estimated_steps = 100  # TODO: tune this
+        #         for edge in edge_list:
+        #             if edge not in edge_freq:
+        #                 edge_freq[edge] = 0
+        #                 if edge not in edge_steps:
+        #                     edge_steps[edge] = []
+        #                 edge_steps[edge].append(estimated_steps)
+        #                 self.proposals[pred_id]["edge_steps"][edge] = estimated_steps
+
+        #         all_edges = list(set(all_edges))
+        #         for edge in all_edges:
+        #             edge_freq[edge] += 1.0 / len(res)
+        # for edge, freq in edge_freq.items():
+        #     edge_goal_name = edge2name(edge)
+        #     if edge_goal_name not in combined_edge_freq:
+        #         combined_edge_freq[edge_goal_name] = 0
+        #     combined_edge_freq[edge_goal_name] += freq
+        # # print(edge_freq)
+        # # ipdb.set_trace()
+
+        if len(task_result) == 0:
             selected_actions[1] = None
         else:
             # ======================================================
             # get helper agent's action
             action_freq = {}
-            manager = mp.Manager()
+            # print("gt goal:", gt_goal)
+            # print("pred goal")
+            # edge_pred_class_estimated = aggregate_multiple_pred(
+            #     task_result, steps - 3, change=True
+            # )
+            # for edge_class, count in edge_pred_class_estimated.items():
+            #     if (
+            #         edge_pred_class_estimated[edge_class][0] < 1e-6
+            #         and edge_pred_class_estimated[edge_class][1] < 1e-6
+            #     ):
+            #         continue
+            #     print(edge_class, edge_pred_class_estimated[edge_class])
+            # print("edge freq:")
+            # _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
+
+            # max_freq = 0
+            # opponent_subgoal = None
+            # for subgoal, count in opponent_subgoal_freq.items():
+            #     if count > max_freq:
+            #         max_freq = count
+            #         opponent_subgoal = subgoal
+            #     print(subgoal, count / len(self.proposals))
+            # print("predicted main's subgoal:", opponent_subgoal)
+            # # ipdb.set_trace()
+            # del res
+
             res = manager.dict()
-            num_goals = len(self.proposals)
-            curr_pred_goals = [
-                proposal["pred"] for pred_id, proposal in self.proposals.items()
-            ]
+            num_goals = len(self.task_result)
+            curr_pred_goals = [pred for pred in self.task_result]
             if self.num_processes == 0:
                 for process_id in range(num_goals):
                     get_helping_plan(
@@ -1137,6 +1232,7 @@ class HP_agent:
             toy_dataset=self.args_pred["model"]["reduced_graph"],
         )
         self.proposals = {}
+        self.task_result = []
         self.grabbed_obj = {obj_type: False for obj_type in all_object_types}
 
         self.steps_since_last_prediction = 0
