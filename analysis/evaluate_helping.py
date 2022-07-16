@@ -200,7 +200,7 @@ def get_metrics_reward(
     for seed in range(num_tries):
         alice_S = []
         alice_L = []
-    normalized_by_suc = True
+    normalized_by_suc = False
     for episode_id in episode_ids:
         Ls = []
         Ss = []
@@ -223,8 +223,8 @@ def get_metrics_reward(
             # print(episode_id, seed)
             continue
         L_A_seeds = [t for t in L_A_seeds if t is not None]
-        if normalized_by_suc:
-            L_A_seeds = [t for t in L_A_seeds if t < time_limit]
+        # if normalized_by_suc:
+        L_A_seeds = [t for t in L_A_seeds if t < time_limit]
 
         Ls = []
         Ss = []
@@ -296,6 +296,81 @@ def get_metrics_reward(
     )
 
 
+def get_class_from_state(state):
+    id2node = {node["id"]: node["class_name"] for node in state["nodes"]}
+    edges = state["edges"]
+    nodes = state["nodes"]
+
+    edge_class_count = {}
+
+    num_edges = len(edges)
+    # print(pred_from_ids[t], num_edges)
+    for edge_id in range(num_edges):
+        from_id = edges[edge_id]["from_id"]
+        to_id = edges[edge_id]["to_id"]
+        from_node_name = id2node[from_id]
+        to_node_name = id2node[to_id]
+        # if object_name in from_node_name or object_name in to_node_name:
+        edge_name = edges[edge_id]["relation_type"].lower()
+        if edge_name in ["inside", "on"]:  # disregard room locations + plate
+            if to_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "plate",
+            ]:
+                continue
+            if from_node_name in [
+                "kitchen",
+                "livingroom",
+                "bedroom",
+                "bathroom",
+                "character",
+            ]:
+                continue
+            if from_node_name not in [
+                "plate",
+                "cutleryfork",
+                "waterglass",
+                "cupcake",
+                "salmon",
+                "apple",
+                "remotecontrol",
+                "chips",
+                "condimentbottle",
+                "condimentshaker",
+                "wineglass",
+                "pudding",
+            ]:
+                continue
+        else:
+            continue
+
+        edge_class = "{}_{}_{}".format(edge_name, from_node_name, to_node_name)
+        if edge_class not in edge_class_count:
+            edge_class_count[edge_class] = 1
+        else:
+            edge_class_count[edge_class] += 1
+    return edge_class_count
+
+
+def compute_dist(edge_class_1, edge_class_2):
+    edge_classes = set(list(edge_class_1.keys()) + list(edge_class_2.keys()))
+    dist = 0
+    for edge in edge_classes:
+        if edge not in edge_class_1:
+            cnt1 = 0
+        else:
+            cnt1 = edge_class_1[edge]
+        if edge not in edge_class_2:
+            cnt2 = 0
+        else:
+            cnt2 = edge_class_2[edge]
+        dist += abs(cnt1 - cnt2)
+    return dist
+
+
 @hydra.main(config_path="../config/", config_name="config_default_toy_excl_plan")
 def main(cfg: DictConfig):
     config = cfg
@@ -339,31 +414,54 @@ def main(cfg: DictConfig):
     # # =======================
     # cachedir = f"{get_original_cwd()}/outputs/helping_gt_goal"
 
-    # =======================
-    # ours
-    # =======================
-    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r2_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # # # =======================
+    # # ours
+    # # =======================
+    # cachedir = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences//results/results_smallset_help/helping_states_fastwalk_r15_0_5_ip1_detfull_alldata_20_1.0_1.0_5.0"
+    # # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r15_0_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # # # 20%
+    # # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r15_0_3_ip1_detfull_r0.2_20_1.0_1.0_5.0"
 
     # # =======================
     # # single particle
     # # =======================
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_1_1.0_1.0_5.0"
+    # # cachedir = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences//results/results_smallset_help/helping_states_fastwalk_r15_0_5_ip0_detfull_alldata_1_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_action_freq_fastwalk_r15_0_3_ip1_detfull_encoder_task_graph_1_1.0_1.0_5.0"
+    # # 5%
+    # cachedir = f"{get_original_cwd()}/outputs/helping_action_freq_fastwalk_r15_0_3_ip1_detfull_r0.05_1_1.0_1.0_5.0"
 
-    # # =======================
-    # # w/o inv plan
-    # # =======================
-    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # # 20%
+    # cachedir = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/results/results_smallset_help/helping_states_fastwalk_r15_0_5_ip0_detfull_r0.20_1_1.0_1.0_5.0"
+
+    # =======================
+    # w/o inv plan
+    # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r15_0_3_ip0_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # %5
+    cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r15_0_3_ip0_detfull_r0.05_20_1.0_1.0_5.0"
 
     # # # =======================
     # # ours w/ uniform proposals
     # # # =======================
     # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r_1_3_ip1_uniform_20_1.0_1.0_5.0"
 
+    # # # =======================
+    # # empowerment
+    # # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_empowerment_fastwalk_r15_1_3_ip0_uniform_20_1.0_1.0_5.0"
+
     # # =======================
-    # empowerment
+    # # action frequency
     # # =======================
-    cachedir = f"{get_original_cwd()}/outputs/helping_empowerment_fastwalk_r15_1_3_ip0_uniform_20_1.0_1.0_5.0"
+    # # cachedir = f"{get_original_cwd()}/outputs/helping_action_freq_fastwalk_r15_1_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_action_freq_fastwalk_r15_0_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_5.0"
+    # # cachedir = f"{get_original_cwd()}/outputs/helping_action_freq_fastwalk_r15_0_3_ip1_detfull_r0.05_20_1.0_1.0_5.0"
+
+    # # =======================
+    # # ours w/o returning
+    # # =======================
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r15_0_3_ip1_detfull_encoder_task_graph_20_1.0_1.0_0.0"
+    # cachedir = f"{get_original_cwd()}/outputs/helping_states_fastwalk_r15_0_3_ip1_detfull_r0.05_20_1.0_1.0_0.0"
 
     agent_types = [
         ["full", 0, 0.05, False, 0, "uniform"],  # 0
@@ -481,6 +579,10 @@ def main(cfg: DictConfig):
 
     print(len(help_results))
 
+    main_dist = {}
+    helper_dist = {}
+    all_dist = []
+
     for episode_id in help_results:
         try:
             print(episode_id, main_results[episode_id], help_results[episode_id])
@@ -509,16 +611,64 @@ def main(cfg: DictConfig):
                 x for x in tmp_list if x < args.max_episode_length
             ]
 
-    # if np.mean(help_results[episode_id]["S"]) < np.mean(
-    #     main_results[episode_id]["S"]
-    # ):
-    #     log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
-    #         episode_id, 0
-    #     )
-    #     log_res = pickle.load(open(log_file_name, "rb"))
-    #     ipdb.set_trace()
-    # print(main_results[152])
-    # print(help_results)
+    #     main_dist[episode_id] = []
+    #     helper_dist[episode_id] = []
+
+    #     for iter_id in range(0, num_tries):
+    #         main_log_file_name = (
+    #             record_dir_main
+    #             + "/logs_episode.{}_iter.{}.pik".format(episode_id, iter_id)
+    #         )
+
+    #         if os.path.isfile(main_log_file_name):
+    #             main_log = pickle.load(open(main_log_file_name, "rb"))
+
+    #             if len(main_log["graph"]) < 250 - 2:
+    #                 init_state = main_log["graph"][0]
+    #                 final_state = main_log["graph"][-1]
+    #                 init_edge_class, final_edge_class = get_class_from_state(
+    #                     init_state
+    #                 ), get_class_from_state(final_state)
+    #                 # print("init")
+    #                 # print(init_edge_class)
+    #                 # print("final")
+    #                 # print(final_edge_class)
+    #                 print("main dist")
+    #                 dist = compute_dist(init_edge_class, final_edge_class)
+    #                 print(dist)
+    #                 main_dist[episode_id].append(dist)
+
+    #         log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
+    #             episode_id, iter_id
+    #         )
+
+    #         if os.path.isfile(log_file_name):
+    #             helper_log = pickle.load(open(log_file_name, "rb"))
+    #             if len(helper_log["graph"]) < 250 - 2:
+    #                 init_state = helper_log["graph"][0]
+    #                 final_state = helper_log["graph"][-1]
+    #                 init_edge_class, final_edge_class = get_class_from_state(
+    #                     init_state
+    #                 ), get_class_from_state(final_state)
+    #                 # print("init")
+    #                 # print(init_edge_class)
+    #                 # print("final")
+    #                 # print(final_edge_class)
+    #                 print("helper dist")
+    #                 dist = compute_dist(init_edge_class, final_edge_class)
+    #                 print(dist)
+    #                 helper_dist[episode_id].append(dist)
+
+    #     if len(helper_dist[episode_id]) > 0 and len(main_dist[episode_id]) > 0:
+    #         all_dist.append(
+    #             np.mean(helper_dist[episode_id]) - np.mean(main_dist[episode_id])
+    #         )
+
+    # DIST = np.mean(all_dist)
+    # stDIST = np.std(all_dist) / len(all_dist)
+
+    # DIST2 = np.mean([x >= 1 for x in all_dist])
+    # stDIST2 = np.std([x >= 1 for x in all_dist]) / len(all_dist)
 
     SR, AL, SP, SWS, stdSR, stdL, stdSP, stdR = get_metrics_reward(
         main_results,
@@ -527,7 +677,14 @@ def main(cfg: DictConfig):
         num_tries,
         time_limit=args.max_episode_length,
     )
-    # Success, Length, SpeedUp, Reward
+
+    # # Success, Length, SpeedUp, Reward
+    # print("SR", "AL", "SP", "Reward", "DIST", "DIST2")
+    # print(SR, AL, SP, SWS, DIST, DIST2)
+
+    # print("stdSR", "stdL", "stdSP", "stdR", "stDIST", "stDIST2")
+    # print(stdSR, stdL, stdSP, stdR, stDIST, stDIST2)
+
     print("SR", "AL", "SP", "Reward")
     print(SR, AL, SP, SWS)
 

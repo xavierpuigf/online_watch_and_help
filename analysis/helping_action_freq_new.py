@@ -988,9 +988,9 @@ def main(cfg: DictConfig):
             )
             failure_file = "{}/{}_{}.txt".format(error_dir, episode_id, iter_id)
 
-            # if os.path.isfile(log_file_name):  # or os.path.isfile(failure_file):
-            #     print(log_file_name)
-            #     continue
+            if os.path.isfile(log_file_name):  # or os.path.isfile(failure_file):
+                print(log_file_name)
+                continue
 
             if os.path.isfile(failure_file):
                 os.remove(failure_file)

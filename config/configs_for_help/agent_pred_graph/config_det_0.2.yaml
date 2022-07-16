@@ -1,0 +1,71 @@
+data_ratio: 0.2
+cuda: true
+logging: true
+name_log: detfull_encoder_task_graph
+inference: false
+save_inference: false
+plot_inference: true
+inference_sample: false
+inference_posterior: true
+samples_per_graph: 4
+ckpt_load: ''
+data:
+  train_data: dataset_graph_full_150step_larger_train.pkl
+  test_data: dataset_graph_full_150step_larger_test.pkl
+log:
+  print_every: 10
+  print_long_every: 50
+  delete_prior_logs: false
+  save_every: 10
+train:
+  epochs: 300
+  batch_size: 256
+  num_workers: 16
+  lr: 0.0009
+  overfit: false
+  agents: all
+  loss_close: 1.0
+  loss_goal: 1.0
+  loss_weighted_edge: false
+test:
+  num_iters: 20
+model:
+  use_only_input: true
+  condense_walking: true
+  exclusive_edge: true
+  predict_last: true
+  predict_diff: false
+  predict_edge_change: false
+  predict_node_change: false
+  input_goal: false
+  reduced_graph: false
+  global_repr: pool
+  edge_pred: concat
+  edge_types: 4
+  max_nodes: 70
+  max_class_objects: 37
+  max_actions: 10
+  num_states: 4
+  num_counts: 9
+  num_task_preds: 136
+  num_attributes: 6
+  hidden_size: 100
+  z_dim: 128
+  kl_coeff: 1
+  max_tsteps: 75
+  supervise_alltask: false
+  goal_inp: false
+  gated: false
+  agent_embed: false
+  num_agents: 100
+  relative_coords: false
+  input_vae: none
+  time_aggregate: seq
+  cond_prior: false
+  zvec: node
+  state_encoder: FC
+  autoencoder_type: ''
+  predict_category: true
+  predict_diff_preds: true
+  kl_annealing: true
+  kl_anneal_epoch: 60

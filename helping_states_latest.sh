@@ -1,3 +1,6 @@
+#==========
+# FULL SET
+#==========
 
 # KL 0.001
 export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.0.001-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.newvaefull_encoder_task_graph_condprior.False_zvec.node"
@@ -6,27 +9,8 @@ export full_ck=$rootpath$ck
 
 CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
     agent_pred_graph="config_vae0.001" num_processes=30 \
+    small_set=False num_tries=3 \
     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
-
-
-# # KL 0.0
-# export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.0.0-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.newvaefull_encoder_task_graph_condprior.False_zvec.node"
-# export ck=""
-# export full_ck=$rootpath$ck
-
-# CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
-#     agent_pred_graph="config_vae0.000" num_processes=30 \
-#     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
-
-
-# # KL 1.0
-# export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.newvaefull_encoder_task_graph_condprior.False_zvec.node"
-# export ck=""
-# export full_ck=$rootpath$ck
-
-# CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
-#     agent_pred_graph="config_vae1.000" num_processes=30 \
-#     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
 
 
 # Deterministic
@@ -36,7 +20,168 @@ export full_ck=$rootpath$ck
 
 CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
     agent_pred_graph="config_det" num_processes=30 \
+    small_set=False num_tries=3 reset_steps=15 \
     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8183 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 20% training
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det_0.2" agent_pred_graph.name_log="detfull_r0.2" num_processes=30 \
+    small_set=False num_tries=3 reset_steps=15\
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8190 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+
+# DEGBUG
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det" num_processes=30 debug=True\
+    small_set=False num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8181 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+ 
+
+
+#=========
+# FULL SET no return
+#=========
+# Deterministic
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det" num_processes=30 \
+    small_set=False num_tries=3 reset_steps=15 lam=0.0\
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8190 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 5% training
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det_0.05" agent_pred_graph.name_log="detfull_r0.05" num_processes=30 \
+    small_set=False num_tries=3 reset_steps=15 lam=0.0\
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8190 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+
+#==========
+# FULL SET 1 particle
+#==========
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det" num_processes=30 num_samples=1 inv_plan=False lam=0.0 \
+    small_set=False num_tries=3 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8184 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 20% training
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det_0.2" agent_pred_graph.name_log="detfull_r0.2" num_processes=30 num_samples=1 inv_plan=False\
+    small_set=False num_tries=3 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8191 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 100%
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_action_freq_new.py \
+    agent_pred_graph="config_det" num_samples=1 num_processes=1 \
+    small_set=False num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8184 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 5% training data
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=2 python analysis/helping_action_freq_new.py \
+    agent_pred_graph="config_det_0.05" agent_pred_graph.name_log="detfull_r0.05" num_samples=1 num_processes=1 \
+    small_set=False num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8185 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+# 20% training data
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.2"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=4 python analysis/helping_action_freq_new.py \
+    agent_pred_graph="config_det_0.2" agent_pred_graph.name_log="detfull_r0.2" num_samples=1 num_processes=1 \
+    small_set=False num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8186 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+#==========
+# FULL SET no inv plan
+#==========
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det" num_processes=30 inv_plan=False\
+    small_set=False num_tries=3 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8185 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+# 5%
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=0 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det_0.05" agent_pred_graph.name_log="detfull_r0.05" num_processes=30 \
+    small_set=False num_tries=3 reset_steps=15 inv_plan=False\
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8190 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+
+#=========
+# FULL SET w/ uniform proposal
+#=========
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=1 python analysis/helping_states_diffpred.py \
+    agent_pred_graph="config_det" num_processes=30 agent_pred_graph.name_log="uniform" \
+    small_set=False num_tries=3 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8186 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+#==========
+# FULL SET empowerment: no inv plan + w/ uniform proposal
+#==========
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph"
+export ck=""
+export full_ck=$rootpath$ck
+
+CUDA_VISIBLE_DEVICES=2 python analysis/helping_empowerment.py \
+    agent_pred_graph="config_det" num_processes=30 inv_plan=False agent_pred_graph.name_log="uniform" \
+    small_set=False num_tries=3 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8187 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+
+
 
 
 #==========
@@ -142,6 +287,27 @@ CUDA_VISIBLE_DEVICES=1 python analysis/helping_action_freq_new.py \
     small_set=True num_tries=3 reset_steps=15 \
     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8187 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
 
+# 5% training data
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=3 python analysis/helping_action_freq_new.py \
+    agent_pred_graph="config_det_0.05" agent_pred_graph.name_log="detfull_r0.05" num_processes=20 \
+    small_set=True num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8189 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 20% training data
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=3 python analysis/helping_action_freq_new.py \
+    agent_pred_graph="config_det_0.2" agent_pred_graph.name_log="detfull_r0.2" num_processes=20 \
+    small_set=True num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8192 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
 
 #==========
 # FULL SET action frequency
@@ -154,6 +320,18 @@ CUDA_VISIBLE_DEVICES=1 python analysis/helping_action_freq_new.py \
     agent_pred_graph="config_det" num_processes=20 \
     small_set=False num_tries=3 reset_steps=15 \
     agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8188 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
+
+# 5% training data
+export rootpath="/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/ckpts/predict_graph/train_data.dataset_graph_full_150step_larger_train.pkl/lr0.0009-bs.256-klcoff.1-goalenc.False_predchange.none_inputgoal.False_excledge.True_preddiff.Falsereduced_walk_logname.detfull_encoder_task_graph_dataratio.0.05"                                  
+export ck=""                                                                                                                                                                                                                                                                                                                                                              
+export full_ck=$rootpath$ck  
+
+CUDA_VISIBLE_DEVICES=3 python analysis/helping_action_freq_new.py \
+    agent_pred_graph="config_det_0.05" agent_pred_graph.name_log="detfull_r0.05" num_processes=20 \
+    small_set=False num_tries=3 reset_steps=15 \
+    agent_pred_graph.ckpt_load=$full_ck"/290.pt" base_port=8189 hydra.run.dir=. hydra.output_subdir=null hydra/job_logging=disabled hydra/hydra_logging=disabled
+
 
 
 

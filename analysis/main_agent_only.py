@@ -19,7 +19,7 @@ from models import agent_pref_policy
 from hydra.utils import get_original_cwd, to_absolute_path
 from utils import utils_models_wb, utils_rl_agent
 
-sys.path.append('.')
+sys.path.append(".")
 from envs.unity_environment import UnityEnvironment
 from agents import MCTS_agent, MCTS_agent_particle_v2_instance, MCTS_agent_particle
 
@@ -31,12 +31,12 @@ import torch
 
 
 def get_class_mode(agent_args):
-    mode_str = '{}_opencost{}_closecost{}_walkcost{}_forgetrate{}'.format(
-        agent_args['obs_type'],
-        agent_args['open_cost'],
-        agent_args['should_close'],
-        agent_args['walk_cost'],
-        agent_args['belief']['forget_rate'],
+    mode_str = "{}_opencost{}_closecost{}_walkcost{}_forgetrate{}".format(
+        agent_args["obs_type"],
+        agent_args["open_cost"],
+        agent_args["should_close"],
+        agent_args["walk_cost"],
+        agent_args["belief"]["forget_rate"],
     )
     return mode_str
 
@@ -56,34 +56,34 @@ def main(cfg: DictConfig):
     # args.num_per_apartment = 20
     curr_dir = os.path.dirname(os.path.abspath(__file__))
     # home_path = '../'
-    rootdir = curr_dir + '/../'
+    rootdir = curr_dir + "/../"
 
     # args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     # args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/test_env_task_set_10_full.pik'
-    args.dataset_path = f'/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik'
+    args.dataset_path = f"/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/dataset/structured_agent/test_env_task_set_60_full_task.all.pik"
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
 
-    valid_set_path = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt'
-    f = open(valid_set_path, 'r')
+    valid_set_path = "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/analysis/test_set_reduced.txt"
+    f = open(valid_set_path, "r")
     episode_ids = []
     for filename in f:
-        episode_ids.append(int(filename.split('episode.')[-1].split('_')[0]))
+        episode_ids.append(int(filename.split("episode.")[-1].split("_")[0]))
     print(len(episode_ids))
     f.close()
 
-    cachedir = f'{get_original_cwd()}/outputs/main_agent_only_large'
+    cachedir = f"{get_original_cwd()}/outputs/main_agent_only_large"
     # cachedir = f'{rootdir}/dataset_episodes/main_agent_only'
 
     agent_types = [
-        ['full', 0, 0.05, False, 0, "uniform"],  # 0
-        ['full', 0.5, 0.01, False, 0, "uniform"],  # 1
-        ['full', -5, 0.05, False, 0, "uniform"],  # 2
-        ['partial', 0, 0.05, False, 0, "uniform"],  # 3
-        ['partial', 0, 0.05, False, 0, "spiked"],  # 4
-        ['partial', 0, 0.05, False, 0.2, "uniform"],  # 5
-        ['partial', 0, 0.01, False, 0.01, "spiked"],  # 6
-        ['partial', -5, 0.05, False, 0.2, "uniform"],  # 7
-        ['partial', 0.5, 0.05, False, 0.2, "uniform"],  # 8
+        ["full", 0, 0.05, False, 0, "uniform"],  # 0
+        ["full", 0.5, 0.01, False, 0, "uniform"],  # 1
+        ["full", -5, 0.05, False, 0, "uniform"],  # 2
+        ["partial", 0, 0.05, False, 0, "uniform"],  # 3
+        ["partial", 0, 0.05, False, 0, "spiked"],  # 4
+        ["partial", 0, 0.05, False, 0.2, "uniform"],  # 5
+        ["partial", 0, 0.01, False, 0.01, "spiked"],  # 6
+        ["partial", -5, 0.05, False, 0.2, "uniform"],  # 7
+        ["partial", 0.5, 0.05, False, 0.2, "uniform"],  # 8
     ]
     random_start = random.Random()
     agent_id = 0
@@ -95,43 +95,43 @@ def main(cfg: DictConfig):
         forget_rate,
         belief_type,
     ) = agent_types[0]
-    datafile = args.dataset_path.split('/')[-1].replace('.pik', '')
+    datafile = args.dataset_path.split("/")[-1].replace(".pik", "")
     agent_args = {
-        'obs_type': args.obs_type,
-        'open_cost': open_cost,
-        'should_close': should_close,
-        'walk_cost': walk_cost,
-        'belief': {'forget_rate': forget_rate, 'belief_type': belief_type},
+        "obs_type": args.obs_type,
+        "open_cost": open_cost,
+        "should_close": should_close,
+        "walk_cost": walk_cost,
+        "belief": {"forget_rate": forget_rate, "belief_type": belief_type},
     }
     # TODO: add num_samples to the argument
     # args.mode = '{}_'.format(agent_id + 1)
     # args.mode += 'v9_particles_v2'
 
-    env_task_set = pickle.load(open(args.dataset_path, 'rb'))
+    env_task_set = pickle.load(open(args.dataset_path, "rb"))
     # print(env_task_set)
     print(len(env_task_set))
 
     for env in env_task_set:
-        init_gr = env['init_graph']
+        init_gr = env["init_graph"]
         gbg_can = [
-            node['id']
-            for node in init_gr['nodes']
-            if node['class_name'] in ['garbagecan', 'clothespile']
+            node["id"]
+            for node in init_gr["nodes"]
+            if node["class_name"] in ["garbagecan", "clothespile"]
         ]
-        init_gr['nodes'] = [
-            node for node in init_gr['nodes'] if node['id'] not in gbg_can
+        init_gr["nodes"] = [
+            node for node in init_gr["nodes"] if node["id"] not in gbg_can
         ]
-        init_gr['edges'] = [
+        init_gr["edges"] = [
             edge
-            for edge in init_gr['edges']
-            if edge['from_id'] not in gbg_can and edge['to_id'] not in gbg_can
+            for edge in init_gr["edges"]
+            if edge["from_id"] not in gbg_can and edge["to_id"] not in gbg_can
         ]
-        for node in init_gr['nodes']:
-            if node['class_name'] == 'cutleryfork':
-                node['obj_transform']['position'][1] += 0.1
+        for node in init_gr["nodes"]:
+            if node["class_name"] == "cutleryfork":
+                node["obj_transform"]["position"][1] += 0.1
 
-    args.record_dir = '{}/{}/'.format(cachedir, datafile)
-    error_dir = '{}/logging/{}'.format(cachedir, datafile)
+    args.record_dir = "{}/{}/".format(cachedir, datafile)
+    error_dir = "{}/logging/{}".format(cachedir, datafile)
     if not os.path.exists(args.record_dir):
         os.makedirs(args.record_dir)
 
@@ -139,9 +139,9 @@ def main(cfg: DictConfig):
         os.makedirs(error_dir)
 
     executable_args = {
-        'file_name': args.executable_file,
-        'x_display': 0,
-        'no_graphics': True,
+        "file_name": args.executable_file,
+        "x_display": 0,
+        "no_graphics": True,
     }
 
     id_run = 0
@@ -184,14 +184,14 @@ def main(cfg: DictConfig):
         logging_graphs=True,
         get_plan_states=True,
     )
-    if args.obs_type == 'full':
-        args_common['num_particles'] = 1
+    if args.obs_type == "full":
+        args_common["num_particles"] = 1
     else:
-        args_common['num_particles'] = 20
+        args_common["num_particles"] = 20
 
-    args_agent1 = {'agent_id': 1, 'char_index': 0}
+    args_agent1 = {"agent_id": 1, "char_index": 0}
     args_agent1.update(args_common)
-    args_agent1['agent_params'] = agent_args
+    args_agent1["agent_params"] = agent_args
 
     agents = [lambda x, y: MCTS_agent_particle_v2_instance(**args_agent1)]
     arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
@@ -211,12 +211,17 @@ def main(cfg: DictConfig):
         steps_list, failed_tasks = [], []
         current_tried = iter_id
 
-        if not os.path.isfile(args.record_dir + '/results_{}.pik'.format(iter_id - 1)):
+        if not os.path.isfile(args.record_dir + "/results_{}.pik".format(iter_id - 1)):
             test_results = {}
         else:
             test_results = pickle.load(
-                open(args.record_dir + '/results_{}.pik'.format(iter_id - 1), 'rb')
+                open(args.record_dir + "/results_{}.pik".format(iter_id - 1), "rb")
             )
+
+        # # TODO: for debug only
+        # test_results = pickle.load(
+        #     open(args.record_dir + "/results_{}.pik".format(iter_id), "rb")
+        # )
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -243,13 +248,14 @@ def main(cfg: DictConfig):
 
             # episode_id = env_task['task_id']
 
-            # if episode_id != 12:
+            # # TODO: for debug only
+            # if episode_id != 180:
             #     continue
 
-            log_file_name = args.record_dir + '/logs_episode.{}_iter.{}.pik'.format(
+            log_file_name = args.record_dir + "/logs_episode.{}_iter.{}.pik".format(
                 episode_id, iter_id
             )
-            failure_file = '{}/{}_{}.txt'.format(error_dir, episode_id, iter_id)
+            failure_file = "{}/{}_{}.txt".format(error_dir, episode_id, iter_id)
 
             # if os.path.isfile(log_file_name):  # or os.path.isfile(failure_file):
             #     print(log_file_name)
@@ -257,11 +263,11 @@ def main(cfg: DictConfig):
 
             if os.path.isfile(failure_file):
                 os.remove(failure_file)
-            fileh = logging.FileHandler(failure_file, 'a')
+            fileh = logging.FileHandler(failure_file, "a")
             fileh.setLevel(logging.DEBUG)
             logger.addHandler(fileh)
 
-            print('episode:', episode_id)
+            print("episode:", episode_id)
 
             for it_agent, agent in enumerate(arena.agents):
                 agent.seed = (it_agent + current_tried * 2) * 5
@@ -279,21 +285,21 @@ def main(cfg: DictConfig):
                 # for t, action in enumerate(actions):
 
                 saved_info = {
-                    'task_id': arena.env.task_id,
-                    'env_id': arena.env.env_id,
-                    'task_name': arena.env.task_name,
-                    'gt_goals': arena.env.task_goal[0],
-                    'goals': arena.task_goal,
-                    'action': {0: [], 1: []},
-                    'plan': {0: [], 1: []},
-                    'finished': None,
-                    'init_unity_graph': arena.env.init_graph,
-                    'goals_finished': [],
-                    'belief': {0: [], 1: []},
-                    'belief_room': {0: [], 1: []},
-                    'belief_graph': {0: [], 1: []},
-                    'graph': [arena.env.init_unity_graph],
-                    'obs': [],
+                    "task_id": arena.env.task_id,
+                    "env_id": arena.env.env_id,
+                    "task_name": arena.env.task_name,
+                    "gt_goals": arena.env.task_goal[0],
+                    "goals": arena.task_goal,
+                    "action": {0: [], 1: []},
+                    "plan": {0: [], 1: []},
+                    "finished": None,
+                    "init_unity_graph": arena.env.init_graph,
+                    "goals_finished": [],
+                    "belief": {0: [], 1: []},
+                    "belief_room": {0: [], 1: []},
+                    "belief_graph": {0: [], 1: []},
+                    "graph": [arena.env.init_unity_graph],
+                    "obs": [],
                 }
 
                 steps = 2
@@ -303,26 +309,26 @@ def main(cfg: DictConfig):
                 (prev_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
-                print(curr_info[0]['subgoals'])
-                print(curr_info[0]['plan'])
+                print(curr_info[0]["subgoals"])
+                print(curr_info[0]["plan"])
                 # ipdb.set_trace()
-                prev_graph = infos['graph']
+                prev_graph = infos["graph"]
 
-                if 'satisfied_goals' in infos:
-                    saved_info['goals_finished'].append(infos['satisfied_goals'])
+                if "satisfied_goals" in infos:
+                    saved_info["goals_finished"].append(infos["satisfied_goals"])
                 for agent_id, action in actions.items():
-                    saved_info['action'][agent_id].append(action)
-                if 'graph' in infos:
-                    saved_info['graph'].append(infos['graph'])
+                    saved_info["action"][agent_id].append(action)
+                if "graph" in infos:
+                    saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
-                    if 'belief_room' in info:
-                        saved_info['belief_room'][agent_id].append(info['belief_room'])
-                    if 'belief' in info:
-                        saved_info['belief'][agent_id].append(info['belief'])
-                    if 'plan' in info:
-                        saved_info['plan'][agent_id].append(info['plan'][:3])
-                    if 'obs' in info:
-                        saved_info['obs'].append([node['id'] for node in info['obs']])
+                    if "belief_room" in info:
+                        saved_info["belief_room"][agent_id].append(info["belief_room"])
+                    if "belief" in info:
+                        saved_info["belief"][agent_id].append(info["belief"])
+                    if "plan" in info:
+                        saved_info["plan"][agent_id].append(info["plan"][:3])
+                    if "obs" in info:
+                        saved_info["obs"].append([node["id"] for node in info["obs"]])
 
                 actions, curr_info = arena.get_actions(
                     prev_obs,
@@ -335,26 +341,26 @@ def main(cfg: DictConfig):
                 (curr_obs, reward, done, infos) = arena.step_given_action(
                     {0: actions[0]}
                 )
-                curr_graph = infos['graph']
-                print(curr_info[0]['subgoals'])
-                print(curr_info[0]['plan'])
+                curr_graph = infos["graph"]
+                print(curr_info[0]["subgoals"])
+                print(curr_info[0]["plan"])
                 # ipdb.set_trace()
 
-                if 'satisfied_goals' in infos:
-                    saved_info['goals_finished'].append(infos['satisfied_goals'])
+                if "satisfied_goals" in infos:
+                    saved_info["goals_finished"].append(infos["satisfied_goals"])
                 for agent_id, action in actions.items():
-                    saved_info['action'][agent_id].append(action)
-                if 'graph' in infos:
-                    saved_info['graph'].append(infos['graph'])
+                    saved_info["action"][agent_id].append(action)
+                if "graph" in infos:
+                    saved_info["graph"].append(infos["graph"])
                 for agent_id, info in curr_info.items():
-                    if 'belief_room' in info:
-                        saved_info['belief_room'][agent_id].append(info['belief_room'])
-                    if 'belief' in info:
-                        saved_info['belief'][agent_id].append(info['belief'])
-                    if 'plan' in info:
-                        saved_info['plan'][agent_id].append(info['plan'][:3])
-                    if 'obs' in info:
-                        saved_info['obs'].append([node['id'] for node in info['obs']])
+                    if "belief_room" in info:
+                        saved_info["belief_room"][agent_id].append(info["belief_room"])
+                    if "belief" in info:
+                        saved_info["belief"][agent_id].append(info["belief"])
+                    if "plan" in info:
+                        saved_info["plan"][agent_id].append(info["plan"][:3])
+                    if "obs" in info:
+                        saved_info["obs"].append([node["id"] for node in info["obs"]])
 
                 success = False
                 while steps < max_steps:
@@ -362,15 +368,15 @@ def main(cfg: DictConfig):
 
                     # get main agent's action
                     # arena.task_goal = None
-                    print('planning for the main agent')
+                    print("planning for the main agent")
                     selected_actions, curr_info = arena.get_actions(
                         curr_obs,
                         length_plan=10,
                         must_replan={0: False, 1: False},
                         agent_id=0,
                     )
-                    print(curr_info[0]['subgoals'])
-                    print(curr_info[0]['plan'])
+                    print(curr_info[0]["subgoals"])
+                    print(curr_info[0]["plan"])
 
                     (curr_obs, reward, done, infos) = arena.step_given_action(
                         selected_actions
@@ -379,73 +385,73 @@ def main(cfg: DictConfig):
                     print("agents' positions")
                     print(
                         [
-                            (node['id'], node['bounding_box']['center'])
-                            for node in curr_obs[0]['nodes']
-                            if node['id'] < 3
+                            (node["id"], node["bounding_box"]["center"])
+                            for node in curr_obs[0]["nodes"]
+                            if node["id"] < 3
                         ]
                     )
                     # ipdb.set_trace()
 
-                    curr_graph = infos['graph']
+                    curr_graph = infos["graph"]
 
-                    if 'satisfied_goals' in infos:
-                        saved_info['goals_finished'].append(infos['satisfied_goals'])
-                    for agent_id, action in actions.items():
-                        saved_info['action'][agent_id].append(action)
-                    if 'graph' in infos:
-                        saved_info['graph'].append(infos['graph'])
+                    if "satisfied_goals" in infos:
+                        saved_info["goals_finished"].append(infos["satisfied_goals"])
+                    for agent_id, action in selected_actions.items():
+                        saved_info["action"][agent_id].append(action)
+                    if "graph" in infos:
+                        saved_info["graph"].append(infos["graph"])
                     for agent_id, info in curr_info.items():
-                        if 'belief_room' in info:
-                            saved_info['belief_room'][agent_id].append(
-                                info['belief_room']
+                        if "belief_room" in info:
+                            saved_info["belief_room"][agent_id].append(
+                                info["belief_room"]
                             )
-                        if 'belief' in info:
-                            saved_info['belief'][agent_id].append(info['belief'])
-                        if 'plan' in info:
-                            saved_info['plan'][agent_id].append(info['plan'][:3])
-                        if 'obs' in info:
-                            saved_info['obs'].append(
-                                [node['id'] for node in info['obs']]
+                        if "belief" in info:
+                            saved_info["belief"][agent_id].append(info["belief"])
+                        if "plan" in info:
+                            saved_info["plan"][agent_id].append(info["plan"][:3])
+                        if "obs" in info:
+                            saved_info["obs"].append(
+                                [node["id"] for node in info["obs"]]
                             )
 
-                    print('success:', infos['finished'])
+                    print("success:", infos["finished"])
                     # pdb.set_trace()
-                    if infos['finished']:
+                    if infos["finished"]:
                         success = True
                         break
 
-                    print('success:', infos['finished'])
+                    print("success:", infos["finished"])
                     # pdb.set_trace()
-                    if infos['finished']:
+                    if infos["finished"]:
                         success = True
                         break
 
-                print('-------------------------------------')
-                print('success' if success else 'failure')
-                print('steps:', steps)
-                print('-------------------------------------')
+                print("-------------------------------------")
+                print("success" if success else "failure")
+                print("steps:", steps)
+                print("-------------------------------------")
                 if not success:
                     failed_tasks.append(episode_id)
                 else:
                     steps_list.append(steps)
                 is_finished = 1 if success else 0
 
-                saved_info['obs'].append([node['id'] for node in curr_obs[0]['nodes']])
-                saved_info['finished'] = success
+                saved_info["obs"].append([node["id"] for node in curr_obs[0]["nodes"]])
+                saved_info["finished"] = success
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                if len(saved_info['obs']) > 0:
-                    pickle.dump(saved_info, open(log_file_name, 'wb'))
+                if len(saved_info["obs"]) > 0:
+                    pickle.dump(saved_info, open(log_file_name, "wb"))
                 else:
-                    with open(log_file_name, 'w+') as f:
+                    with open(log_file_name, "w+") as f:
                         f.write(json.dumps(saved_info, indent=4))
                 # ipdb.set_trace()
 
                 Path(args.record_dir).mkdir(parents=True, exist_ok=True)
-                if len(saved_info['obs']) > 0:
-                    pickle.dump(saved_info, open(log_file_name, 'wb'))
+                if len(saved_info["obs"]) > 0:
+                    pickle.dump(saved_info, open(log_file_name, "wb"))
                 else:
-                    with open(log_file_name, 'w+') as f:
+                    with open(log_file_name, "w+") as f:
                         f.write(json.dumps(saved_info, indent=4))
 
                 logger.removeHandler(logger.handlers[0])
@@ -474,10 +480,10 @@ def main(cfg: DictConfig):
                 continue
 
             except Exception as e:
-                with open(failure_file, 'w+') as f:
-                    error_str = 'Failure'
-                    error_str += '\n'
-                    stack_form = ''.join(traceback.format_stack())
+                with open(failure_file, "w+") as f:
+                    error_str = "Failure"
+                    error_str += "\n"
+                    stack_form = "".join(traceback.format_stack())
                     error_str += stack_form
 
                     f.write(error_str)
@@ -494,23 +500,23 @@ def main(cfg: DictConfig):
                 continue
             S[episode_id].append(is_finished)
             L[episode_id].append(steps)
-            test_results[episode_id] = {'S': S[episode_id], 'L': L[episode_id]}
+            test_results[episode_id] = {"S": S[episode_id], "L": L[episode_id]}
             # pdb.set_trace()
 
             print(test_results)
 
             pickle.dump(
                 test_results,
-                open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+                open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
             )
         print(
-            'average steps (finishing the tasks):',
+            "average steps (finishing the tasks):",
             np.array(steps_list).mean() if len(steps_list) > 0 else None,
         )
-        print('failed_tasks:', failed_tasks)
+        print("failed_tasks:", failed_tasks)
         pickle.dump(
             test_results,
-            open(args.record_dir + '/results_{}.pik'.format(iter_id), 'wb'),
+            open(args.record_dir + "/results_{}.pik".format(iter_id), "wb"),
         )
 
 
