@@ -47,9 +47,20 @@ class MCTS_particles_v2_instance:
         self.any_verbose = False
         self.verbose = False
         self.agent_params = agent_params
+        self.class2id = {}
         self.gt_graph = copy.deepcopy(gt_graph)
+        self.id2node = {}
         np.random.seed(self.seed)
         random.seed(self.seed)
+
+    def build_class2id(self):
+        self.class2id = {}
+        self.id2node = {}
+        for node in self.gt_graph["nodes"]:
+            if node["class_name"] not in self.class2id:
+                self.class2id[node["class_name"]] = []
+            self.class2id[node["class_name"]].append(node["id"])
+        self.id2node = {node["id"]: node for node in self.gt_graph["nodes"]}
 
     def check_progress(self, state, goal_spec):
         """TODO: add more predicate checkers; currently only ON"""
@@ -57,13 +68,10 @@ class MCTS_particles_v2_instance:
         for key, value in goal_spec.items():
             if not key.startswith("offer") and key.startswith("off"):
                 count += value
-        id2node = {node["id"]: node for node in state["nodes"]}
-        class2id = {}
+        id2node = self.id2node
+        class2id = self.class2id
 
-        for node in state["nodes"]:
-            if node["class_name"] not in class2id:
-                class2id[node["class_name"]] = []
-            class2id[node["class_name"]].append(node["id"])
+
         for key, value in goal_spec.items():
             elements = key.split("_")
             for edge in state["edges"]:
@@ -125,7 +133,7 @@ class MCTS_particles_v2_instance:
         self.env = VhGraphEnv(n_chars=self.char_index + 1)
         self.env.pomdp = True
         self.env.reset(copy.deepcopy(self.gt_graph))
-
+        self.build_class2id()
         if not self.env.state is None:
             self.id2node_env = {node["id"]: node for node in self.env.state["nodes"]}
             static_classes = [
@@ -410,8 +418,9 @@ class MCTS_particles_v2_instance:
             ]
             # print('hands_busy:', len(hands_busy), self.agent_id)
             # print("GOAL SPEC", goal_spec)
-            if len(hands_busy) > 1:
-                unsatisfied_aux = copy.deepcopy(unsatisfied)
+            recover_unsatisfied = {}
+            if len(hands_busy) >= 1:
+                unsatisfied_aux = unsatisfied
             else:
                 unsatisfied_aux = unsatisfied
             subgoals_hand = []
@@ -430,6 +439,8 @@ class MCTS_particles_v2_instance:
 
                 if pred_name_selected is not None:
                     cont_id = goal_spec[pred_name_selected]["container_ids"][0]
+                    if pred_name_selected not in recover_unsatisfied:
+                        recover_unsatisfied[pred_name_selected] = unsatisfied_aux[pred_name_selected]
                     unsatisfied_aux[pred_name_selected] -= 1
                     # if unsatisfied_aux[pred_name_selected] < 0:
                     #     ipdb.set_trace()
@@ -453,6 +464,8 @@ class MCTS_particles_v2_instance:
                 goal_spec,
                 self.opponent_subgoal,
             )
+            for pred_name, count in recover_unsatisfied.items():
+                unsatisfied[pred_name] = count
             subgoals += subgoals_hand
             if verbose:
                 ipdb.set_trace()
@@ -1031,7 +1044,8 @@ class MCTS_particles_v2_instance:
             if "HOLD" in edge["relation_type"] and edge["from_id"] == self.agent_id
         ]
         is_offering = False
-        unsatisfied_aux = copy.deepcopy(unsatisfied)
+        unsatisfied_aux = unsatisfied
+        recover_unsatisfied = {}
         subgoals_hand = []
         if "offer" in list(unsatisfied_aux.keys())[0]:
             is_offering = True
@@ -1047,6 +1061,8 @@ class MCTS_particles_v2_instance:
 
             if pred_name_selected is not None:
                 cont_id = goal_spec[pred_name_selected]["container_ids"][0]
+                if pred_name_selected not in recover_unsatisfied:
+                    recover_unsatisfied[pred_name_selected] = unsatisfied[pred_name_selected]
                 unsatisfied_aux[pred_name_selected] -= 1
 
                 # we should avoid using pred_name_split here
@@ -1070,6 +1086,11 @@ class MCTS_particles_v2_instance:
             goal_spec,
             self.opponent_subgoal,
         )
+
+        # this is to avoid making a copy of unsatisfied
+        for pred_name_uns, old_val in recover_unsatisfied.items():
+            unsatisfied[pred_name_uns] = old_val
+
         subgoals += subgoals_hand
 
         if is_offering:
@@ -1253,12 +1274,8 @@ class MCTS_particles_v2_instance:
         #     print('inhand_objects:', inhand_objects)
         #     print(state['edges'])
 
-        id2node = {node["id"]: node for node in state["nodes"]}
-        class2id = {}
-        for node in state["nodes"]:
-            if node["class_name"] not in class2id:
-                class2id[node["class_name"]] = []
-            class2id[node["class_name"]].append(node["id"])
+        id2node = self.id2node
+        class2id = self.class2id
 
         opponent_predicate_1 = None
         opponent_predicate_2 = None

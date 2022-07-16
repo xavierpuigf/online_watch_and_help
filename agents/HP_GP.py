@@ -23,7 +23,7 @@ import sys
 sys.path.append("..")
 from utils import utils_environment as utils_env
 from utils import utils_models_wb
-from .MCTS_agent_particle_v2_instance import MCTS_agent_particle_v2_instance
+from . import MCTS_agent_particle_v2_instance
 
 from models import agent_pref_policy_task as agent_pref_policy
 
@@ -367,9 +367,6 @@ def pred_main_agent_plan(
     agent_id,
     res,
 ):
-
-    # ipdb.set_trace()
-
     inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
     # print("pred {}:".format(process_id), inferred_goal)
     plan_states, opponent_subgoal = None, None
@@ -559,7 +556,9 @@ def edge2name(edge):
 
 def get_helping_plan(
     process_id,
-    edge,
+    pred_task,
+    class2id,
+    gt_container_id,
     t,
     opponent_subgoal,
     get_actions_fn,
@@ -568,11 +567,9 @@ def get_helping_plan(
     must_replan,
     agent_id,
     res,
-    verbose=False,
 ):
-    inferred_goal = edge2goal(edge)
-    if verbose:
-        print("pred {}:".format(process_id), inferred_goal)
+    inferred_goal = get_edge_instance(pred_task, class2id, gt_container_id, t)
+    # print("pred {}:".format(process_id), inferred_goal)
     subgoal, action, plan, plan_states = None, None, None, None
     if len(inferred_goal) > 0:  # if no edge prediction then None action
 
@@ -585,11 +582,10 @@ def get_helping_plan(
             opponent_subgoal=opponent_subgoal,
         )
         # print('actions:', actions)
-        if verbose:
-            print("pred {}:".format(process_id), inferred_goal)
-            print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
+        # print("pred {}:".format(process_id), inferred_goal)
+        # print("plan {}:".format(process_id), opponent_subgoal, info[1]["subgoals"])
         if info[1]["subgoals"] is None or len(info[1]["subgoals"]) == 0:
-            res[process_id] = (None, None, None, None)
+            res[process_id] = None
             return
 
         # Here you can get the intermediate states
@@ -603,7 +599,7 @@ def get_helping_plan(
             and len(info[agent_id]["subgoals"]) > 0
             else None
         )
-    res[process_id] = (subgoal, plan, plan_states, plan_cost)
+    res[process_id] = action  # (subgoal, action)
 
 
 def edge2goal(edge):
@@ -634,9 +630,9 @@ def edge2goal(edge):
     return goal
 
 
-class NOPA_agent:
+class HP_agent:
     """
-    Random agent
+    Hierarchical Planner agent
     """
 
     def __init__(
@@ -657,7 +653,7 @@ class NOPA_agent:
         inv_plan=True,
         seed=None,
     ):
-        self.agent_type = "NOPA"
+        self.agent_type = "HP_GP"
         self.verbose = False
         self.recursive = recursive
 
@@ -678,7 +674,8 @@ class NOPA_agent:
         self.max_rollout_steps = max_rollout_steps
         self.c_init = c_init
         self.c_base = c_base
-        self.num_samples = num_samples
+        self.num_samples = 1  # TODO: adjustable
+        self.num_processes = num_processes
 
         self.previous_belief_graph = None
         self.verbose = False
@@ -694,11 +691,10 @@ class NOPA_agent:
         self.pred_main_plan_length = 15
         self.steps_since_last_prediction = 0
         self.all_reject = False
-        self.inv_plan = inv_plan
+        self.inv_plan = False  # TODO: adjustable
         self.reset_steps = None
         self.steps_since_last_prediction = 0
         self.new_action = True
-        self.last_goal_edge = None
 
         args_common = dict(
             recursive=False,
@@ -740,11 +736,7 @@ class NOPA_agent:
         self.args = OmegaConf.load(
             "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/config/configs_for_help/config_diff_state.yaml"
         )
-        self.num_processes = 40  # self.args.num_processes
-        # self.args.num_samples = 2
-        self.args.beta = 0.5
-        self.args.max_benefit = 20
-
+        self.num_processes = self.args.num_processes
         self.reset_steps = self.args.reset_steps
         self.args_pred = OmegaConf.load(
             "/data/vision/torralba/frames/data_acquisition/SyntheticStories/online_wah/agent_preferences/config/configs_for_help/agent_pred_graph/config_det_0.05.yaml"
@@ -831,7 +823,6 @@ class NOPA_agent:
     def get_action(
         self, obs, goal_spec, previous_main_action, steps, opponent_subgoal=None
     ):
-        init_state = obs
         if previous_main_action is not None:
             for obj_name in all_object_types:
                 if obj_name in previous_main_action:
@@ -839,7 +830,7 @@ class NOPA_agent:
 
         curr_obs = {0: obs, 1: obs}
         curr_graph = obs
-        num_samples = self.args.num_samples
+        num_samples = self.num_samples
         task_result = []
         selected_actions = {1: None}
         if (
@@ -899,166 +890,145 @@ class NOPA_agent:
             self.history_obs.append([node["id"] for node in obs["nodes"]])
             self.history_graph.append(copy.deepcopy(obs))
 
-        replan_for_helper = True
-        if self.last_goal_edge is not None and "offer" not in self.last_goal_edge:
-            in_helper_hands = [
-                edge
-                for edge in curr_obs[1]["edges"]
-                if edge["from_id"] == 2 and "HOLD" in edge["relation_type"]
-            ]
-            if len(in_helper_hands) > 0:
-                # inferred_goal = edge2goal(self.last_goal_edge)
-                # print("last helper goal:", inferred_goal)
-                # if len(inferred_goal) > 0:  # if no edge prediction then None action
-                #     actions, info = self.get_actions(
-                #         curr_obs,
-                #         length_plan=10,
-                #         must_replan=True,
-                #         agent_id=1,
-                #         inferred_goal=inferred_goal,
-                #         opponent_subgoal=None,
-                #     )
-                #     helper_action = (
-                #         actions[1] if actions is not None and len(actions) > 0 else None
-                #     )
-                # else:
-                #     helper_action = None
-                helper_action = None
-
-                if helper_action is not None:
-                    replan_for_helper = False
-                else:
-                    self.last_goal_edge = None
-
         if len(self.proposals) < 1:  # args.num_samples / 3:
             self.steps_since_last_prediction = 0
-            if False:  # not self.new_action:
+            print(len(self.history_graph))
+            print(len(self.history_action))
+            print(len(self.history_obs))
+            assert len(self.history_graph) == len(self.history_obs)
+            assert len(self.history_graph) == len(self.history_action)
+            # if len(proposals) == 0:
+            #     history_graph = [history_graph[-1:]]
+            #     history_obs = [history_obs[-1:]]
+            #     history_action = [history_action[-1:]]
+            if self.history_action[-1] is not None:
+                # ipdb.set_trace()
+                inputs_func = utils_models_wb.prepare_graph_for_task_model_diff(
+                    self.history_graph,
+                    self.history_obs,
+                    self.history_action,
+                    self.args_pred,
+                    self.graph_helper,
+                    batch_repeat=num_samples,
+                )
+                with torch.no_grad():
+                    output_func = self.model(inputs_func, inference=True)
+                # ipdb.set_trace()
+                # First particle, first timestep, since all the particles have the same time graph
+                task_graph_input = self.graph_helper.get_task_graph(
+                    inputs_func["input_task_graph"][0, 0], use_dict=True
+                )
                 task_result = []
-            else:
-                print(len(self.history_graph))
-                print(len(self.history_action))
-                print(len(self.history_obs))
-                assert len(self.history_graph) == len(self.history_obs)
-                assert len(self.history_graph) == len(self.history_action)
-                # if len(proposals) == 0:
-                #     history_graph = [history_graph[-1:]]
-                #     history_obs = [history_obs[-1:]]
-                #     history_action = [history_action[-1:]]
-                if self.history_action[-1] is not None:
+                num_tsteps = output_func["pred_graph"].shape[1]
+                if not self.model.use_vae and self.num_samples > 1:
                     # ipdb.set_trace()
-                    inputs_func = utils_models_wb.prepare_graph_for_task_model_diff(
-                        self.history_graph,
-                        self.history_obs,
-                        self.history_action,
-                        self.args_pred,
-                        self.graph_helper,
-                        batch_repeat=num_samples,
-                    )
-                    with torch.no_grad():
-                        output_func = self.model(inputs_func, inference=True)
-                    # ipdb.set_trace()
-                    # First particle, first timestep, since all the particles have the same time graph
-                    task_graph_input = self.graph_helper.get_task_graph(
-                        inputs_func["input_task_graph"][0, 0], use_dict=True
-                    )
-                    task_result = []
-                    num_tsteps = output_func["pred_graph"].shape[1]
-                    if not self.model.use_vae and self.args.num_samples > 1:
-                        # ipdb.set_trace()
-                        sample = True
+                    sample = True
 
-                        pred_graph_prob = output_func["pred_graph"]
-                        if not sample:
-                            pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
-                        else:
-                            pred_graph_prob = (
-                                nn.functional.softmax(pred_graph_prob, dim=-1)
-                                .cpu()
-                                .numpy()
-                            )
-                            pred_graph = utils_models_wb.vectorized(pred_graph_prob)
-
+                    pred_graph_prob = output_func["pred_graph"]
+                    if not sample:
+                        pred_graph = pred_graph_prob.argmax(-1).cpu().numpy()
                     else:
-                        if self.args_pred.name_log == "uniform":
-                            pred_graph = output_func["pred_graph"]
-                        else:
-                            # VAE, take max
-                            pred_graph = output_func["pred_graph"].argmax(-1)
-                    for ind in range(num_samples):
-                        task_graphs = []
-                        for tstep in range(num_tsteps):
-                            try:
-                                curr_task_graph = self.graph_helper.get_task_graph(
-                                    pred_graph[ind, tstep], use_dict=True
-                                )
-                            except:
-                                ipdb.set_trace()
-                            # ipdb.set_trace()
-                            # curr_mask_task = mask_task_graph[ind, tstep]
-                            curr_mask_task = None
-                            task_graphs.append(
-                                (
-                                    curr_task_graph,
-                                    curr_mask_task,
-                                    task_graph_input,
-                                )
-                            )
-                        # if args.debug:
-                        #     print(ind, task_graphs)
-                        #     # ipdb.set_trace()
-
-                        goal_pred = self.get_edge_class(
-                            task_graphs,
-                            len(task_graphs) - 1,
+                        pred_graph_prob = (
+                            nn.functional.softmax(pred_graph_prob, dim=-1).cpu().numpy()
                         )
-                        if (
-                            self.is_in_goal(self.grabbed_obj, goal_pred)
-                            or not self.inv_plan
-                        ):
-                            task_result.append(task_graphs)
+                        pred_graph = utils_models_wb.vectorized(pred_graph_prob)
+
+                else:
+                    if self.args_pred.name_log == "uniform":
+                        pred_graph = output_func["pred_graph"]
+                    else:
+                        # VAE, take max
+                        pred_graph = output_func["pred_graph"].argmax(-1)
+                for ind in range(num_samples):
+                    task_graphs = []
+                    for tstep in range(num_tsteps):
+                        try:
+                            curr_task_graph = self.graph_helper.get_task_graph(
+                                pred_graph[ind, tstep], use_dict=True
+                            )
+                        except:
+                            ipdb.set_trace()
+                        # ipdb.set_trace()
+                        # curr_mask_task = mask_task_graph[ind, tstep]
+                        curr_mask_task = None
+                        task_graphs.append(
+                            (
+                                curr_task_graph,
+                                curr_mask_task,
+                                task_graph_input,
+                            )
+                        )
+                    # if args.debug:
+                    #     print(ind, task_graphs)
+                    #     # ipdb.set_trace()
+
+                    goal_pred = self.get_edge_class(
+                        task_graphs,
+                        len(task_graphs) - 1,
+                    )
+                    if (
+                        self.is_in_goal(self.grabbed_obj, goal_pred)
+                        or not self.inv_plan
+                    ):
+                        task_result.append(task_graphs)
             print("planning for the helper agent")
             action_freq = {}
-            opponent_subgoal_freq = {}
+
+            self.proposals = {}
+            combined_edge_freq = {}
+            for pred_id, (pred) in enumerate(task_result):
+                self.proposals[pred_id] = {
+                    "pred": pred,
+                }
+        else:
+            self.steps_since_last_prediction += 1
+
+        if len(self.proposals) == 0:
+            selected_actions[1] = None
+        else:
+            # ======================================================
+            # get helper agent's action
+            action_freq = {}
             manager = mp.Manager()
-
+            res = manager.dict()
+            num_goals = len(self.proposals)
+            curr_pred_goals = [
+                proposal["pred"] for pred_id, proposal in self.proposals.items()
+            ]
             if self.num_processes == 0:
-                res = {}
-                for index in range(len(task_result)):
-
-                    pred_main_agent_plan(
-                        index,
-                        task_result[index],
+                for process_id in range(num_goals):
+                    get_helping_plan(
+                        process_id,
+                        curr_pred_goals[process_id],
                         self.class2id,
                         self.gt_container_id,
                         steps - 3,
+                        None,
                         self.get_actions,
                         curr_obs,
-                        15,
+                        10,
                         {0: True, 1: True},
                         1,
                         res,
                     )
             else:
-                res = manager.dict()
-                print(len(task_result), self.num_processes)
-                for start_root_id in range(0, len(task_result), self.num_processes):
-                    end_root_id = min(
-                        start_root_id + self.num_processes, len(task_result)
-                    )
+                for start_root_id in range(0, num_goals, self.num_processes):
+                    end_root_id = min(start_root_id + self.num_processes, num_goals)
                     jobs = []
                     for process_id in range(start_root_id, end_root_id):
                         # print(process_id)
                         p = mp.Process(
-                            target=pred_main_agent_plan,
+                            target=get_helping_plan,
                             args=(
                                 process_id,
-                                task_result[process_id],
+                                curr_pred_goals[process_id],
                                 self.class2id,
                                 self.gt_container_id,
                                 steps - 3,
+                                None,
                                 self.get_actions,
                                 curr_obs,
-                                15,
+                                10,
                                 {0: True, 1: True},
                                 1,
                                 res,
@@ -1068,377 +1038,28 @@ class NOPA_agent:
                         p.start()
                     for p in jobs:
                         p.join()
-            # all_plan_states = []
-            edge_freq = {}
-            edge_steps = {}
-            proposals = {}
-            combined_edge_freq = {}
-            for pred_id, (
-                subgoal,
-                plan,
-                plan_states,
-                plan_cost,
-            ) in res.items():
-                self.proposals[pred_id] = {
-                    "pred": task_result[pred_id],
-                    "subgoal": subgoal,
-                    "plan": plan,
-                    "plan_states": plan_states,
-                    "plan_cost": plan_cost,
-                    "edge_steps": {},
-                }
 
-                if subgoal is not None:
-                    if subgoal not in opponent_subgoal_freq:
-                        opponent_subgoal_freq[subgoal] = 1
-                    else:
-                        opponent_subgoal_freq[subgoal] += 1
-                    # print(len(plan_states))
-                    if plan_states is not None and len(plan_states) > 0:
-                        # all_plan_states.append(plan_states)
-                        all_edges = []
-                        estimated_steps = 0
-
-                        for t, (action, state, cost) in enumerate(
-                            zip(plan, plan_states, plan_cost)
-                        ):
-                            (
-                                edge_pred_ins,
-                                edge_list,
-                            ) = get_edge_instance_from_state(state)
-
-                            all_edges += edge_list
-                            estimated_steps += max(int(cost + 0.5), 1)
-
-                            for edge in edge_list:
-                                if edge not in edge_freq:
-                                    edge_freq[edge] = 0
-                                    if edge not in edge_steps:
-                                        edge_steps[edge] = []
-                                    edge_steps[edge].append(estimated_steps)
-                                    self.proposals[pred_id]["edge_steps"][
-                                        edge
-                                    ] = estimated_steps
-                    # ipdb.set_trace()
-                    edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                        task_result[pred_id], self.class2id, self.gt_container_id
-                    )
-                    all_edges += edge_list
-                    estimated_steps = 100  # TODO: tune this
-                    for edge in edge_list:
-                        if edge not in edge_freq:
-                            edge_freq[edge] = 0
-                            if edge not in edge_steps:
-                                edge_steps[edge] = []
-                            edge_steps[edge].append(estimated_steps)
-                            self.proposals[pred_id]["edge_steps"][
-                                edge
-                            ] = estimated_steps
-
-                    all_edges = list(set(all_edges))
-                    for edge in all_edges:
-                        edge_freq[edge] += 1.0 / len(res)
-            for edge, freq in edge_freq.items():
-                edge_goal_name = edge2name(edge)
-                if edge_goal_name not in combined_edge_freq:
-                    combined_edge_freq[edge_goal_name] = 0
-                combined_edge_freq[edge_goal_name] += freq
-            # print(edge_freq)
             # ipdb.set_trace()
-        else:
-            self.steps_since_last_prediction += 1
-            edge_freq = {}
-            edge_steps = {}
-            combined_edge_freq = {}
-            opponent_subgoal_freq = {}
-            for pred_id, proposal in self.proposals.items():
-                subgoal, plan, plan_states, plan_cost = (
-                    proposal["subgoal"],
-                    proposal["plan"],
-                    proposal["plan_states"],
-                    proposal["plan_cost"],
-                )
 
-                if subgoal is not None:
-                    if subgoal not in opponent_subgoal_freq:
-                        opponent_subgoal_freq[subgoal] = 1
+            for pred_id, action in res.items():
+                if action is not None:
+                    if action not in action_freq:
+                        action_freq[action] = 1
                     else:
-                        opponent_subgoal_freq[subgoal] += 1
-                    # print(len(plan_states))
-                    all_edges = []
-                    if plan_states is not None and len(plan_states) > 0:
-                        # all_plan_states.append(plan_states)
-                        estimated_steps = 0
-                        for t, (action, state, cost) in enumerate(
-                            zip(plan, plan_states, plan_cost)
-                        ):
-                            (
-                                edge_pred_ins,
-                                edge_list,
-                            ) = get_edge_instance_from_state(state)
+                        action_freq[action] += 1
 
-                            all_edges += edge_list
-                            estimated_steps += max(int(cost + 0.5), 1)
+                    # edge_pred_class_estimated = aggregate_multiple_pred(
+                    #     task_result, steps - 3, change=True
+                    # )
 
-                            for edge in edge_list:
-                                if edge not in edge_freq:
-                                    edge_freq[edge] = 0
-                                    if edge not in edge_steps:
-                                        edge_steps[edge] = []
-                                    edge_steps[edge].append(estimated_steps)
-                    edge_pred_ins, edge_list = get_edge_instance_from_pred(
-                        proposal["pred"], self.class2id, self.gt_container_id
-                    )
-                    all_edges += edge_list
-                    estimated_steps = 100
-                    for edge in edge_list:
-                        if edge not in edge_freq:
-                            edge_freq[edge] = 0
-                            if edge not in edge_steps:
-                                edge_steps[edge] = []
-                            edge_steps[edge].append(estimated_steps)
-                            self.proposals[pred_id]["edge_steps"][
-                                edge
-                            ] = estimated_steps
-                    all_edges = list(set(all_edges))
-                    for edge in all_edges:
-                        edge_freq[edge] += 1.0 / len(self.proposals)
-                    # if args.debug:
-                    #     print(pred_id)
-                    #     print(edge_pred_ins)
-                    #     for edge in all_edges:
-                    #         print(edge, edge_freq[edge])
-                    #     # ipdb.set_trace()
-
-            for edge, freq in edge_freq.items():
-                edge_goal_name = edge2name(edge)
-                if edge_goal_name not in combined_edge_freq:
-                    combined_edge_freq[edge_goal_name] = 0
-                combined_edge_freq[edge_goal_name] += freq
-
-        if len(self.proposals) == 0:
-            self.last_goal_edge = None
-            selected_actions[1] = None
-        else:
-            if replan_for_helper:
-                _, curr_edge_list = get_edge_instance_from_state(curr_obs[1])
-                goal_edges = []
-                for edge in edge_freq:
-                    edge_steps[edge] = np.mean(edge_steps[edge])
-                    print(
-                        edge,
-                        edge_freq[edge],
-                        edge_steps[edge],
-                        edge_steps[edge] > 1 + 1e-6,
-                        edge not in curr_edge_list,
-                    )
-                    if (
-                        edge_steps[edge] > 1 + 1e-6
-                        and edge not in curr_edge_list
-                        and edge_freq[edge] > 0.2
-                    ):
-                        goal_edges.append(edge)
-                # if args.debug and steps == 4:
-                #     ipdb.set_trace()
-                max_freq = 0
-                opponent_subgoal = None
-                for subgoal, count in opponent_subgoal_freq.items():
-                    if count > max_freq:
-                        max_freq = count
-                        opponent_subgoal = subgoal
-                    print(subgoal, count / len(self.proposals))
-                print("predicted main's subgoal:", opponent_subgoal)
-                # ipdb.set_trace()
-                # del res
-
-                return_subgoals = get_subgoals_from_init_state(init_state)
-                # print(goal_edges)
-                # print(return_subgoals)
-                # ipdb.set_trace()
-
-                num_pred_goal_edges = len(goal_edges)
-
-                if self.args.lam > 0.001:
-                    goal_edges += list(
-                        return_subgoals
-                    )  # add returning objects subgoals
-
-                manager = mp.Manager()
-                res = manager.dict()
-                num_goals = len(goal_edges)
-                if self.num_processes == 0:
-                    for process_id in range(num_goals):
-                        get_helping_plan(
-                            process_id,
-                            goal_edges[process_id],
-                            steps - 3,
-                            None,
-                            self.get_actions,
-                            curr_obs,
-                            10,
-                            {0: True, 1: True},
-                            1,
-                            res,
-                        )
-                else:
-                    for start_root_id in range(0, num_goals, self.num_processes):
-                        end_root_id = min(start_root_id + self.num_processes, num_goals)
-                        jobs = []
-                        for process_id in range(start_root_id, end_root_id):
-                            # print(process_id)
-                            p = mp.Process(
-                                target=get_helping_plan,
-                                args=(
-                                    process_id,
-                                    goal_edges[process_id],
-                                    steps - 3,
-                                    None,
-                                    self.get_actions,
-                                    curr_obs,
-                                    10,
-                                    {0: True, 1: True},
-                                    1,
-                                    res,
-                                ),
-                            )
-                            jobs.append(p)
-                            p.start()
-                        for p in jobs:
-                            p.join()
-
-                # select best subgoal and action based on value
-                best_value = self.args.min_acceptable_value
-                best_estimated_steps = 1e6
-                last_goal_edge_curr = None
-                if True:  # not all_reject:
-                    for pred_id, (
-                        subgoal,
-                        plan,
-                        plan_states,
-                        plan_cost,
-                    ) in res.items():
-                        estimated_steps = 0
-                        if plan is None:
-                            if pred_id >= num_pred_goal_edges:
-                                estimated_steps = 0
-                            else:
-                                estimated_steps = None
-                        else:
-                            first_walk_steps = 0
-                            for action, cost in zip(plan, plan_cost):
-                                if "walk" in action:
-                                    if (
-                                        "kitchen" in action
-                                        or "livingroom" in action
-                                        or "bedroom" in action
-                                        or "bathroom" in action
-                                    ):
-                                        if estimated_steps == 0:
-                                            first_walk_steps += int(cost + 0.5)
-                                #        estimated_steps += 5
-                                #     else:
-                                #         estimated_steps += 2
-                                # else:
-                                #     estimated_steps += 1
-                                estimated_steps += max(int(cost + 0.5), 1)
-                        dist = compute_dist_instance(
-                            init_state, curr_obs[1], goal_edges[pred_id]
-                        )
-                        if goal_edges[pred_id].startswith("offer"):
-                            dist = 2
-                        if goal_edges[pred_id].endswith("init"):
-                            if (
-                                dist == 0
-                                or estimated_steps
-                                == 0  # TODO: check when dist !=0 but estimated_steps = 0
-                            ):  # still in the initial location
-                                continue
-                            value = (
-                                -self.args.beta * estimated_steps - self.args.lam * dist
-                            )
-                            estimated_steps_back = 0
-                        elif estimated_steps is None:
-                            value = -1e6
-                            estimated_steps_back = None
-                        else:
-                            if dist < 0:  # remove accidental retuning subgoals?
-                                continue
-                            estimated_steps_back = estimated_steps - first_walk_steps
-                            edge_goal_name = edge2name(goal_edges[pred_id])
-                            value = (
-                                self.args.alpha
-                                * (
-                                    min(
-                                        edge_steps[goal_edges[pred_id]]
-                                        - estimated_steps,
-                                        self.args.max_benefit,
-                                    )
-                                )
-                                * min(1, edge_freq[goal_edges[pred_id]])
-                                - self.args.beta
-                                * estimated_steps_back
-                                * max(0, 1 - edge_freq[goal_edges[pred_id]])
-                                - self.args.lam * dist
-                            )
-                        if goal_edges[pred_id].endswith("init"):
-                            print(
-                                goal_edges[pred_id],
-                                1,
-                                0,
-                                0,
-                                estimated_steps,
-                                dist,
-                                value,
-                            )
-                        else:
-                            print(
-                                goal_edges[pred_id],
-                                edge_freq[goal_edges[pred_id]],
-                                edge_steps[goal_edges[pred_id]],
-                                estimated_steps,
-                                estimated_steps_back,
-                                dist,
-                                value,
-                            )
-                        if (
-                            value > best_value
-                            or abs(value - best_value) < 1e-6
-                            and (
-                                last_goal_edge_curr != self.last_goal_edge
-                                and (
-                                    (
-                                        estimated_steps
-                                        < best_estimated_steps
-                                        # or last_goal_edge is not None
-                                    )
-                                    # and "offer" not in goal_edges[pred_id]
-                                    # or last_goal_edge_curr is not None
-                                    # and "offer" in last_goal_edge_curr
-                                    # and ("offer" not in goal_edges[pred_id])
-                                )
-                            )
-                        ):
-
-                            best_value = value
-                            selected_actions[1] = convert_walktowards(plan[0])
-                            last_goal_edge_curr = goal_edges[pred_id]
-                            best_estimated_steps = estimated_steps
-                            # print('accept', last_goal_edge)
-                            if value > 0:
-                                print(
-                                    "accept",
-                                    value,
-                                    best_value,
-                                    estimated_steps,
-                                    best_estimated_steps,
-                                    goal_edges[pred_id],
-                                    last_goal_edge_curr,
-                                    self.last_goal_edge,
-                                )
-                    self.last_goal_edge = last_goal_edge_curr
-
-            else:
-                selected_actions[1] = convert_walktowards(helper_action)
+            N_preds = num_goals
+            max_freq = 0
+            for action, count in action_freq.items():
+                curr_freq = count / N_preds
+                if curr_freq > max_freq:
+                    max_freq = curr_freq
+                    selected_actions[1] = action
+                print(action, curr_freq)
 
         prev_obs = copy.deepcopy(curr_obs)
         prev_graph = copy.deepcopy(curr_graph)
@@ -1468,26 +1089,16 @@ class NOPA_agent:
         inferred_goal=None,
         opponent_subgoal=None,
     ):
-        dict_actions = {0: None, 1: None}
-        dict_info = {0: None, 1: None}
         goal_spec = self.get_goal2(inferred_goal)
         dict_actions = {}
         dict_info = {}
-        # if agent_id in self.agents:
-        try:
-            dict_actions[agent_id], dict_info[agent_id] = self.agents[
-                agent_id
-            ].get_action(
-                obs[agent_id],
-                goal_spec,
-                opponent_subgoal,
-                length_plan=length_plan,
-                must_replan=must_replan,
-            )
-        except:
-            import ipdb
-
-            ipdb.set_trace()
+        dict_actions[agent_id], dict_info[agent_id] = self.agents[agent_id].get_action(
+            obs[agent_id],
+            goal_spec,
+            opponent_subgoal,
+            length_plan=length_plan,
+            must_replan=must_replan,
+        )
         return dict_actions, dict_info
 
     def reset(
@@ -1500,6 +1111,7 @@ class NOPA_agent:
         simulator_type="python",
         is_alice=False,
     ):
+
         self.class2id = {}
 
         self.gt_container_id = container_id
@@ -1532,4 +1144,3 @@ class NOPA_agent:
         # self.reset_steps = None
         self.new_action = True
         self.steps_since_last_prediction = 0
-        self.last_goal_edge = None

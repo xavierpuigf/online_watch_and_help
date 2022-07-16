@@ -1068,8 +1068,8 @@ def prepare_graph_for_task_model_diff(graphs, observations, program_hist, args_c
             program_batch['indobj1'].append(indexgraph2ind[instr_item[1]])
             program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
         except:
-            #print("Index", index, program, it)
-            raise Exception
+            program_batch['indobj1'].append(indexgraph2ind[-1])
+            program_batch['indobj2'].append(indexgraph2ind[-1])
     
     if False:
         program_batch['action'].append(args_config.model.max_actions  - 1)
