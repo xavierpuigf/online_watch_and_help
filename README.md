@@ -8,7 +8,8 @@ In this work, we study how to build socially intelligent robots to assist people
 To test this framework, we compare our method against multiple baselines in a new embodied AI assistance challenge: Online Watch-And-Help, in which a helper agent needs to simultaneously watch a main agent's action, infer its goal, and help perform a common household task faster in realistic virtual home environments.
  
  
-![](assets/cover_fig_final.png | width=150)
+<img src="https://github.com/xavierpuigf/online_watch_and_help/blob/main/assets/cover_fig_final.png?raw=true" align="left" width="50%" >
+<br>
 
 
 Check out a video of the work [here](https://youtu.be/Oawo9pynPL0).
