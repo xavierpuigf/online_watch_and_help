@@ -20,19 +20,12 @@ If you use this code in your research, please consider citing.
 ```
 @misc{https://doi.org/10.48550/arxiv.2301.05223,
   doi = {10.48550/ARXIV.2301.05223},
-  
   url = {https://arxiv.org/abs/2301.05223},
-  
   author = {Puig, Xavier and Shu, Tianmin and Tenenbaum, Joshua B. and Torralba, Antonio},
-  
   keywords = {Robotics (cs.RO), Artificial Intelligence (cs.AI), Machine Learning (cs.LG), Multiagent Systems (cs.MA), FOS: Computer and information sciences, FOS: Computer and information sciences},
-  
   title = {NOPA: Neurally-guided Online Probabilistic Assistance for Building Socially Intelligent Home Assistants},
-  
   publisher = {arXiv},
-  
-  year = {2023},
-  
+  year = {2023}
   copyright = {arXiv.org perpetual, non-exclusive license}
 }
 ```
