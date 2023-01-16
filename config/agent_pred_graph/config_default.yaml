@@ -1,0 +1,37 @@
+cuda: True
+data:
+        train_data: 'dataset_graph_pred_overfit_train.pkl'
+        test_data: 'dataset_graph_pred_overfit_train.pkl'
+log:
+        print_every: 20
+        print_long_every: 50
+        delete_prior_logs: False
+train:
+        epochs: 500
+        batch_size: 16
+        num_workers: 32
+        lr: 0.0001
+        overfit: False
+        agents: 'all'
+        loss_close: 1.0
+        loss_goal: 1.0
+test:
+        num_iters: 20
+model:
+        reduced_graph: False
+        edge_pred: 'dot'
+        edge_types: 3
+        max_nodes: 100
+        max_class_objects: 37
+        max_actions: 10
+        num_states: 4
+        num_attributes: 6
+        hidden_size: 100
+        max_tsteps: 50
+        goal_inp: False
+        gated: False
+        agent_embed: False
+        num_agents: 100
+        relative_coords: False
+        time_aggregate: 'LSTM' #
+        state_encoder: 'TF' # GNN

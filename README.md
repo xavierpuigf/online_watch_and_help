@@ -10,13 +10,12 @@ To test this framework, we compare our method against multiple baselines in a ne
  
 ![](assets/cover_fig_final.png | width=150)
 
-We provide a dataset of tasks to evaluate the challenge, as well as different baselines consisting on learning and planning-based agents.
 
 Check out a video of the work [here](https://youtu.be/Oawo9pynPL0).
 
 ## Cite
-If you use this code in your research, please consider citing.
 
+If you use this code in your research, please consider citing.
 ```
 @misc{https://doi.org/10.48550/arxiv.2301.05223,
   doi = {10.48550/ARXIV.2301.05223},
@@ -30,31 +29,6 @@ If you use this code in your research, please consider citing.
 }
 ```
 
-## Setup
-### Get the VirtualHome Simulator and API
-Clone the [VirtualHome API](https://github.com/xavierpuigf/virtualhome.git) repository one folder above this repository
-
-```bash
-cd ..
-git clone https://github.com/xavierpuigf/virtualhome.git
-cd virtualhome
-pip install -r requirements.txt
-```
-
-Download the simulator, and put it in an `executable` folder, one folder above this repository
-
-
-- [Download](http://virtual-home.org/release/simulator/v2.0/linux_exec.zip) Linux x86-64 version.
-- [Download](http://virtual-home.org/release/simulator/v2.0/macos_exec.zip) Mac OS X version.
-- [Download](http://virtual-home.org/release/simulator/windows_exec.zip) Windows version.
-
-### Install Requirements
-```bash
-pip install -r requirements.txt
-```
-
-
-
 ## Dataset
 Dataset coming soon
 
@@ -65,3 +39,4 @@ Coming soon
 
 ## Visualize results
 Coming soon
+

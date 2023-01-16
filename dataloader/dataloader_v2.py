@@ -4,6 +4,7 @@ import dgl
 import torch
 import ipdb
 
+from termcolor import colored
 import glob
 from tqdm import tqdm
 import pickle as pkl
@@ -18,13 +19,13 @@ import numpy as np
 class AgentTypeDataset(Dataset):
     def __init__(self, path_init, args_config, split='train', build_graphs_in_loader=False):
         self.path_init = path_init
-        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'])
-        self.get_edges = args_config['model']['state_encoder'] == 'GNN'
+        self.max_num_edges = 200
+        self.graph_helper = utils_rl_agent.GraphHelper(max_num_objects=args_config['model']['max_nodes'], toy_dataset=args_config['model']['reduced_graph'])
+        self.get_edges = True # args_config['model']['state_encoder'] == 'GNN'
         # Build the agent types
 
         with open(self.path_init, 'rb+') as f:
             agent_files = pkl.load(f)
-            agent_files = agent_files
 
         agent_type_max = max(agent_files.values())
         
@@ -43,6 +44,8 @@ class AgentTypeDataset(Dataset):
             [0, 0, 1, 0, 1, 0],
             [0, 0, 1, 1, 0, 0],
         ]
+
+        # Unused, this was when we had multiple agents
         if args_config['train']['agents'] == 'all':
             agents_use = list(range(agent_type_max+1))
         else:
@@ -57,10 +60,15 @@ class AgentTypeDataset(Dataset):
         self.max_labels = agent_type_max+1 
         self.labels = labels
         self.pkl_files = pkl_files
+
+        if args_config['train']['overfit']:
+            self.pkl_files = pkl_files[:1]
+
         self.overfit = args_config['train']['overfit']
         self.max_tsteps = args_config['model']['max_tsteps']
         self.max_actions = args_config['model']['max_actions']
         self.failed_items = mp.Array('i', len(self.pkl_files))
+        self.condense_walking = args_config['model']['condense_walking']
         self.args_config = args_config
         
         print("Loading data...")
@@ -71,7 +79,10 @@ class AgentTypeDataset(Dataset):
     def __len__(self):
         return len(self.pkl_files)
 
-    def failure(self, index):
+    def failure(self, index, print_index=False):
+        if print_index:
+            print(colored(f"Failure at {index}"))
+        file_name = self.pkl_files[index]
         if index not in self.failed_items:
             self.failed_items[index] = 1
         return self.__getitem__(0)
@@ -83,6 +94,7 @@ class AgentTypeDataset(Dataset):
     def __getitem__(self, index):
         if self.overfit:
             index = 0
+        # index = 2349
         file_name = self.pkl_files[index]
         seed_number = int(file_name.split('.')[-2]) 
         with open(file_name, 'rb') as f:
@@ -111,7 +123,11 @@ class AgentTypeDataset(Dataset):
 
         id2node = {node['id']: node for node in content['graph'][0]['nodes']}
         for predicate, info in content['goals'][0].items():
-            count = info
+
+            if type(info) == int:
+                count = info
+            else:
+                count = info['count']
             if count == 0:
                 continue
 
@@ -124,14 +140,14 @@ class AgentTypeDataset(Dataset):
 
             obj_pred_names.append(elements[1])
             loc_pred_names.append(id2node[int(elements[2])]['class_name'])
-            for _ in range(count):
-                try:
-                    target_obj_class[pre_id] = obj_class_id
-                    target_loc_class[pre_id] = loc_class_id
-                    mask_goal_pred[pre_id] = 1.0
-                    pre_id += 1
-                except:
-                    pdb.set_trace()
+            #for _ in range(count):
+            #    try:
+            #        target_obj_class[pre_id] = obj_class_id
+            #        target_loc_class[pre_id] = loc_class_id
+            #        mask_goal_pred[pre_id] = 1.0
+            #        pre_id += 1
+            #    except:
+            #        pdb.set_trace()
 
         goal = {'target_loc_class': torch.tensor(target_loc_class), 
                 'target_obj_class': torch.tensor(target_obj_class), 
@@ -154,20 +170,40 @@ class AgentTypeDataset(Dataset):
 
         time_graph['mask_close'] = []
         time_graph['mask_goal'] = []
+        # print("Building graph")
+        num_tsteps = len(program)
+        steps_keep = list(range(num_tsteps))
+
+        if self.condense_walking:
+            steps_keep = utils_rl_agent.condense_walking(program)
+
+        contit = 0
+
 
         for it, graph in enumerate(content['graph']):
-            # if it == len(content['graph']) - 1:
-            #     # Skip the last graph
-            #     continue
-
-            if it >= self.max_tsteps:
+            
+            if it > 0 and it-1 not in steps_keep:
+                continue
+            if contit >= self.max_tsteps:
                 break
-            graph_info, _ = self.graph_helper.build_graph(graph, character_id=1, include_edges=self.get_edges, obs_ids=content['obs'][it])
+            try:
+                # ipdb.set_trace()
+                graph_info, _ = self.graph_helper.build_graph(
+                    graph, character_id=1, include_edges=self.get_edges, 
+                    obs_ids=content['obs'][it], relative_coords=self.args_config['model']['relative_coords'],
+                    unique_from=self.args_config.model.exclusive_edge)
+                # ipdb.set_trace()
+            except:
+                print("Failure building grahp", file_name, it)
+                if self.args_config.train.num_workers == 0:
+                    raise Exception
+                return self.failure(index)
+                #raise Exception("Error building graph")
 
             # class names
             for attribute_name in attributes_include:
                 if attribute_name not in graph_info:
-                    print(attribute_name, index, self.pkl_files[index])
+                    print("Failure with attr name", attribute_name, index, self.pkl_files[index])
                     return self.failure(index)
                 time_graph[attribute_name].append(torch.tensor(graph_info[attribute_name]))
 
@@ -182,7 +218,8 @@ class AgentTypeDataset(Dataset):
             # fill up the closeness mask
             if len(close_nodes) > 0:
                 indexe = [int(edge[1]) for edge in close_nodes if edge[0] == 0]
-                mask_close[np.array(indexe)] = 1.0
+                if len(indexe) > 0:
+                    mask_close[np.array(indexe)] = 1.0
 
             # Fill up goal object mask
             goal_loc = [target_loc for it_pred, target_loc in enumerate(target_loc_class) if mask_goal_pred[it_pred] == 1]
@@ -193,27 +230,43 @@ class AgentTypeDataset(Dataset):
 
             time_graph['mask_close'].append(torch.tensor(mask_close))
             time_graph['mask_goal'].append(torch.tensor(mask_goal))
-            # ipdb.set_trace()
 
+
+            
+            contit += 1
+            # ipdb.set_trace()
+        # ipdb.set_trace()
         # Match graph indices to index in the tensor
         node_ids = graph_info['node_ids']
         indexgraph2ind = {node_id: idi for idi, node_id in enumerate(node_ids)}
 
         # We will start with a No-OP action
+        # program_batch = {
+        #     'action': [self.max_actions - 1],
+        #     'obj1': [-1],
+        #     'obj2': [-1],
+        #     'indobj1': [indexgraph2ind[-1]],
+        #     'indobj2': [indexgraph2ind[-1]],
+        # }
+
         program_batch = {
-            'action': [self.max_actions - 1],
-            'obj1': [-1],
-            'obj2': [-1],
-            'indobj1': [indexgraph2ind[-1]],
-            'indobj2': [indexgraph2ind[-1]],
+            'action': [],
+            'obj1': [],
+            'obj2': [],
+            'indobj1': [],
+            'indobj2': [],
         }
 
+        contit = 0
         # We start at 1 to skip the first instruction
         for it, instr in enumerate(program):
-            
+            if it not in steps_keep:
+                continue
             # we want to add an ending action
-            if it >= self.max_tsteps - 1:
-                break
+            if contit >= self.max_tsteps - 1:
+                # print("PROGRAM TOO LONG")
+                # ipdb.set_trace()
+                return self.failure(index, print_index=False)
             instr_item = self.graph_helper.actionstr2index(instr)
             program_batch['action'].append(instr_item[0])
             program_batch['obj1'].append(instr_item[1])
@@ -223,16 +276,21 @@ class AgentTypeDataset(Dataset):
                 program_batch['indobj2'].append(indexgraph2ind[instr_item[2]])
             except:
                 #print("Index", index, program, it)
-                #ipdb.set_trace()
-                return self.failure(index)
-
+                # ipdb.set_trace()
+                # if self.args_config.train.num_workers == 0:
+                #     ipdb.set_trace()
+                # Open pinter ??
+                return self.failure(index, print_index=True)
+            contit += 1
         program_batch['action'].append(self.max_actions - 1)
         program_batch['obj1'].append(-1)
         program_batch['obj2'].append(-1)
         program_batch['indobj1'].append(indexgraph2ind[-1])
         program_batch['indobj2'].append(indexgraph2ind[-1])
 
-        num_tsteps = len(program_batch['action']) - 1
+        num_tsteps = len(program_batch['action'])
+        if len(program_batch['action']) != len(time_graph['mask_close']):
+            ipdb.set_trace()
         for key in program_batch.keys():
             unpadded_tensor = torch.tensor(program_batch[key])
 
@@ -263,14 +321,30 @@ class AgentTypeDataset(Dataset):
         #     print(attribute, program_graph[attribute].shape)
         # print('----')
 
+        # Add one hot info
+
+        if self.args_config.model.state_encoder == 'GNN':
+            ne_ind2 = torch.arange(0, self.max_num_edges)[None, :].repeat(self.max_tsteps, 1)[..., None]
+            ne_ind = torch.arange(0, self.max_tsteps)[:, None].repeat(1, self.max_num_edges)[..., None] # 0 0 0 0 
+            ind_from = time_graph['edge_tuples'][ ..., 0, None]
+            ind_to = time_graph['edge_tuples'][..., 1, None]     
+            # ipdb.set_trace()
+
+            from_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_from], dim=-1).long()
+            to_indices_onehot = torch.cat([ne_ind, ne_ind2, ind_to], dim=-1).long()
+
+            time_graph['from_indices_onehot'] = from_indices_onehot
+            time_graph['to_indices_onehot'] = to_indices_onehot
 
 
         label_agent = seed_number + self.labels[index] * 5
         real_label = self.labels[index]
 
-        if self.args_config['model']['state_encoder'] == 'GNN' and build_graphs_in_loader:
-            time_graph['graph'] = build_graph(time_graph)
-        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label
+        # if self.args_config['model']['state_encoder'] == 'GNN' and build_graphs_in_loader:
+        #     time_graph['graph'] = build_graph(time_graph)
+
+        # ipdb.set_trace()
+        return time_graph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, index
 
 def build_graph(time_graph):
     graphs = []
@@ -287,23 +361,67 @@ def build_graph(time_graph):
         graphs.append(g)
     return graphs
 
-def collate_fn(inputs):
-    new_inputs = []
-    for i in range(1, len(inputs[0])):
-        new_inputs.append(default_collate([inp[i] for inp in inputs]))
-    
-    first_inp = {}
-    for key in inputs[0][0].keys():
-        if key not in ['graph', 'edge_tuples', 'edge_classes', 'mask_edge']:
-            first_inp[key] = default_collate([inp[0][key] for inp in inputs])
 
-    #ipdb.set_trace()
-    graph_list = [inp[0]['graph'] for inp in inputs]
-    graph_list = [graph for graphs in graph_list for graph in graphs]
-    #print(type(graph_list[0]))
-    first_inp['graph'] = dgl.batch(graph_list)
-    new_inputs = [first_inp] + new_inputs
-    return new_inputs
+def collate_fn(inputs):
+    special_collate_keys = ['from_indices_onehot', 'to_indices_onehot']
+    time_graph = [inp[0] for inp in inputs]
+
+    collate_timegraph = {}
+    keys_timegraph = time_graph[0].keys()
+    for key in keys_timegraph:
+        if key not in special_collate_keys:
+            collate_timegraph[key] = default_collate([tgraph[key] for tgraph in time_graph])
+        
+    # Special collate for timegraph
+    index_t = lambda ind: torch.tensor([ind, 0, 0])
+    tstep = time_graph[0]['from_indices_onehot'].shape[0]
+    from_indices = [(time_graph[i]['from_indices_onehot']+(index_t(i)*tstep))[None, :] for i in range(len(time_graph))]
+    to_indices = [(time_graph[i]['to_indices_onehot']+(index_t(i)*tstep))[None, :] for i in range(len(time_graph))]
+
+    collate_timegraph['from_indices_onehot'] = torch.cat(from_indices, 0)
+    collate_timegraph['to_indices_onehot'] = torch.cat(to_indices, 0)
+
+
+
+    program_batch_l = [inp[1] for inp in inputs] 
+    label_one_hot_l = [inp[2] for inp in inputs]
+    length_mask_l = [inp[3] for inp in inputs]
+    goal_l = [inp[4] for inp in inputs]
+    label_agent_l = [inp[5] for inp in inputs] 
+    real_label_l = [inp[6] for inp in inputs]
+    index_l = [inp[7] for inp in inputs]
+
+    
+
+    program_batch = default_collate(program_batch_l)
+    label_one_hot = default_collate(label_one_hot_l)
+    length_mask = default_collate(length_mask_l)
+    goal = default_collate(goal_l)
+    label_agent = default_collate(label_agent_l)
+    real_label = default_collate(real_label_l)
+    index = default_collate(index_l)
+    # ipdb.set_trace()
+
+    return collate_timegraph, program_batch, label_one_hot, length_mask, goal, label_agent, real_label, index
+
+
+# def collate_fn(inputs):
+#     new_inputs = []
+#     for i in range(1, len(inputs[0])):
+#         new_inputs.append(default_collate([inp[i] for inp in inputs]))
+    
+#     first_inp = {}
+#     for key in inputs[0][0].keys():
+#         if key not in ['graph', 'edge_tuples', 'edge_classes', 'mask_edge']:
+#             first_inp[key] = default_collate([inp[0][key] for inp in inputs])
+
+#     #ipdb.set_trace()
+#     graph_list = [inp[0]['graph'] for inp in inputs]
+#     graph_list = [graph for graphs in graph_list for graph in graphs]
+#     #print(type(graph_list[0]))
+#     first_inp['graph'] = dgl.batch(graph_list)
+#     new_inputs = [first_inp] + new_inputs
+#     return new_inputs
 
 if __name__ == '__main__':
     arguments = get_args_pref_agent()

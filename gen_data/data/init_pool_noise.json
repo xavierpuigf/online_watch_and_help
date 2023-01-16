@@ -1,0 +1,59 @@
+{
+
+    "setup_table": 
+    {   
+        "plate": {"min_num":0, "max_num":2, "env_max_num": 2, "on": ["kitchentable"], "in": []},
+        "waterglass": {"min_num":0, "max_num":2, "env_max_num": 2, "on": ["kitchentable"], "in": []},
+        "cutleryfork": {"min_num":0, "max_num":2, "env_max_num": 2, "on": ["kitchentable"], "in": []}
+    },
+
+
+
+    "put_dishwasher":
+    {
+        "plate": {"min_num":0, "max_num":2, "env_max_num": 2, "on": [], "in": ["dishwasher"]},
+        "waterglass": {"min_num":0, "max_num":2, "env_max_num": 2, "on": [], "in": ["dishwasher"]},
+        "cutleryfork": {"min_num":0, "max_num":2, "env_max_num": 2, "on": [], "in": ["dishwasher"]}
+    },
+
+
+
+    "put_fridge":
+    {
+        "cupcake": {"min_num":0, "max_num":2, "env_max_num": 2, "on": [], "in": ["fridge"]},
+        "salmon": {"min_num":0, "max_num":2, "env_max_num": 2, "on": [], "in": ["fridge"]},
+        "apple": {"min_num":0, "max_num":2, "env_max_num": 2, "on": [], "in": ["fridge"]}   
+    },
+
+    "prepare_food":
+    {
+        "cupcake": {"min_num":0, "max_num":2, "env_max_num": 2, "on": ["kitchentable"], "in": []},
+        "salmon": {"min_num":0, "max_num":2, "env_max_num": 2, "on": ["kitchentable"], "in": []},
+        "apple": {"min_num":0, "max_num":2, "env_max_num": 2, "on": ["kitchentable"], "in": []}
+    },
+    "noise":
+    {
+        "cupcake": {"min_num":0, "max_num":2, "env_max_num": 2, 
+                    "on": ["kitchentable", "coffeetable"], 
+                    "in": ["stove", "microwave", "dishwasher", "fridge"]
+                    },
+        "salmon": {"min_num":0, "max_num":2, "env_max_num": 2,
+                    "on": ["kitchentable", "coffeetable"], 
+                    "in": ["stove", "microwave", "dishwasher", "fridge"]},
+        "apple": {"min_num":0, "max_num":2, "env_max_num": 2,
+                  "on": ["kitchentable", "coffeetable"], 
+                  "in": ["stove", "microwave", "dishwasher", "fridge"]},
+        "plate": {"min_num":0, "max_num":2, "env_max_num": 2,
+                  "on": ["kitchentable", "coffeetable"], 
+                  "in": ["stove", "microwave", "dishwasher", "fridge"]},
+        "waterglass": {"min_num":0, "max_num":2, "env_max_num": 2,
+                       "on": ["kitchentable", "coffeetable"], 
+                       "in": ["stove", "microwave", "dishwasher", "fridge"]},
+        "cutleryfork": {"min_num":0, "max_num":2, "env_max_num": 2,
+                        "on": ["kitchentable", "coffeetable"], 
+                        "in": ["stove", "microwave", "dishwasher", "fridge"]}
+    }
+
+}
+
+

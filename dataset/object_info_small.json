@@ -1,4 +1,5 @@
 
+
 {
     "objects_inside": [
       "bathroomcabinet",
@@ -22,7 +23,7 @@
                      "book",
                      "coffeepot",
                      "cupcake",
-		             "cutleryfork",
+		                 "cutleryfork",
                      "juice",
                      "pancake",
                      "plate",
@@ -36,6 +37,5 @@
     "others": ["character"]
 
 }
-
 
 

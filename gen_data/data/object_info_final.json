@@ -834,6 +834,10 @@
         [
             "ON",
             "pantry"
+        ],
+        [
+            "INSIDE",
+            "cabinet"
         ]
     ],
     "lotionbottle": [],
@@ -1032,6 +1036,10 @@
             "dresser"
         ],
         [
+            "INSIDE",
+            "dresser"
+        ],
+        [
             "ON",
             "sofa"
         ],
@@ -1042,6 +1050,10 @@
         [
             "ON",
             "coffeetable"
+        ],
+        [
+            "INSIDE",
+            "cabinet"
         ],
         [
             "ON",
@@ -1298,7 +1310,29 @@
             "pantry"
         ]
     ],
-    "chips": [],
+    "chips": [
+        [
+            "INSIDE",
+            "microwave"
+        ],
+        [
+            
+            "INSIDE",
+            "cabinet"
+        ],
+        [
+            "INSIDE",
+            "kitchencabinet"
+        ],
+        [
+            "ON",
+            "sofa"
+        ],
+        [
+            "ON",
+            "kitchentable"
+        ]
+    ],
     "poundcake": [
         [
             "ON",

@@ -1,0 +1,29 @@
+defaults:
+- agent_pred_graph: config_default_large_excl_old
+
+executable_file: "/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/online_wah/online_wah_exec_2/linux_exec.online_wah_2.x86_64"
+max_episode_length: 250
+num_per_apartment: 20
+dataset_path: ""
+obs_type: "full"
+mode: ""
+record_dir: ""
+base_port: 8081
+use_editor: False
+num_processes: 20
+num_samples: 20
+reset_steps: 15
+alpha: 1.0
+beta: 1.0
+lam: 5.0
+max_benefit: 20.0
+min_acceptable_value: 3.0
+inv_plan: True
+small_set: False
+num_tries: 5
+debug: False
+log_name: ""
+hydra:  
+  output_subdir: null  
+  run:  
+    dir: .

@@ -1,0 +1,52 @@
+cuda: True
+logging: True
+name_log: ''
+inference: False
+save_inference: False
+inference_sample: False
+samples_per_graph: 20
+ckpt_load: ''
+data:
+        train_data: 'dataset_graph_pred_30step_train.pkl' # 'dataset_graph_pred_train.pkl'
+        test_data: 'dataset_graph_pred_30step_larger_test.pkl' # 'dataset_graph_pred_test.pkl'
+log:
+        print_every: 20
+        print_long_every: 50
+        delete_prior_logs: False
+        save_every: 10
+train:
+        epochs: 500
+        batch_size: 32
+        num_workers: 32
+        lr: 0.0001
+        overfit: False
+        agents: 'all'
+        loss_close: 1.0
+        loss_goal: 1.0
+        loss_weighted_edge: False
+test:
+        num_iters: 20
+model:
+        exclusive_edge: False # Whether to predict edges or container relations
+        predict_last: True
+        predict_edge_change: False
+        predict_node_change: False
+        input_goal: True
+        reduced_graph: True
+        global_repr: 'pool'
+        edge_pred: 'concat'
+        edge_types: 4
+        max_nodes: 70
+        max_class_objects: 37
+        max_actions: 10
+        num_states: 4
+        num_attributes: 6
+        hidden_size: 100
+        max_tsteps: 30 #50
+        goal_inp: False
+        gated: False
+        agent_embed: False
+        num_agents: 100
+        relative_coords: False
+        time_aggregate: 'LSTM' #
+        state_encoder: 'TF' # GNN

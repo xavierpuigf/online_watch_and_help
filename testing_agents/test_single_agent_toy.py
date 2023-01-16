@@ -31,16 +31,18 @@ def get_class_mode(agent_args):
 
 if __name__ == '__main__':
     args = get_args()
-    num_proc = 0
+    num_proc = 10
 
-    num_tries = 1
-    args.executable_file = '../path_sim_dev/linux_exec.x86_64'
+    num_tries = 10
+    args.executable_file = '/data/vision/torralba/frames/data_acquisition/SyntheticStories/website/release/simulator/v2.0/v2.2.5_beta/linux_exec.v2.2.5_beta.x86_64'
     args.max_episode_length = 250
     args.num_per_apartment = 20
-    
-    args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks.pik'
+    curr_dir = os.path.dirname(os.path.abspath(__file__))
+    # home_path = '../'
+    rootdir = curr_dir + '/../'
+    args.dataset_path = f'{rootdir}/dataset/train_env_task_set_100_full.pik'
     # args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks_single.pik'
-
+    cachedir = f'{rootdir}/dataset_episodes/small_data_toy'
 
     agent_types = [
             ['full', 0, 0.05, False, 0, "uniform"], # 0
@@ -54,10 +56,13 @@ if __name__ == '__main__':
             ['partial', 0.5, 0.05, False, 0.2, "uniform"], # 8
     ]
     random_start = random.Random()
-    agent_types_index = list(range(6, 7))
+    agent_types_index = [0,3]
+
     #random.shuffle(agent_types_index)
-    if args.agenttype != 'all':
-        agent_types_index = [int(x) for x in args.agenttype.split(',')]
+    # if args.agenttype != 'all':
+    #     agent_types_index = [int(x) for x in args.agenttype.split(',')]
+    
+
     for agent_id in agent_types_index: #len(agent_types)):
         if agent_id in [4]:
             continue
@@ -71,7 +76,7 @@ if __name__ == '__main__':
             'belief': {'forget_rate': forget_rate, 'belief_type': belief_type}
         }
         args.mode = '{}_'.format(agent_id+1) + get_class_mode(agent_args)
-        args.mode += 'v9_particles_v2'
+        # args.mode += 'v9_particles_v2'
 
         
         env_task_set = pickle.load(open(args.dataset_path, 'rb'))
@@ -86,8 +91,8 @@ if __name__ == '__main__':
                 if node['class_name'] == 'cutleryfork':
                     node['obj_transform']['position'][1] += 0.1
 
-        args.record_dir = '../data_scratch/large_data_toy/{}/{}'.format(datafile, args.mode)
-        error_dir = '../data_scratch/large_data_toy/logging/{}_{}'.format(datafile, args.mode)
+        args.record_dir = '{}/{}/{}'.format(cachedir, datafile, args.mode)
+        error_dir = '{}/logging/{}_{}'.format(cachedir, datafile, args.mode)
         if not os.path.exists(args.record_dir):
             os.makedirs(args.record_dir)
 
@@ -146,12 +151,12 @@ if __name__ == '__main__':
         agents = [lambda x, y: MCTS_agent_particle_v2(**args_agent1)]
         arena = ArenaMP(args.max_episode_length, id_run, env_fn, agents)
         
-        # episode_ids = [20] #episode_ids
-        # num_tries = 1
-        episode_ids = [0]
-        ndict = {'on_book_329': 1}
-        env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
-        env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
+        # # episode_ids = [20] #episode_ids
+        # # num_tries = 1
+        # episode_ids = [0]
+        # ndict = {'on_book_329': 1}
+        # env_task_set[91]['init_rooms'] = ['bedroom', 'bedroom']
+        # env_task_set[91]['task_goal'] = {0: ndict, 1: ndict}
 
 
         for iter_id in range(num_tries):

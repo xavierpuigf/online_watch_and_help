@@ -3,6 +3,57 @@ import pdb
 import ipdb
 class Task:
 
+
+    @staticmethod
+    def setup_table_toy(init_goal_manager, graph, start=True):
+        ## setup table
+        table_ids = [node['id'] for node in graph['nodes'] if ('kitchentable' in node['class_name'])]
+        table_id = init_goal_manager.rand.choice(table_ids)
+
+        ## remove objects on table
+        id2node = {node['id']: node for node in graph['nodes']}
+        objs_on_table = [edge['from_id'] for edge in graph['edges'] if
+                         (edge['to_id'] == table_id) and (edge['relation_type'] == 'ON') and \
+                         id2node[edge['from_id']]['class_name'] in ['plate', 'cutleryfork', 'waterglass', 'wineglass',
+                                                                    'book', 'poundcake', 'cutleryknife']]
+        graph = init_goal_manager.remove_obj(graph, objs_on_table)
+
+        # ## remove objects on kitchen counter
+
+        if init_goal_manager.same_room:
+            objs_in_room = init_goal_manager.get_obj_room(table_id)
+        else:
+            objs_in_room = None
+
+        except_position_ids = [node['id'] for node in graph['nodes'] if ('floor' in node['class_name'])]
+        except_position_ids.append(table_id)
+
+        for k, v in init_goal_manager.goal.items():
+            obj_ids = [node['id'] for node in graph['nodes'] if k in node['class_name']]
+            graph = init_goal_manager.remove_obj(graph, obj_ids)
+
+            num_obj = init_goal_manager.rand.randint(v, init_goal_manager.init_pool[k]['env_max_num'] + 1)  # random select objects >= goal
+            init_goal_manager.object_id_count, graph, success = init_goal_manager.add_obj(graph, k, num_obj, init_goal_manager.object_id_count,
+                                                                objs_in_room=objs_in_room, except_position=except_position_ids,
+                                                                goal_obj=True)
+            # print([node for node in graph['nodes'] if node['class_name'] == 'wineglass'])
+            if not success:
+                ipdb.set_trace()
+                return None, None, False
+
+        # pdb.set_trace()
+        if start:
+            init_goal_manager.object_id_count, graph = init_goal_manager.setup_other_objs(graph, init_goal_manager.object_id_count, objs_in_room=objs_in_room,
+                                                                                          except_position=except_position_ids)
+
+        ## get goal
+        env_goal = {'setup_table_toy': []}
+        for k, v in init_goal_manager.goal.items():
+            env_goal['setup_table_toy'].append({'put_{}_on_{}'.format(k, table_id): v})
+
+        return graph, env_goal, True
+
+        
     @staticmethod
     def setup_table(init_goal_manager, graph, start=True):
         ## setup table

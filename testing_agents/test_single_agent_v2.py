@@ -41,7 +41,7 @@ if __name__ == '__main__':
     args.num_per_apartment = 20
     
     #args.dataset_path = './dataset/test_env_task_set_10_full_reduced_tasks1to3.pik'
-    args.dataset_path = './dataset/train_env_task_set_20_full_reduced_tasks1to3.pik'
+    args.dataset_path = './dataset/train_env_task_set_20_toy_set_pred.pik'
 
     # Beliefs
     # spiked: object is in cabinet
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     random_start = random.Random()
     agent_types_index = list(range(9))
     #agent_types_index =  [0, 3, 4, 10, 12, 13, 14]
-    agent_types_index =  [0]
+    agent_types_index =  [0, 3]
     #agent_types_index = [15]
     random_start.shuffle(agent_types_index)
     if args.agenttype != 'all':
@@ -136,6 +136,7 @@ if __name__ == '__main__':
         episode_ids = sorted(episode_ids)
         random_start.shuffle(episode_ids)
         # episode_ids = episode_ids[10:]
+        episode_ids = [39]
 
         S = [[] for _ in range(len(episode_ids))]
         L = [[] for _ in range(len(episode_ids))]
