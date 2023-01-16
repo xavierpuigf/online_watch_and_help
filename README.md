@@ -12,7 +12,7 @@ To test this framework, we compare our method against multiple baselines in a ne
 
 We provide a dataset of tasks to evaluate the challenge, as well as different baselines consisting on learning and planning-based agents.
 
-Check out a video of the work [here](https://youtu.be/lrB4K2i8xPI).
+Check out a video of the work [here](https://youtu.be/Oawo9pynPL0).
 
 ## Cite
 If you use this code in your research, please consider citing.
