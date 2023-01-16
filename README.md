@@ -8,7 +8,7 @@ In this work, we study how to build socially intelligent robots to assist people
 To test this framework, we compare our method against multiple baselines in a new embodied AI assistance challenge: Online Watch-And-Help, in which a helper agent needs to simultaneously watch a main agent's action, infer its goal, and help perform a common household task faster in realistic virtual home environments.
  
  
-![](assets/cover_fig_final.png)
+![](assets/cover_fig_final.png | width=150)
 
 We provide a dataset of tasks to evaluate the challenge, as well as different baselines consisting on learning and planning-based agents.
 
